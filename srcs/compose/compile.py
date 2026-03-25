@@ -86,7 +86,7 @@ def parse_sequences_file_xkb(fname, xkb_char_extra_names):
             return r[1]
         return r
     # Populate [char_names] with the information present in the file.
-    with open(fname, "r") as inp:
+    with open(fname, "r", encoding='utf-8') as inp:
         for line in inp:
             m = re.match(line_re, line)
             if m == None or m.group(3) == None:
@@ -96,7 +96,7 @@ def parse_sequences_file_xkb(fname, xkb_char_extra_names):
             except Exception:
                 pass
     # Parse the sequences
-    with open(fname, "r") as inp:
+    with open(fname, "r", encoding='utf-8') as inp:
         seqs = []
         for line in inp:
             s = parse_seq_line(line)
@@ -120,7 +120,7 @@ def parse_sequences_file_json(fname):
             else:
                 yield from tree_to_seqs(r, prefix + [c])
     try:
-        with open(fname, "r") as inp:
+        with open(fname, "r", encoding='utf-8') as inp:
             tree = json.loads(strip_cstyle_comments(inp))
         return list(tree_to_seqs(tree, []))
     except Exception as e:
