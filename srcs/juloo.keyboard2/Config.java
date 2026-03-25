@@ -67,6 +67,7 @@ public final class Config
   public boolean clipboard_history_enabled;
   public boolean space_bar_auto_complete;
   public boolean auto_space_after_punct;
+  public boolean capitalize_suggestions_at_sentence_start;
 
   // Dynamically set
   /** Configuration options implied by the connected editor. */
@@ -187,6 +188,7 @@ public final class Config
     clipboard_history_enabled = _prefs.getBoolean("clipboard_history_enabled", false);
     space_bar_auto_complete = _prefs.getBoolean("space_bar_auto_complete", false);
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
+    capitalize_suggestions_at_sentence_start = _prefs.getBoolean("capitalize_suggestions_at_sentence_start", true);
   }
 
   public int get_current_layout()

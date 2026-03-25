@@ -34,7 +34,9 @@ public final class Suggestions
     else
     {
       String[] dst = new String[3];
-      query_suggestions(dict, word, dst, 3, sentence_start);
+      boolean effective_sentence_start = sentence_start
+        && _config.capitalize_suggestions_at_sentence_start;
+      query_suggestions(dict, word, dst, 3, effective_sentence_start);
       set_suggestions(Arrays.asList(dst));
     }
   }
