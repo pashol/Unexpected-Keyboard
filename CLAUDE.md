@@ -72,6 +72,14 @@ Layouts are XML files in `srcs/layouts/`. `KeyboardData.java` parses them into m
 
 The `sentence_start` flag flows from `CurrentlyTypedWord` → `Callback` → `Suggestions` to enable auto-capitalization of suggestions at sentence boundaries. Dictionary lookups are case-insensitive so capitalized nouns (e.g. German "Erde") are found correctly.
 
+### Personal Dictionary
+
+`UserDictionary.java` — singleton, stores words in `user_words.txt` in app private storage (no permissions needed). Words are saved as-typed (preserving capitalisation); all lookups are case-insensitive. Initialised in `Keyboard2.onCreate()` via `UserDictionary.init(this)`.
+
+Learning triggers: any non-letter character (space, punctuation) typed after a word ≥ 3 chars that is not already in the active Cdict dictionary. Gated on `Config.user_dictionary_enabled`. Special case: after the user undoes an autocomplete with backspace (`_after_autocomplete_revert` flag in `KeyEventHandler`), the next space/punctuation learns the typed word instead of auto-completing again.
+
+Removal: 600 ms `postDelayed` touch listener on each candidate view (`CandidatesView.setup_item_view`). Uses `View.postDelayed` instead of `setOnLongClickListener` to avoid IME window focus interference.
+
 ### Other Optional Features
 
 - `EmojiGridView.java` — emoji panel

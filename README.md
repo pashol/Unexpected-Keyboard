@@ -19,6 +19,7 @@ Fork of [Julow/Unexpected-Keyboard](https://github.com/Julow/Unexpected-Keyboard
 - Sentence-start capitalization: suggestions are automatically capitalized after `. `, `! `, `? `, `\n`, or at the start of a text field; toggleable in Settings › Suggestions (on by default)
 - Suggestion strip improvements: text auto-shrinks to fit on one line (no more wrapping for long words); horizontal padding between candidates for readability
 - Deduplicated suggestions: suffix completions and distance matches are checked against already-shown candidates so the same word never appears twice in the strip
+- Personal dictionary: opt-in feature (Settings › Suggestions) that learns words you type and surfaces them first in the strip; hold 600 ms on a personal suggestion to remove it; backspace after an autocomplete then space/punctuation commits and learns the original typed word instead of auto-completing again
 
 ## Changes from upstream
 
