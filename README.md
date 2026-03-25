@@ -7,6 +7,11 @@ Fork of [Julow/Unexpected-Keyboard](https://github.com/Julow/Unexpected-Keyboard
 **New layouts**
 - Swiss German (de_CH) QWERTZ layout with accent keys and € symbol
 
+**Bug fixes**
+- Fix autocomplete firing when suggestions are disabled
+- Fix suggestions preferences (auto-space, auto-capitalize) not taking effect until keyboard restart
+- Fix UTF-8 encoding when reading compose sequence files on Windows
+
 **New features**
 - Retroactive word case cycling: tap Shift at end of a word to cycle lowercase → Title Case → ALL CAPS → lowercase
 - Auto-space after punctuation (. ! ? , ; : ): automatically inserts a space; suppressed in password/URL/email fields; toggleable in Settings › Behavior
