@@ -9,6 +9,7 @@ import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
+import java.util.Locale;
 import juloo.keyboard2.suggestions.Suggestions;
 
 public final class KeyEventHandler
@@ -32,6 +33,11 @@ public final class KeyEventHandler
   boolean _move_cursor_force_fallback = false;
   /** Whether the space bar automatically enters the best suggestion. */
   boolean _space_bar_auto_complete = false;
+  /** Whether to automatically insert a space after punctuation characters. */
+  boolean _auto_space_after_punct = false;
+  /** True between a manual shift key_down and the resulting latch (mods_changed)
+      or unlatch (key_up). Used to distinguish user taps from auto-cap. */
+  boolean _shift_manually_pressed = false;
 
   public KeyEventHandler(IReceiver recv, Config config)
   {
@@ -44,6 +50,16 @@ public final class KeyEventHandler
     _typedword = new CurrentlyTypedWord(handler, this);
   }
 
+  /** Called when preferences change while the keyboard is already active.
+      Updates flags derived solely from preferences (not editor-specific). */
+  public void refresh_auto_space(Config conf)
+  {
+    // editor_config is already up-to-date because refresh_config() is called
+    // after editor_config.refresh() in onStartInputView, and here we only need
+    // the preference side; editor-type suppression remains from the last started().
+    _auto_space_after_punct = conf.auto_space_after_punct && !conf.editor_config.no_auto_space_after_punct;
+  }
+
   /** Editing just started. */
   public void started(Config conf)
   {
@@ -53,6 +69,7 @@ public final class KeyEventHandler
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
+    _auto_space_after_punct = conf.auto_space_after_punct && !conf.editor_config.no_auto_space_after_punct;
     clear_space_bar_state();
   }
 
@@ -80,6 +97,9 @@ public final class KeyEventHandler
           case ALT:
           case META:
             _autocap.stop();
+            break;
+          case SHIFT:
+            _shift_manually_pressed = true;
             break;
         }
         break;
@@ -109,7 +129,10 @@ public final class KeyEventHandler
       case String: send_text(key.getString()); break;
       case Event: _recv.handle_event_key(key.getEvent()); break;
       case Keyevent: send_key_down_up(key.getKeyevent()); break;
-      case Modifier: break;
+      case Modifier:
+        if (key.getModifier() == KeyValue.Modifier.SHIFT)
+          _shift_manually_pressed = false;
+        break;
       case Editing: handle_editing_key(key.getEditing()); break;
       case Compose_pending: _recv.set_compose_pending(true); break;
       case Slider: handle_slider(key.getSlider(), key.getSliderRepeat(), false); break;
@@ -121,6 +144,11 @@ public final class KeyEventHandler
   @Override
   public void mods_changed(Pointers.Modifiers mods)
   {
+    if (_shift_manually_pressed && mods.has(KeyValue.Modifier.SHIFT))
+    {
+      _shift_manually_pressed = false;
+      handle_shift_retroactive_cap();
+    }
     update_meta_state(mods);
   }
 
@@ -210,18 +238,6 @@ public final class KeyEventHandler
     }
   }
 
-  void send_key_down_up(int keyCode)
-  {
-    send_key_down_up(keyCode, _meta_state);
-  }
-
-  /** Ignores currently pressed system modifiers. */
-  void send_key_down_up(int keyCode, int metaState)
-  {
-    send_keyevent(KeyEvent.ACTION_DOWN, keyCode, metaState);
-    send_keyevent(KeyEvent.ACTION_UP, keyCode, metaState);
-  }
-
   void send_keyevent(int eventAction, int eventCode, int metaState)
   {
     InputConnection conn = _recv.getCurrentInputConnection();
@@ -238,15 +254,72 @@ public final class KeyEventHandler
     }
   }
 
+  void send_key_down_up(int keyCode)
+  {
+    send_key_down_up(keyCode, _meta_state);
+  }
+
+  /** Ignores currently pressed system modifiers. */
+  void send_key_down_up(int keyCode, int metaState)
+  {
+    send_keyevent(KeyEvent.ACTION_DOWN, keyCode, metaState);
+    send_keyevent(KeyEvent.ACTION_UP, keyCode, metaState);
+  }
+
   void send_text(String text)
   {
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
+    boolean is_single_punct = _auto_space_after_punct
+      && text.length() == 1
+      && is_auto_space_punct(text.charAt(0));
+    // If the character immediately before the cursor is a space (from a previous
+    // auto-space or a suggestion's trailing space), delete it so punctuation is
+    // not preceded by a space ("word. " not "word . ").
+    if (is_single_punct)
+    {
+      CharSequence before = conn.getTextBeforeCursor(1, 0);
+      if (before != null && before.length() > 0 && before.charAt(0) == ' ')
+      {
+        conn.beginBatchEdit();
+        conn.deleteSurroundingText(1, 0);
+        _autocap.event_sent(KeyEvent.KEYCODE_DEL, 0);
+        _typedword.event_sent(KeyEvent.KEYCODE_DEL, 0);
+        conn.commitText(text, 1);
+        conn.endBatchEdit();
+      }
+      else
+      {
+        conn.commitText(text, 1);
+      }
+    }
+    else
+    {
+      conn.commitText(text, 1);
+    }
     _autocap.typed(text);
     _typedword.typed(text);
-    conn.commitText(text, 1);
+    if (is_single_punct)
+    {
+      CharSequence after = conn.getTextAfterCursor(1, 0);
+      if (after == null || after.length() == 0 || after.charAt(0) != ' ')
+      {
+        _autocap.typed(" ");
+        _typedword.typed(" ");
+        conn.commitText(" ", 1);
+      }
+    }
     clear_space_bar_state();
+  }
+
+  private static boolean is_auto_space_punct(char c)
+  {
+    switch (c)
+    {
+      case '.': case '!': case '?': case ',': case ';': case ':': return true;
+      default: return false;
+    }
   }
 
   void replace_text_before_cursor(int remove_length, String new_text)
@@ -258,6 +331,49 @@ public final class KeyEventHandler
     conn.deleteSurroundingText(remove_length, 0);
     conn.commitText(new_text, 1);
     conn.endBatchEdit();
+  }
+
+  /** When shift is tapped while the cursor is at the end of a word (no letter
+      after cursor), cycles the word through: lowercase → Title Case → ALL CAPS
+      → lowercase, then deactivates shift. */
+  void handle_shift_retroactive_cap()
+  {
+    String word = _typedword.get();
+    if (word.isEmpty())
+      return;
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return;
+    CharSequence after = conn.getTextAfterCursor(1, 0);
+    if (after != null && after.length() > 0 && Character.isLetter(after.charAt(0)))
+      return;
+    String new_word = cycle_word_case(word);
+    replace_text_before_cursor(word.length(), new_word);
+    _typedword.set_current_word(new_word);
+    _recv.set_shift_state(false, false);
+  }
+
+  /** Cycles a word through lowercase → Title Case → ALL CAPS → lowercase. */
+  static String cycle_word_case(String word)
+  {
+    boolean firstUpper = Character.isUpperCase(word.codePointAt(0));
+    boolean allUpper = true;
+    boolean allLower = true;
+    for (int i = 0; i < word.length(); )
+    {
+      int cp = word.codePointAt(i);
+      if (Character.isUpperCase(cp)) allLower = false;
+      if (Character.isLowerCase(cp)) allUpper = false;
+      i += Character.charCount(cp);
+    }
+    if (allLower)
+      return Utils.capitalize_string(word); // lowercase → Title Case
+    if (firstUpper && !allUpper)
+      return word.toUpperCase(Locale.getDefault()); // Title Case → ALL CAPS
+    if (allUpper)
+      return word.toLowerCase(Locale.getDefault()); // ALL CAPS → lowercase
+    // Mixed case → Title Case
+    return Utils.capitalize_string(word.toLowerCase(Locale.getDefault()));
   }
 
   /** See {!InputConnection.performContextMenuAction}. */
