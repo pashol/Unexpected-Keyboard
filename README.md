@@ -10,6 +10,8 @@ Fork of [Julow/Unexpected-Keyboard](https://github.com/Julow/Unexpected-Keyboard
 **New features**
 - Retroactive word case cycling: tap Shift at end of a word to cycle lowercase → Title Case → ALL CAPS → lowercase
 - Auto-space after punctuation (. ! ? , ; : ): automatically inserts a space; suppressed in password/URL/email fields; toggleable in Settings › Behavior
+- Case-insensitive suggestion lookup: typing a lowercase word now finds dictionary entries stored with a capital first letter (e.g. typing `erde` surfaces `Erde` and `Erdbeere` from a German dictionary)
+- Sentence-start capitalization: suggestions are automatically capitalized after `. `, `! `, `? `, `\n`, or at the start of a text field; toggleable in Settings › Suggestions (on by default)
 
 ## Changes from upstream
 
