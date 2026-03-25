@@ -90,7 +90,7 @@ public final class CurrentlyTypedWord
 
   void callback()
   {
-    _callback.currently_typed_word(_w.toString());
+    _callback.currently_typed_word(_w.toString(), _at_sentence_start);
   }
 
   /** Estimate the currently typed word after [chars] has been typed. */
@@ -172,6 +172,6 @@ public final class CurrentlyTypedWord
 
   public static interface Callback
   {
-    public void currently_typed_word(String word);
+    public void currently_typed_word(String word, boolean sentence_start);
   }
 }

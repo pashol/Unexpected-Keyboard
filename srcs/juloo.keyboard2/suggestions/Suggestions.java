@@ -23,7 +23,7 @@ public final class Suggestions
     _config = conf;
   }
 
-  public void currently_typed_word(String word)
+  public void currently_typed_word(String word, boolean sentence_start)
   {
     Cdict dict = _config.current_dictionary;
     if (word.length() < 2 || dict == null)
@@ -33,12 +33,12 @@ public final class Suggestions
     else
     {
       String[] dst = new String[3];
-      query_suggestions(dict, word, dst, 3);
+      query_suggestions(dict, word, dst, 3, sentence_start);
       set_suggestions(Arrays.asList(dst));
     }
   }
 
-  int query_suggestions(Cdict dict, String word, String[] dst, int max_count)
+  int query_suggestions(Cdict dict, String word, String[] dst, int max_count, boolean sentence_start)
   {
     Cdict.Result r = dict.find(word);
     int i = 0;
