@@ -12,6 +12,8 @@ Fork of [Julow/Unexpected-Keyboard](https://github.com/Julow/Unexpected-Keyboard
 - Auto-space after punctuation (. ! ? , ; : ): automatically inserts a space; suppressed in password/URL/email fields; toggleable in Settings › Behavior
 - Case-insensitive suggestion lookup: typing a lowercase word now finds dictionary entries stored with a capital first letter (e.g. typing `erde` surfaces `Erde` and `Erdbeere` from a German dictionary)
 - Sentence-start capitalization: suggestions are automatically capitalized after `. `, `! `, `? `, `\n`, or at the start of a text field; toggleable in Settings › Suggestions (on by default)
+- Suggestion strip improvements: text auto-shrinks to fit on one line (no more wrapping for long words); horizontal padding between candidates for readability
+- Deduplicated suggestions: suffix completions and distance matches are checked against already-shown candidates so the same word never appears twice in the strip
 
 ## Changes from upstream
 

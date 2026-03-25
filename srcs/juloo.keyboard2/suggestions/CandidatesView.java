@@ -6,6 +6,7 @@ import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import androidx.core.widget.TextViewCompat;
 import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -92,7 +93,8 @@ public class CandidatesView extends LinearLayout
         (ViewGroup.MarginLayoutParams)v.getLayoutParams();
       p.height = height;
       v.setLayoutParams(p);
-      v.setTextSize(TypedValue.COMPLEX_UNIT_PX, text_size);
+      TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+          v, (int)(height * 0.3f), (int)text_size, 1, TypedValue.COMPLEX_UNIT_PX);
     }
   }
 

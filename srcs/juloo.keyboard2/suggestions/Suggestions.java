@@ -75,14 +75,30 @@ public final class Suggestions
     for (int j = 0; j < max_count && i < max_count; j++)
     {
       if (suffixes.length > j)
-        dst[i++] = dict.word(suffixes[j]);
+      {
+        String w = dict.word(suffixes[j]);
+        if (!already_in(dst, i, w))
+          dst[i++] = w;
+      }
       if (dist.length > j && i < max_count)
-        dst[i++] = dict.word(dist[j]);
+      {
+        String w = dict.word(dist[j]);
+        if (!already_in(dst, i, w))
+          dst[i++] = w;
+      }
     }
     // Capitalize the full dst array when user typed a capital or cursor is at sentence start
     if (first_char_upper || sentence_start)
       capitalize_results(dst);
     return i;
+  }
+
+  static boolean already_in(String[] dst, int count, String word)
+  {
+    for (int k = 0; k < count; k++)
+      if (dst[k] != null && dst[k].equalsIgnoreCase(word))
+        return true;
+    return false;
   }
 
   void capitalize_results(String[] rs)
