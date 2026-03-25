@@ -58,7 +58,7 @@ public final class KeyEventHandler
     // after editor_config.refresh() in onStartInputView, and here we only need
     // the preference side; editor-type suppression remains from the last started().
     _auto_space_after_punct = conf.auto_space_after_punct && !conf.editor_config.no_auto_space_after_punct;
-    _space_bar_auto_complete = conf.space_bar_auto_complete;
+    _space_bar_auto_complete = conf.space_bar_auto_complete && conf.suggestions_enabled;
   }
 
   /** Editing just started. */
@@ -69,7 +69,7 @@ public final class KeyEventHandler
     _typedword.started(conf, ic);
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
-    _space_bar_auto_complete = conf.space_bar_auto_complete;
+    _space_bar_auto_complete = conf.space_bar_auto_complete && conf.suggestions_enabled;
     _auto_space_after_punct = conf.auto_space_after_punct && !conf.editor_config.no_auto_space_after_punct;
     clear_space_bar_state();
   }
