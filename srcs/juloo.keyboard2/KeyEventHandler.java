@@ -10,6 +10,7 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
 import java.util.Locale;
+import juloo.cdict.Cdict;
 import juloo.keyboard2.suggestions.Suggestions;
 
 public final class KeyEventHandler
@@ -300,6 +301,11 @@ public final class KeyEventHandler
       conn.commitText(text, 1);
     }
     _autocap.typed(text);
+    // Learn the current word before a non-letter character clears the word tracker
+    if (!_typedword.get().isEmpty()
+        && text.length() > 0
+        && !Character.isLetter(text.codePointAt(0)))
+      maybe_learn_typed_word();
     _typedword.typed(text);
     if (is_single_punct)
     {
@@ -632,11 +638,27 @@ public final class KeyEventHandler
   /** Length of the text before the cursor that should be replaced by
       backspace. */
   int last_replacement_word_len = 0;
+  /** True after the user undoes an autocomplete with backspace. The next
+      space/punctuation should learn the typed word instead of auto-completing. */
+  boolean _after_autocomplete_revert = false;
+
+  private void maybe_learn_typed_word()
+  {
+    Config conf = Config.globalConfig();
+    if (!conf.user_dictionary_enabled) return;
+    String word = _typedword.get();
+    if (word.length() < 3) return;
+    Cdict dict = conf.current_dictionary;
+    // Skip if already in the installed dictionary (either case)
+    if (dict != null && (dict.find(word).found || dict.find(word.toLowerCase()).found)) return;
+    UserDictionary.getInstance().add(word);
+  }
 
   void handle_space_bar()
   {
     if (_space_bar_auto_complete && _suggestions.best_suggestion != null
-        && !_typedword.is_selection_not_empty())
+        && !_typedword.is_selection_not_empty()
+        && !_after_autocomplete_revert)
     {
       suggestion_entered(_suggestions.best_suggestion);
     }
@@ -652,6 +674,7 @@ public final class KeyEventHandler
     {
       replace_text_before_cursor(last_replacement_word_len, last_replaced_word);
       last_replaced_word = null;
+      _after_autocomplete_revert = true;
     }
     else
     {
@@ -662,6 +685,7 @@ public final class KeyEventHandler
   void clear_space_bar_state()
   {
     last_replaced_word = null;
+    _after_autocomplete_revert = false;
   }
 
   public static interface IReceiver extends Suggestions.Callback

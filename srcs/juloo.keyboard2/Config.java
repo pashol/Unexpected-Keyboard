@@ -68,6 +68,7 @@ public final class Config
   public boolean space_bar_auto_complete;
   public boolean auto_space_after_punct;
   public boolean capitalize_suggestions_at_sentence_start;
+  public boolean user_dictionary_enabled;
 
   // Dynamically set
   /** Configuration options implied by the connected editor. */
@@ -189,6 +190,7 @@ public final class Config
     space_bar_auto_complete = _prefs.getBoolean("space_bar_auto_complete", false);
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean("capitalize_suggestions_at_sentence_start", true);
+    user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
   }
 
   public int get_current_layout()

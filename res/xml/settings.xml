@@ -21,6 +21,12 @@
         android:title="@string/pref_capitalize_suggestions_at_sentence_start_title"
         android:summary="@string/pref_capitalize_suggestions_at_sentence_start_summary"
         android:defaultValue="true"/>
+    <CheckBoxPreference
+        android:key="user_dictionary_enabled"
+        android:dependency="suggestions"
+        android:title="@string/pref_user_dictionary_title"
+        android:summary="@string/pref_user_dictionary_summary"
+        android:defaultValue="false"/>
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_typing">
     <ListPreference android:key="swipe_dist" android:title="@string/pref_swipe_dist_title" android:summary="@string/pref_swipe_dist_summary" android:defaultValue="15" android:entries="@array/pref_swipe_dist_entries" android:entryValues="@array/pref_swipe_dist_values"/>

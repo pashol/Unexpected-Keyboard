@@ -151,4 +151,6 @@
     <string name="candidates_status_no_dict">No dictionary installed</string>
     <string name="candidates_status_install">Install</string>
     <string name="pref_dialog_edit_text">Enter value</string>
+    <string name="pref_user_dictionary_title">Personal dictionary</string>
+    <string name="pref_user_dictionary_summary">Learn words you type and suggest them later</string>
 </resources>

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.R;
+import juloo.keyboard2.UserDictionary;
 
 public class CandidatesView extends LinearLayout
 {
@@ -129,6 +130,53 @@ public class CandidatesView extends LinearLayout
             String it = _items[item_index];
             if (it != null)
               Config.globalConfig().handler.suggestion_entered(it);
+          }
+        });
+    final Runnable[] remove_runnable = {null};
+    final boolean[] long_press_fired = {false};
+    v.setOnTouchListener(new View.OnTouchListener()
+        {
+          @Override
+          public boolean onTouch(View _v, android.view.MotionEvent event)
+          {
+            switch (event.getActionMasked())
+            {
+              case android.view.MotionEvent.ACTION_DOWN:
+                long_press_fired[0] = false;
+                remove_runnable[0] = new Runnable()
+                {
+                  @Override
+                  public void run()
+                  {
+                    String it = _items[item_index];
+                    if (it == null || !Config.globalConfig().user_dictionary_enabled)
+                      return;
+                    UserDictionary ud = UserDictionary.getInstance();
+                    if (!ud.contains(it))
+                      return;
+                    long_press_fired[0] = true;
+                    ud.remove(it);
+                    _items[item_index] = null;
+                    _item_views[item_index].setVisibility(View.GONE);
+                  }
+                };
+                _v.postDelayed(remove_runnable[0], 600);
+                return false;
+              case android.view.MotionEvent.ACTION_UP:
+              case android.view.MotionEvent.ACTION_CANCEL:
+                if (remove_runnable[0] != null)
+                {
+                  _v.removeCallbacks(remove_runnable[0]);
+                  remove_runnable[0] = null;
+                }
+                if (long_press_fired[0])
+                {
+                  long_press_fired[0] = false;
+                  return true;
+                }
+                return false;
+            }
+            return false;
           }
         });
     v.setVisibility(View.GONE);

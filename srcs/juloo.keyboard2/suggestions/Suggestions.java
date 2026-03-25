@@ -3,6 +3,7 @@ package juloo.keyboard2.suggestions;
 import java.util.Arrays;
 import java.util.List;
 import juloo.cdict.Cdict;
+import juloo.keyboard2.UserDictionary;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.Utils;
@@ -27,18 +28,35 @@ public final class Suggestions
   public void currently_typed_word(String word, boolean sentence_start)
   {
     Cdict dict = _config.current_dictionary;
-    if (word.length() < 2 || dict == null)
+    if (word.length() < 2 || (dict == null && !_config.user_dictionary_enabled))
     {
       set_suggestions(NO_SUGGESTIONS);
+      return;
     }
-    else
+    String[] dst = new String[3];
+    int i = 0;
+    boolean effective_sentence_start = sentence_start
+      && _config.capitalize_suggestions_at_sentence_start;
+    // Prepend personal dictionary matches (cap at 2 so Cdict always gets ≥1 slot)
+    if (_config.user_dictionary_enabled)
     {
-      String[] dst = new String[3];
-      boolean effective_sentence_start = sentence_start
-        && _config.capitalize_suggestions_at_sentence_start;
-      query_suggestions(dict, word, dst, 3, effective_sentence_start);
-      set_suggestions(Arrays.asList(dst));
+      for (String m : UserDictionary.getInstance().find_prefix(word, 2))
+      {
+        if (i >= 2) break;
+        dst[i++] = m;
+      }
     }
+    // Fill remaining slots from Cdict
+    if (dict != null && i < 3)
+    {
+      String[] cdictDst = new String[3 - i];
+      query_suggestions(dict, word, cdictDst, 3 - i, effective_sentence_start);
+      for (String s : cdictDst)
+      {
+        if (s != null && i < 3) dst[i++] = s;
+      }
+    }
+    set_suggestions(Arrays.asList(dst));
   }
 
   int query_suggestions(Cdict dict, String word, String[] dst, int max_count, boolean sentence_start)

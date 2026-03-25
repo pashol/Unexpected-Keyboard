@@ -123,6 +123,7 @@ public class Keyboard2 extends InputMethodService
     _dictionaries = Dictionaries.instance(this);
     Config.initGlobalConfig(prefs, getResources(),
         _foldStateTracker.isUnfolded(), _dictionaries);
+    UserDictionary.init(this);
     _config = Config.globalConfig();
     _keyeventhandler = new KeyEventHandler(this.new Receiver(), _config);
     _config.handler = _keyeventhandler;
