@@ -32,7 +32,7 @@
     <key key0="b" key1="loc accent_tilde" key3="/" key4="'"/>
     <key key0="n" key2=":"/>
     <key key0="m" key3="&quot;" key4=";"/>
-    <key width="1.5" key0="backspace" key2="delete" key3="loc switch_clipboard"/>
+    <key width="1.5" key0="backspace" key2="delete" key3="loc switch_clipboard" key7="paste" key8="delete_word"/>
   </row>
   <row>
     <key width="1.7" key0="ctrl" key1="loc switch_greekmath" key2="switch_numeric" key4="loc meta"/>
