@@ -24,6 +24,9 @@ public final class CurrentlyTypedWord
   /** Used to avoid concurrent refreshes in [delayed_refresh()]. */
   boolean _refresh_pending = false;
 
+  /** Whether the cursor is at the start of a sentence (after . ! ? \n or at field start). */
+  boolean _at_sentence_start = false;
+
   /** The estimated cursor position. Used to avoid expensive IPC calls when the
       typed word can be estimated locally with [typed]. When the cursor
       position gets out of sync, the text before the cursor is queried again to
@@ -120,11 +123,14 @@ public final class CurrentlyTypedWord
   void set_current_word(CharSequence text_before_cursor)
   {
     _w.setLength(0);
+    _at_sentence_start = false;
     if (text_before_cursor == null)
       return;
     int saved_cursor = _cursor;
-    type_chars(text_before_cursor.toString());
+    String text = text_before_cursor.toString();
+    type_chars(text);
     _cursor = saved_cursor;
+    _at_sentence_start = sentence_start_from_context(text, _w.length());
     callback();
   }
 
@@ -144,6 +150,25 @@ public final class CurrentlyTypedWord
         refresh_current_word();
     }
   };
+
+  /** Pure helper — computes sentence-start from fetched text and current word length.
+      Package-private for unit testing. */
+  static boolean sentence_start_from_context(String text, int word_length)
+  {
+    if (word_length == 0 || word_length >= 30)
+      return false;
+    int prefix_len = text.length() - word_length;
+    if (prefix_len < 0)
+      return false;
+    // Scan backwards past spaces to find the last non-space character
+    int i = prefix_len - 1;
+    while (i >= 0 && text.charAt(i) == ' ')
+      i--;
+    if (i < 0)
+      return true; // Nothing before the word — field start or start of fetched window
+    char c = text.charAt(i);
+    return c == '.' || c == '!' || c == '?' || c == '\n';
+  }
 
   public static interface Callback
   {
