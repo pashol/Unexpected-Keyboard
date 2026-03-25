@@ -82,7 +82,7 @@ public final class EditorConfig
     caps_initially_updated = caps_should_update_state(info);
     /* CurrentlyTypedWord */
     if (VERSION.SDK_INT >= 30)
-      initial_text_before_cursor = info.getInitialTextBeforeCursor(10, 0);
+      initial_text_before_cursor = info.getInitialTextBeforeCursor(30, 0);
     initial_sel_start = info.initialSelStart;
     initial_sel_end = info.initialSelEnd;
     /* Suggestions */
