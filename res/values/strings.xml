@@ -36,9 +36,9 @@
     <string name="pref_extra_keys_internal">Select keys to add to the keyboard</string>
     <string name="pref_category_suggestions">Suggestions</string>
     <string name="pref_suggestions_title">Suggestions</string>
-    <string name="pref_suggestions_summary">Enable word completion and spell checking</string>
+    <string name="pref_suggestions_summary">Show a strip of word candidates above the keyboard</string>
     <string name="pref_space_bar_auto_complete_title">Autocomplete with the space bar</string>
-    <string name="pref_space_bar_auto_complete_summary">Enter the best suggestion by pressing space</string>
+    <string name="pref_space_bar_auto_complete_summary">Pressing space accepts the top candidate instead of inserting a space</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_title">Capitalize suggestions at sentence start</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_summary">Show capitalized word candidates in the suggestion strip after . ! ? or at the start of a field</string>
     <string name="pref_category_typing">Typing</string>
