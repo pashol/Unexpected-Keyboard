@@ -14,9 +14,10 @@
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_suggestions">
     <CheckBoxPreference android:key="suggestions" android:title="@string/pref_suggestions_title" android:summary="@string/pref_suggestions_summary" android:defaultValue="true"/>
-    <CheckBoxPreference android:key="space_bar_auto_complete" android:title="@string/pref_space_bar_auto_complete_title" android:summary="@string/pref_space_bar_auto_complete_summary" android:defaultValue="false"/>
+    <CheckBoxPreference android:key="space_bar_auto_complete" android:dependency="suggestions" android:title="@string/pref_space_bar_auto_complete_title" android:summary="@string/pref_space_bar_auto_complete_summary" android:defaultValue="false"/>
     <CheckBoxPreference
         android:key="capitalize_suggestions_at_sentence_start"
+        android:dependency="suggestions"
         android:title="@string/pref_capitalize_suggestions_at_sentence_start_title"
         android:summary="@string/pref_capitalize_suggestions_at_sentence_start_summary"
         android:defaultValue="true"/>
