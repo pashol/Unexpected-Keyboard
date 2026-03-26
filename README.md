@@ -13,7 +13,7 @@ It lets you design keyboard layouts visually in your browser and export them as 
 ## Fork-specific additions
 
 **New layouts**
-- Swiss German (de_CH) QWERTZ layout with accent keys and € symbol
+- Swiss German (de_CH) QWERTZ layout
 
 **Bug fixes**
 - Fix autocomplete firing when suggestions are disabled
