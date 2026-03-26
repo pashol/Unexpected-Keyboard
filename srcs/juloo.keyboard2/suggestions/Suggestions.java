@@ -127,7 +127,7 @@ public final class Suggestions
     Cdict.Result r_for_suffixes = (r_exact.found || r_exact.prefix_ptr != 0) ? r_exact : r_alt;
     int[] suffixes = dict.suffixes(r_for_suffixes, max_count);
     // Disable distance search for small words
-    int[] dist = (word.length() < 3 || i + 1 >= max_count) ? NO_RESULTS :
+    int[] dist = (word.length() < 3 || i >= max_count) ? NO_RESULTS :
       dict.distance(word, 1, max_count);
     for (int j = 0; j < max_count && i < max_count; j++)
     {
@@ -144,10 +144,32 @@ public final class Suggestions
           dst[i++] = w;
       }
     }
+    // Distance-2 fallback: catches diacritic substitutions (e.g. "oppis" → "öppis").
+    // ö is 2 bytes in UTF-8, so its byte-level edit distance from 'o' is 2, not 1.
+    // Only fired for pure-ASCII input (user omitted an accent) and words ≥ 5 chars
+    // to avoid noisy candidates on short inputs.
+    if (word.length() >= 5 && i < max_count && is_pure_ascii(word))
+    {
+      int remaining = max_count - i;
+      int[] dist2 = dict.distance(word, 2, remaining);
+      for (int j = 0; j < dist2.length && i < max_count; j++)
+      {
+        String w = dict.word(dist2[j]);
+        if (!already_in(dst, i, w))
+          dst[i++] = w;
+      }
+    }
     // Capitalize the full dst array when user typed a capital or cursor is at sentence start
     if (first_char_upper || sentence_start)
       capitalize_results(dst);
     return i;
+  }
+
+  static boolean is_pure_ascii(String word)
+  {
+    for (int k = 0; k < word.length(); k++)
+      if (word.charAt(k) >= 0x80) return false;
+    return true;
   }
 
   static boolean already_in(String[] dst, int count, String word)
