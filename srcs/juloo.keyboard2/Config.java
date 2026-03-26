@@ -9,6 +9,7 @@ import androidx.window.layout.WindowInfoTracker;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.prefs.CustomExtraKeysPreference;
@@ -69,6 +70,8 @@ public final class Config
   public boolean auto_space_after_punct;
   public boolean capitalize_suggestions_at_sentence_start;
   public boolean user_dictionary_enabled;
+  public String[] active_dictionary_names = new String[0];
+  public String default_dictionary_name = null;
 
   // Dynamically set
   /** Configuration options implied by the connected editor. */
@@ -77,7 +80,8 @@ public final class Config
   public ExtraKeys extra_keys_subtype;
   public Map<KeyValue, KeyboardData.PreferredPos> extra_keys_param;
   public Map<KeyValue, KeyboardData.PreferredPos> extra_keys_custom;
-  public Cdict current_dictionary = null; // Might be 'null'.
+  public Cdict[] current_dictionaries = null; // Might be 'null'.
+  public int default_dictionary_index = -1;
   public IKeyEventHandler handler;
   public boolean orientation_landscape = false;
   public boolean foldable_unfolded = false;
@@ -191,6 +195,11 @@ public final class Config
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean("capitalize_suggestions_at_sentence_start", true);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
+    Set<String> active_set = _prefs.getStringSet("active_dictionaries", null);
+    active_dictionary_names = (active_set != null && !active_set.isEmpty())
+        ? active_set.toArray(new String[0])
+        : new String[0];
+    default_dictionary_name = _prefs.getString("default_language", null);
   }
 
   public int get_current_layout()

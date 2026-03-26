@@ -94,4 +94,5 @@
     <item>number</item>
     <item>normal</item>
   </string-array>
+  <string-array name="empty_string_array"/>
 </resources>

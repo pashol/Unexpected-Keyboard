@@ -76,7 +76,7 @@ public class CandidatesView extends LinearLayout
     // The status message indicates whether the dictionaries should be
     // installed.
     _status_no_dict = inflate_and_show(_status_no_dict,
-        (config.current_dictionary == null),
+        (config.current_dictionaries == null || config.current_dictionaries.length == 0),
         R.layout.candidates_status_no_dict);
     set_height(config);
   }

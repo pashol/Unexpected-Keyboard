@@ -9,10 +9,15 @@ import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.ListPreference;
+import android.preference.MultiSelectListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 import android.widget.Toast;
+import java.util.Arrays;
+import java.util.Set;
+import juloo.keyboard2.dict.Dictionaries;
 
 public class SettingsActivity extends PreferenceActivity
 {
@@ -33,6 +38,7 @@ public class SettingsActivity extends PreferenceActivity
     }
     catch (Exception _e) { fallbackEncrypted(); return; }
     addPreferencesFromResource(R.xml.settings);
+    populateDictionaryPreferences();
 
     boolean foldableDevice = FoldStateTracker.isFoldableDevice(this);
     findPreference("user_dictionary_export").setOnPreferenceClickListener(
@@ -116,6 +122,32 @@ public class SettingsActivity extends PreferenceActivity
         })
         .setNegativeButton(android.R.string.cancel, null)
         .show();
+  }
+
+  private void populateDictionaryPreferences()
+  {
+    MultiSelectListPreference activeDicts =
+        (MultiSelectListPreference) findPreference("active_dictionaries");
+    ListPreference defaultLang =
+        (ListPreference) findPreference("default_language");
+    if (activeDicts == null || defaultLang == null)
+      return;
+
+    Set<String> installed = Dictionaries.instance(this).get_installed();
+    CharSequence[] entries = installed.toArray(new CharSequence[0]);
+    Arrays.sort(entries, null);
+
+    if (entries.length == 0)
+    {
+      activeDicts.setEnabled(false);
+      defaultLang.setEnabled(false);
+      return;
+    }
+
+    activeDicts.setEntries(entries);
+    activeDicts.setEntryValues(entries);
+    defaultLang.setEntries(entries);
+    defaultLang.setEntryValues(entries);
   }
 
   void fallbackEncrypted()

@@ -73,6 +73,7 @@ public final class KeyEventHandler
     _space_bar_auto_complete = conf.space_bar_auto_complete && conf.suggestions_enabled;
     _auto_space_after_punct = conf.auto_space_after_punct && !conf.editor_config.no_auto_space_after_punct;
     clear_space_bar_state();
+    _suggestions.reset(conf.default_dictionary_index);
   }
 
   /** Selection has been updated. */
@@ -648,9 +649,14 @@ public final class KeyEventHandler
     if (!conf.user_dictionary_enabled) return;
     String word = _typedword.get();
     if (word.length() < 3) return;
-    Cdict dict = conf.current_dictionary;
-    // Skip if already in the installed dictionary (either case)
-    if (dict != null && (dict.find(word).found || dict.find(word.toLowerCase()).found)) return;
+    Cdict[] dicts = conf.current_dictionaries;
+    // Skip if already in any installed dictionary (either case)
+    if (dicts != null)
+    {
+      String lower = word.toLowerCase();
+      for (Cdict dict : dicts)
+        if (dict != null && (dict.find(word).found || dict.find(lower).found)) return;
+    }
     UserDictionary.getInstance().add(word);
   }
 

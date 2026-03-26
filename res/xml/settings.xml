@@ -27,6 +27,20 @@
         android:title="@string/pref_user_dictionary_title"
         android:summary="@string/pref_user_dictionary_summary"
         android:defaultValue="false"/>
+    <MultiSelectListPreference
+        android:key="active_dictionaries"
+        android:dependency="suggestions"
+        android:title="@string/pref_active_dictionaries_title"
+        android:summary="@string/pref_active_dictionaries_summary"
+        android:entries="@array/empty_string_array"
+        android:entryValues="@array/empty_string_array"/>
+    <ListPreference
+        android:key="default_language"
+        android:dependency="suggestions"
+        android:title="@string/pref_default_language_title"
+        android:summary="%s"
+        android:entries="@array/empty_string_array"
+        android:entryValues="@array/empty_string_array"/>
     <Preference
         android:key="user_dictionary_export"
         android:dependency="user_dictionary_enabled"

@@ -19,26 +19,48 @@ public final class Suggestions
       by the space bar. */
   public String best_suggestion = null;
 
+  private String _last_word = null;
+  private final LanguageMomentum _momentum = new LanguageMomentum(-1);
+
   public Suggestions(Callback c, Config conf)
   {
     _callback = c;
     _config = conf;
   }
 
+  /** Reset word tracking and momentum. Call when starting a new text field. */
+  public void reset(int default_dict_index)
+  {
+    _last_word = null;
+    _momentum.reset(default_dict_index);
+    set_suggestions(NO_SUGGESTIONS);
+  }
+
   public void currently_typed_word(String word, boolean sentence_start)
   {
-    Cdict dict = _config.current_dictionary;
-    if (word.length() < 2 || (dict == null && !_config.user_dictionary_enabled))
+    // Detect word boundary (empty word = previous word was completed)
+    if (word.length() < 2 && _last_word != null)
+    {
+      _record_momentum(_last_word);
+      _last_word = null;
+    }
+    else if (word.length() >= 2)
+    {
+      _last_word = word;
+    }
+
+    Cdict[] dicts = _config.current_dictionaries;
+    if (word.length() < 2 || (dicts == null && !_config.user_dictionary_enabled))
     {
       set_suggestions(NO_SUGGESTIONS);
       return;
     }
-    String[] dst = new String[3];
-    int i = 0;
     boolean effective_sentence_start = sentence_start
       && _config.capitalize_suggestions_at_sentence_start;
     boolean first_char_upper = word.length() > 0 && Character.isUpperCase(word.charAt(0));
     boolean should_capitalize = effective_sentence_start || first_char_upper;
+    String[] dst = new String[3];
+    int i = 0;
     // Prepend personal dictionary matches (cap at 2 so Cdict always gets ≥1 slot)
     if (_config.user_dictionary_enabled)
     {
@@ -50,13 +72,19 @@ public final class Suggestions
       }
     }
     // Fill remaining slots from Cdict
-    if (dict != null && i < 3)
+    if (dicts != null && i < 3)
     {
-      String[] cdictDst = new String[3 - i];
-      query_suggestions(dict, word, cdictDst, 3 - i, effective_sentence_start);
-      for (String s : cdictDst)
+      if (dicts.length == 1)
       {
-        if (s != null && i < 3) dst[i++] = s;
+        // Single dict: use the original path (no momentum overhead)
+        String[] cdictDst = new String[3 - i];
+        query_suggestions(dicts[0], word, cdictDst, 3 - i, effective_sentence_start);
+        for (String s : cdictDst)
+          if (s != null && i < 3) dst[i++] = s;
+      }
+      else
+      {
+        i = query_multi_dict(dicts, word, dst, i, 3, effective_sentence_start);
       }
     }
     // Ensure the typed word is at slot 0 (center/autocomplete).
@@ -96,6 +124,69 @@ public final class Suggestions
       }
     }
     set_suggestions(Arrays.asList(dst));
+  }
+
+  /** Returns quality of [dict]'s match for [word]: 2=exact, 1=prefix/trie-hit, 0=no match. */
+  static int dict_quality(Cdict dict, String word)
+  {
+    Cdict.Result r = dict.find(word);
+    if (r.found) return 2;
+    String alt = Character.isUpperCase(word.charAt(0)) ? word.toLowerCase()
+                 : Utils.capitalize_string(word);
+    Cdict.Result r_alt = dict.find(alt);
+    if (r_alt.found) return 2;
+    if (r.prefix_ptr != 0 || r_alt.prefix_ptr != 0) return 1;
+    return 0;
+  }
+
+  private void _record_momentum(String word)
+  {
+    Cdict[] dicts = _config.current_dictionaries;
+    if (dicts == null || dicts.length <= 1) return;
+    int best = -1;
+    int best_quality = 0;
+    for (int i = 0; i < dicts.length; i++)
+    {
+      if (dicts[i] == null) continue;
+      int q = dict_quality(dicts[i], word);
+      if (q > best_quality) { best_quality = q; best = i; }
+    }
+    _momentum.record(best); // -1 if no dict matched
+  }
+
+  /** Query all [dicts] for [word], ranking by quality+momentum. Writes results into
+      [dst] starting at [start], up to [max] slots. Returns updated index. */
+  int query_multi_dict(Cdict[] dicts, String word, String[] dst, int start, int max,
+      boolean sentence_start)
+  {
+    // Find the dict with the best quality + momentum score
+    int best = -1;
+    float best_score = -1f;
+    for (int i = 0; i < dicts.length; i++)
+    {
+      if (dicts[i] == null) continue;
+      float score = dict_quality(dicts[i], word) * 2f + _momentum.score(i);
+      if (score > best_score) { best_score = score; best = i; }
+    }
+    int i = start;
+    // Best dict first
+    if (best >= 0 && i < max)
+    {
+      String[] sub = new String[max - i];
+      int n = query_suggestions(dicts[best], word, sub, max - i, sentence_start);
+      for (int k = 0; k < n && i < max; k++)
+        if (sub[k] != null) dst[i++] = sub[k];
+    }
+    // Fill remaining slots from other dicts (skip duplicates)
+    for (int d = 0; d < dicts.length && i < max; d++)
+    {
+      if (d == best || dicts[d] == null) continue;
+      String[] sub = new String[max - i];
+      int n = query_suggestions(dicts[d], word, sub, max - i, sentence_start);
+      for (int k = 0; k < n && i < max; k++)
+        if (sub[k] != null && !already_in(dst, i, sub[k])) dst[i++] = sub[k];
+    }
+    return i;
   }
 
   int query_suggestions(Cdict dict, String word, String[] dst, int max_count, boolean sentence_start)

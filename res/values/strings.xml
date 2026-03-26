@@ -165,4 +165,7 @@
     <string name="user_dictionary_export_success">Dictionary exported</string>
     <string name="user_dictionary_import_error">Import failed: could not read file</string>
     <string name="user_dictionary_export_error">Export failed: could not write file</string>
+    <string name="pref_active_dictionaries_title">Active dictionaries</string>
+    <string name="pref_active_dictionaries_summary">Languages to use for suggestions</string>
+    <string name="pref_default_language_title">Default language</string>
 </resources>

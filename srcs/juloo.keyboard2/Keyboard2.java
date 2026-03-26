@@ -171,16 +171,48 @@ public class Keyboard2 extends InputMethodService
     _localeTextLayout = default_layout;
   }
 
-  private void refresh_current_dictionary()
+  private void refresh_current_dictionaries()
   {
-    _config.current_dictionary = null;
-    String current = _device_locales.default_.dictionary;
-    if (current == null)
+    _config.current_dictionaries = null;
+    _config.default_dictionary_index = -1;
+    String[] names = _config.active_dictionary_names;
+    if (names.length == 0)
+    {
+      // Fallback: no prefs set yet → use current subtype's dictionary
+      if (_device_locales.default_ == null)
+        return;
+      String current = _device_locales.default_.dictionary;
+      if (current == null)
+        return;
+      Cdict[] dicts = _dictionaries.load(current);
+      if (dicts == null)
+        return;
+      Cdict main = Dictionaries.find_by_name(dicts, "main");
+      if (main == null)
+        return;
+      _config.current_dictionaries = new Cdict[]{ main };
+      _config.default_dictionary_index = 0;
       return;
-    Cdict[] dicts = _dictionaries.load(current);
-    if (dicts == null)
-      return;
-    _config.current_dictionary = Dictionaries.find_by_name(dicts, "main");
+    }
+    java.util.List<Cdict> loaded = new java.util.ArrayList<>();
+    int default_idx = -1;
+    for (int i = 0; i < names.length; i++)
+    {
+      Cdict[] dicts = _dictionaries.load(names[i]);
+      if (dicts == null)
+        continue;
+      Cdict main = Dictionaries.find_by_name(dicts, "main");
+      if (main == null)
+        continue;
+      if (names[i].equals(_config.default_dictionary_name))
+        default_idx = loaded.size();
+      loaded.add(main);
+    }
+    if (!loaded.isEmpty())
+    {
+      _config.current_dictionaries = loaded.toArray(new Cdict[0]);
+      _config.default_dictionary_index = (default_idx >= 0) ? default_idx : 0;
+    }
   }
 
   private void refresh_candidates_view()
@@ -199,7 +231,7 @@ public class Keyboard2 extends InputMethodService
   {
     int prev_theme = _config.theme;
     _config.refresh(getResources(), _foldStateTracker.isUnfolded(), _dictionaries);
-    refresh_current_dictionary();
+    refresh_current_dictionaries();
     // Refreshing the theme config requires re-creating the views
     if (prev_theme != _config.theme)
     {
