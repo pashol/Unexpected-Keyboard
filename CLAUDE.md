@@ -80,6 +80,10 @@ Learning triggers: any non-letter character (space, punctuation) typed after a w
 
 Removal: 600 ms `postDelayed` touch listener on each candidate view (`CandidatesView.setup_item_view`). Uses `View.postDelayed` instead of `setOnLongClickListener` to avoid IME window focus interference.
 
+Import/Export: `SettingsActivity.java` handles three SAF actions (export, import-merge, import-replace) triggered from Settings › Suggestions. Words are stored one-per-line in a plain-text file; `ContentResolver` opens the SAF URI so no storage permission is needed.
+
+Typed-word promotion: `Suggestions.currently_typed_word()` always rotates the typed word to slot 0 (center / space-bar autocomplete target). `UserDictionary.find_prefix` returns exact matches first regardless of insertion order. Exception: if there is exactly one suggestion (unambiguous completion), the typed word is not injected.
+
 ### Other Optional Features
 
 - `EmojiGridView.java` — emoji panel

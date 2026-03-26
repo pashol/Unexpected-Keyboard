@@ -28,6 +28,8 @@ It lets you design keyboard layouts visually in your browser and export them as 
 - **Suggestion strip improvements**: text auto-shrinks to fit on one line (no more wrapping for long words); horizontal padding between candidates for readability
 - **Deduplicated suggestions**: suffix completions and distance matches are checked against already-shown candidates so the same word never appears twice in the strip
 - **Personal dictionary**: opt-in feature (Settings › Suggestions) that learns words you type and surfaces them first in the strip; hold 600 ms on a personal suggestion to remove it; backspace after an autocomplete then space/punctuation commits and learns the original typed word instead of auto-completing again
+- **Personal dictionary import/export**: export your learned words to a plain-text file and re-import them (merge or replace existing words) via Settings › Suggestions; uses the Storage Access Framework — no extra permissions required
+- **Typed word always top candidate**: the word currently being typed is always promoted to the center slot (the space-bar autocomplete target); if no dictionary recognizes it, it is injected as the first candidate unless there is exactly one unambiguous completion
 
 ## Related tools
 
