@@ -27,6 +27,16 @@
         android:title="@string/pref_user_dictionary_title"
         android:summary="@string/pref_user_dictionary_summary"
         android:defaultValue="false"/>
+    <Preference
+        android:key="user_dictionary_export"
+        android:dependency="user_dictionary_enabled"
+        android:title="@string/pref_user_dictionary_export_title"
+        android:summary="@string/pref_user_dictionary_export_summary"/>
+    <Preference
+        android:key="user_dictionary_import"
+        android:dependency="user_dictionary_enabled"
+        android:title="@string/pref_user_dictionary_import_title"
+        android:summary="@string/pref_user_dictionary_import_summary"/>
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_typing">
     <ListPreference android:key="swipe_dist" android:title="@string/pref_swipe_dist_title" android:summary="@string/pref_swipe_dist_summary" android:defaultValue="15" android:entries="@array/pref_swipe_dist_entries" android:entryValues="@array/pref_swipe_dist_values"/>

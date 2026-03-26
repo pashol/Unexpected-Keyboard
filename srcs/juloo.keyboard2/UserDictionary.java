@@ -1,6 +1,8 @@
 package juloo.keyboard2;
 
+import android.content.ContentResolver;
 import android.content.Context;
+import android.net.Uri;
 import java.io.*;
 import java.util.*;
 
@@ -65,6 +67,43 @@ public final class UserDictionary
         return;
       }
     }
+  }
+
+  /** Write all words to [uri] (one word per line, UTF-8). Returns true on success. */
+  public boolean exportTo(ContentResolver resolver, Uri uri)
+  {
+    try (OutputStream os = resolver.openOutputStream(uri);
+         PrintWriter w = new PrintWriter(new OutputStreamWriter(os, "UTF-8")))
+    {
+      for (String word : _words) w.println(word);
+      return true;
+    }
+    catch (IOException e) { return false; }
+  }
+
+  /** Import words from [uri]. If [replace] is true, clears existing words first.
+      Returns the number of words added, or -1 on IO error. */
+  public int importFrom(ContentResolver resolver, Uri uri, boolean replace)
+  {
+    try (InputStream is = resolver.openInputStream(uri);
+         BufferedReader r = new BufferedReader(new InputStreamReader(is, "UTF-8")))
+    {
+      if (replace) _words.clear();
+      int count = 0;
+      String line;
+      while ((line = r.readLine()) != null)
+      {
+        line = line.trim();
+        if (line.length() >= 3 && !contains(line))
+        {
+          _words.add(0, line);
+          count++;
+        }
+      }
+      if (count > 0 || replace) save();
+      return count;
+    }
+    catch (IOException e) { return -1; }
   }
 
   private void load()
