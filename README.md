@@ -2,14 +2,6 @@
 
 Fork of [Julow/Unexpected-Keyboard](https://github.com/Julow/Unexpected-Keyboard) at v1.32.1.
 
-## Related tools
-
-### Keyboard Layout Editor
-
-[**uk-layout-editor.vercel.app**](https://uk-layout-editor.vercel.app/) — a visual editor for creating and modifying Unexpected Keyboard layouts ([source](https://github.com/pashol/app-unexpected-keyboard-layout-editor)).
-
-It lets you design keyboard layouts visually in your browser and export them as XML files ready to drop into `srcs/layouts/`. No manual XML editing required.
-
 ## Fork-specific additions
 
 **New layouts**
