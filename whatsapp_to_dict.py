@@ -45,8 +45,12 @@ _RE_SYSTEM = re.compile(
 )
 
 
-def parse_whatsapp_file(path: str) -> list:
-    """Parse a WhatsApp .txt export and return a list of message strings."""
+def parse_whatsapp_file(path: str, senders: set = None) -> list:
+    """Parse a WhatsApp .txt export and return a list of message strings.
+
+    If senders is a non-empty set, only messages from those senders are kept.
+    Sender names are matched case-insensitively after stripping whitespace.
+    """
     messages = []
     current_message = None
 
@@ -57,6 +61,9 @@ def parse_whatsapp_file(path: str) -> list:
         with open(path, encoding="latin-1") as f:
             lines = f.readlines()
 
+    # Normalise sender filter once
+    sender_filter = {s.strip().lower() for s in senders} if senders else None
+
     for raw_line in lines:
         line = raw_line.rstrip("\n\r")
 
@@ -65,8 +72,11 @@ def parse_whatsapp_file(path: str) -> list:
             # Save previous message
             if current_message is not None:
                 messages.append(current_message)
+            sender = m.group(2).strip()
             text = m.group(3)
-            if _RE_SYSTEM.match(text.strip()):
+            if sender_filter and sender.lower() not in sender_filter:
+                current_message = None
+            elif _RE_SYSTEM.match(text.strip()):
                 current_message = None
             else:
                 current_message = text
@@ -141,28 +151,35 @@ def tokenize(text: str, min_length: int = 3, max_length: int = 30) -> list:
 # ---------------------------------------------------------------------------
 
 def count_words(messages: list, min_length: int = 3, max_length: int = 30) -> tuple:
-    """Count words case-insensitively, tracking most common casing.
+    """Count words case-insensitively, tracking most common casing and context count.
 
     Returns:
-        counts   -- Counter keyed by word.lower()
+        counts    -- Counter keyed by word.lower()
         canonical -- dict mapping word.lower() → most common casing form
+        contexts  -- dict mapping word.lower() → number of distinct messages it appeared in
     """
     counts = Counter()
     case_variants: dict = defaultdict(Counter)
+    contexts: dict = defaultdict(int)
 
     for msg in messages:
         cleaned = clean_message(msg)
         tokens = tokenize(cleaned, min_length, max_length)
+        # Track which unique word keys appear in this message (for context counting)
+        seen_in_message = set()
         for word in tokens:
             key = word.lower()
             counts[key] += 1
             case_variants[key][word] += 1
+            seen_in_message.add(key)
+        for key in seen_in_message:
+            contexts[key] += 1
 
     canonical = {
         key: variants.most_common(1)[0][0]
         for key, variants in case_variants.items()
     }
-    return counts, canonical
+    return counts, canonical, contexts
 
 
 # ---------------------------------------------------------------------------
@@ -171,24 +188,28 @@ def count_words(messages: list, min_length: int = 3, max_length: int = 30) -> tu
 
 def apply_privacy_filters(
     counts: Counter,
+    contexts: dict,
     min_count: int = 5,
+    min_contexts: int = 2,
     top_percent: float = 70.0,
 ) -> list:
     """Return filtered (word_key, count) pairs, most frequent first.
 
-    Two-stage filter:
-      1. Hard minimum: drop words appearing fewer than min_count times.
-      2. Percentile cutoff: from the remaining words, keep only the top
+    Three-stage filter:
+      1. Hard minimum count: drop words appearing fewer than min_count times.
+      2. Min contexts: drop words that appear in fewer than min_contexts
+         distinct messages (catches words repeated many times in one message).
+      3. Percentile cutoff: from the remaining words, keep only the top
          top_percent% (by frequency), dropping the least-frequent tail.
-
-    This double filter means a word that just barely passes min_count but
-    sits in the infrequent long tail is still excluded — protecting privacy
-    by ensuring only genuinely common vocabulary is exported.
     """
-    # Stage 1: hard minimum
+    # Stage 1: hard minimum count
     passing = [(w, c) for w, c in counts.most_common() if c >= min_count]
 
-    # Stage 2: percentile cutoff
+    # Stage 2: minimum distinct messages (contexts)
+    if min_contexts > 1:
+        passing = [(w, c) for w, c in passing if contexts.get(w, 0) >= min_contexts]
+
+    # Stage 3: percentile cutoff
     if passing and top_percent < 100.0:
         cutoff = max(1, int(len(passing) * top_percent / 100.0))
         passing = passing[:cutoff]
@@ -230,8 +251,9 @@ def main():
         epilog="""
 Privacy notes:
   Words appearing fewer than --min-count times are always excluded.
+  Words appearing in fewer than --min-contexts distinct messages are excluded.
   The bottom (100 - --top-percent)%% of remaining words are also excluded.
-  This prevents rare, personal, or context-specific words from leaking.
+  Use --sender to extract only your own messages from group chats.
 
 Next steps after running this script:
   # Build binary .dict (requires cdict_tool from https://github.com/Julow/cdict):
@@ -249,11 +271,27 @@ Next steps after running this script:
         help="WhatsApp .txt export file(s)",
     )
     parser.add_argument(
+        "--sender",
+        action="append",
+        metavar="NAME",
+        dest="senders",
+        help="Only include messages from this sender (repeatable; useful for group chats "
+             "to extract only your own vocabulary)",
+    )
+    parser.add_argument(
         "--min-count",
         type=int,
         default=5,
         metavar="N",
         help="Minimum occurrences to include a word (default: 5)",
+    )
+    parser.add_argument(
+        "--min-contexts",
+        type=int,
+        default=2,
+        metavar="N",
+        help="Minimum distinct messages a word must appear in (default: 2); "
+             "filters words repeated many times in a single message",
     )
     parser.add_argument(
         "--top-percent",
@@ -300,12 +338,18 @@ Next steps after running this script:
         parser.error("--top-percent must be between 0 (exclusive) and 100 (inclusive)")
     if args.min_count < 1:
         parser.error("--min-count must be at least 1")
+    if args.min_contexts < 1:
+        parser.error("--min-contexts must be at least 1")
+
+    senders = set(args.senders) if args.senders else None
+    if args.stats and senders:
+        print(f"Filtering to senders: {', '.join(sorted(senders))}", file=sys.stderr)
 
     # Parse all chat files
     all_messages = []
     for path in args.chat_files:
         try:
-            msgs = parse_whatsapp_file(path)
+            msgs = parse_whatsapp_file(path, senders=senders)
             all_messages.extend(msgs)
             if args.stats:
                 print(f"  {path}: {len(msgs)} messages", file=sys.stderr)
@@ -317,7 +361,7 @@ Next steps after running this script:
         print(f"Total messages: {len(all_messages)}", file=sys.stderr)
 
     # Count words
-    counts, canonical = count_words(
+    counts, canonical, contexts = count_words(
         all_messages,
         min_length=args.min_length,
         max_length=args.max_length,
@@ -329,7 +373,9 @@ Next steps after running this script:
     # Apply privacy filters
     filtered = apply_privacy_filters(
         counts,
+        contexts,
         min_count=args.min_count,
+        min_contexts=args.min_contexts,
         top_percent=args.top_percent,
     )
 
