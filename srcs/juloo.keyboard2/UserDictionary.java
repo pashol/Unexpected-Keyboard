@@ -1,6 +1,8 @@
 package juloo.keyboard2;
 
+import android.content.ContentResolver;
 import android.content.Context;
+import android.net.Uri;
 import java.io.*;
 import java.util.*;
 
@@ -25,15 +27,27 @@ public final class UserDictionary
     load();
   }
 
-  /** Up to [limit] words whose lowercase form starts with [prefix] (case-insensitive). */
+  /** Up to [limit] words whose lowercase form starts with [prefix] (case-insensitive).
+      Exact matches (word == prefix) are always returned first. */
   public List<String> find_prefix(String prefix, int limit)
   {
     String lower = prefix.toLowerCase();
     List<String> result = new ArrayList<>();
+    // First pass: exact match — prioritized regardless of insertion order
     for (String w : _words)
     {
-      if (w.toLowerCase().startsWith(lower)) result.add(w);
+      if (w.toLowerCase().equals(lower))
+      {
+        result.add(w);
+        break;
+      }
+    }
+    // Second pass: prefix-only matches (longer words starting with the prefix)
+    for (String w : _words)
+    {
       if (result.size() >= limit) break;
+      if (w.toLowerCase().startsWith(lower) && !w.toLowerCase().equals(lower))
+        result.add(w);
     }
     return result;
   }
@@ -65,6 +79,43 @@ public final class UserDictionary
         return;
       }
     }
+  }
+
+  /** Write all words to [uri] (one word per line, UTF-8). Returns true on success. */
+  public boolean exportTo(ContentResolver resolver, Uri uri)
+  {
+    try (OutputStream os = resolver.openOutputStream(uri);
+         PrintWriter w = new PrintWriter(new OutputStreamWriter(os, "UTF-8")))
+    {
+      for (String word : _words) w.println(word);
+      return true;
+    }
+    catch (IOException e) { return false; }
+  }
+
+  /** Import words from [uri]. If [replace] is true, clears existing words first.
+      Returns the number of words added, or -1 on IO error. */
+  public int importFrom(ContentResolver resolver, Uri uri, boolean replace)
+  {
+    try (InputStream is = resolver.openInputStream(uri);
+         BufferedReader r = new BufferedReader(new InputStreamReader(is, "UTF-8")))
+    {
+      if (replace) _words.clear();
+      int count = 0;
+      String line;
+      while ((line = r.readLine()) != null)
+      {
+        line = line.trim();
+        if (line.length() >= 3 && !contains(line))
+        {
+          _words.add(0, line);
+          count++;
+        }
+      }
+      if (count > 0 || replace) save();
+      return count;
+    }
+    catch (IOException e) { return -1; }
   }
 
   private void load()

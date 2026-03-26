@@ -153,4 +153,16 @@
     <string name="pref_dialog_edit_text">Enter value</string>
     <string name="pref_user_dictionary_title">Personal dictionary</string>
     <string name="pref_user_dictionary_summary">Learn words you type and suggest them later</string>
+    <string name="pref_user_dictionary_export_title">Export personal dictionary</string>
+    <string name="pref_user_dictionary_export_summary">Save words to a text file</string>
+    <string name="pref_user_dictionary_import_title">Import personal dictionary</string>
+    <string name="pref_user_dictionary_import_summary">Load words from a text file</string>
+    <string name="user_dictionary_export_filename">user_dictionary.txt</string>
+    <string name="user_dictionary_import_merge">Merge with existing words</string>
+    <string name="user_dictionary_import_replace">Replace existing words</string>
+    <string name="user_dictionary_import_success">Imported %1$d words</string>
+    <string name="user_dictionary_import_no_new_words">No new words to import</string>
+    <string name="user_dictionary_export_success">Dictionary exported</string>
+    <string name="user_dictionary_import_error">Import failed: could not read file</string>
+    <string name="user_dictionary_export_error">Export failed: could not write file</string>
 </resources>
