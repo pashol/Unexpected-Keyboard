@@ -37,12 +37,15 @@ public final class Suggestions
     int i = 0;
     boolean effective_sentence_start = sentence_start
       && _config.capitalize_suggestions_at_sentence_start;
+    boolean first_char_upper = word.length() > 0 && Character.isUpperCase(word.charAt(0));
+    boolean should_capitalize = effective_sentence_start || first_char_upper;
     // Prepend personal dictionary matches (cap at 2 so Cdict always gets ≥1 slot)
     if (_config.user_dictionary_enabled)
     {
       for (String m : UserDictionary.getInstance().find_prefix(word, 2))
       {
         if (i >= 2) break;
+        if (should_capitalize) m = juloo.keyboard2.Utils.capitalize_string(m);
         dst[i++] = m;
       }
     }
@@ -54,6 +57,42 @@ public final class Suggestions
       for (String s : cdictDst)
       {
         if (s != null && i < 3) dst[i++] = s;
+      }
+    }
+    // Ensure the typed word is at slot 0 (center/autocomplete).
+    // If it's already somewhere in dst (e.g. Cdict found it but user-dict
+    // entries pushed it to slot 2), rotate it to the front rather than just
+    // checking already_in and skipping (which left it in the wrong slot).
+    // Exception: if the word is NOT in any dictionary (not found in dst) AND
+    // there is exactly 1 suggestion, keep that suggestion for unambiguous
+    // autocomplete (e.g. "Grosswan" -> "Grosswangen").
+    String display_word = should_capitalize
+      ? juloo.keyboard2.Utils.capitalize_string(word) : word;
+    boolean at_slot_0 = dst[0] != null && dst[0].equalsIgnoreCase(display_word);
+    if (!at_slot_0)
+    {
+      int found_at = -1;
+      for (int k = 1; k < dst.length; k++)
+        if (dst[k] != null && dst[k].equalsIgnoreCase(display_word)) { found_at = k; break; }
+      int suggestion_count = 0;
+      for (String s : dst) if (s != null) suggestion_count++;
+      // Inject/promote when: word is already in dst (a dictionary found it, just
+      // in the wrong slot), OR there are 2+ suggestions (ambiguous).
+      if (found_at > 0 || suggestion_count >= 2)
+      {
+        if (found_at > 0)
+        {
+          // Rotate: slide entries before found_at one slot to the right
+          for (int k = found_at; k > 0; k--)
+            dst[k] = dst[k - 1];
+        }
+        else
+        {
+          // Not present: push everything right (last entry is dropped)
+          dst[2] = dst[1];
+          dst[1] = dst[0];
+        }
+        dst[0] = display_word;
       }
     }
     set_suggestions(Arrays.asList(dst));

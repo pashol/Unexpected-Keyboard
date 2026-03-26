@@ -27,15 +27,27 @@ public final class UserDictionary
     load();
   }
 
-  /** Up to [limit] words whose lowercase form starts with [prefix] (case-insensitive). */
+  /** Up to [limit] words whose lowercase form starts with [prefix] (case-insensitive).
+      Exact matches (word == prefix) are always returned first. */
   public List<String> find_prefix(String prefix, int limit)
   {
     String lower = prefix.toLowerCase();
     List<String> result = new ArrayList<>();
+    // First pass: exact match — prioritized regardless of insertion order
     for (String w : _words)
     {
-      if (w.toLowerCase().startsWith(lower)) result.add(w);
+      if (w.toLowerCase().equals(lower))
+      {
+        result.add(w);
+        break;
+      }
+    }
+    // Second pass: prefix-only matches (longer words starting with the prefix)
+    for (String w : _words)
+    {
       if (result.size() >= limit) break;
+      if (w.toLowerCase().startsWith(lower) && !w.toLowerCase().equals(lower))
+        result.add(w);
     }
     return result;
   }
