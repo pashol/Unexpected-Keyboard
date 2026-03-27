@@ -3,6 +3,8 @@ package juloo.keyboard2.suggestions;
 import java.util.Arrays;
 import java.util.List;
 import juloo.cdict.Cdict;
+import juloo.keyboard2.NgramPredictor;
+import juloo.keyboard2.SentenceContext;
 import juloo.keyboard2.UserDictionary;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.Config;
@@ -14,6 +16,7 @@ public final class Suggestions
 {
   Callback _callback;
   Config _config;
+  final SentenceContext _context = new SentenceContext();
 
   /** The suggestion displayed at the center of the candidates view and entered
       by the space bar. */
@@ -25,8 +28,40 @@ public final class Suggestions
     _config = conf;
   }
 
+  /** Called when a word is committed (space, punctuation, or suggestion tap).
+      Records the bigram and advances sentence context. */
+  public void word_committed(String word)
+  {
+    String prev = _context.last();
+    _context.word_committed(word);
+    if (prev != null && _config.neural_suggestions_enabled)
+    {
+      NgramPredictor predictor = NgramPredictor.getInstance();
+      if (predictor != null) predictor.observe(prev, word);
+    }
+  }
+
+  /** Reset sentence context when editing starts in a new field. */
+  public void reset_context() { _context.reset(); }
+
   public void currently_typed_word(String word, boolean sentence_start)
   {
+    // Neural next-word prediction when cursor is between words (nothing typed yet)
+    if (word.length() == 0)
+    {
+      if (_config.neural_suggestions_enabled)
+      {
+        String prev = _context.last();
+        NgramPredictor predictor = NgramPredictor.getInstance();
+        if (prev != null && predictor != null)
+        {
+          List<String> neural = predictor.predict(prev, null, 3);
+          if (!neural.isEmpty()) { set_suggestions(neural); return; }
+        }
+      }
+      set_suggestions(NO_SUGGESTIONS);
+      return;
+    }
     Cdict dict = _config.current_dictionary;
     if (word.length() < 2 || (dict == null && !_config.user_dictionary_enabled))
     {
@@ -57,6 +92,20 @@ public final class Suggestions
       for (String s : cdictDst)
       {
         if (s != null && i < 3) dst[i++] = s;
+      }
+    }
+    // Fill any remaining empty slots with neural predictions (prefix-filtered)
+    if (_config.neural_suggestions_enabled && i < 3)
+    {
+      String prev = _context.last();
+      NgramPredictor predictor = NgramPredictor.getInstance();
+      if (prev != null && predictor != null)
+      {
+        for (String n : predictor.predict(prev, word, 3 - i))
+        {
+          if (i >= 3) break;
+          if (!already_in(dst, i, n)) dst[i++] = n;
+        }
       }
     }
     // Ensure the typed word is at slot 0 (center/autocomplete).

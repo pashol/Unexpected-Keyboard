@@ -124,6 +124,7 @@ public class Keyboard2 extends InputMethodService
     Config.initGlobalConfig(prefs, getResources(),
         _foldStateTracker.isUnfolded(), _dictionaries);
     UserDictionary.init(this);
+    NgramPredictor.init(this);
     _config = Config.globalConfig();
     _keyeventhandler = new KeyEventHandler(this.new Receiver(), _config);
     _config.handler = _keyeventhandler;
@@ -138,7 +139,7 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onDestroy() {
     super.onDestroy();
-
+    if (NgramPredictor.getInstance() != null) NgramPredictor.getInstance().save();
     _foldStateTracker.close();
   }
 

@@ -37,6 +37,12 @@
         android:dependency="user_dictionary_enabled"
         android:title="@string/pref_user_dictionary_import_title"
         android:summary="@string/pref_user_dictionary_import_summary"/>
+    <CheckBoxPreference
+        android:key="neural_suggestions"
+        android:dependency="suggestions"
+        android:title="@string/pref_neural_suggestions_title"
+        android:summary="@string/pref_neural_suggestions_summary"
+        android:defaultValue="false"/>
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_typing">
     <ListPreference android:key="swipe_dist" android:title="@string/pref_swipe_dist_title" android:summary="@string/pref_swipe_dist_summary" android:defaultValue="15" android:entries="@array/pref_swipe_dist_entries" android:entryValues="@array/pref_swipe_dist_values"/>

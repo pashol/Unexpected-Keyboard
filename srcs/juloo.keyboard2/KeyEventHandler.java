@@ -68,6 +68,7 @@ public final class KeyEventHandler
     InputConnection ic = _recv.getCurrentInputConnection();
     _autocap.started(conf, ic);
     _typedword.started(conf, ic);
+    _suggestions.reset_context();
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete && conf.suggestions_enabled;
@@ -161,6 +162,7 @@ public final class KeyEventHandler
     replace_text_before_cursor(old.length(), text + " ");
     last_replaced_word = old;
     last_replacement_word_len = text.length() + 1;
+    _suggestions.word_committed(text);
   }
 
   @Override
@@ -305,7 +307,10 @@ public final class KeyEventHandler
     if (!_typedword.get().isEmpty()
         && text.length() > 0
         && !Character.isLetter(text.codePointAt(0)))
+    {
       maybe_learn_typed_word();
+      _suggestions.word_committed(_typedword.get());
+    }
     _typedword.typed(text);
     if (is_single_punct)
     {

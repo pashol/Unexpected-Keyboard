@@ -41,6 +41,8 @@
     <string name="pref_space_bar_auto_complete_summary">Pressing space accepts the top candidate instead of inserting a space</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_title">Capitalize suggestions at sentence start</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_summary">Show capitalized word candidates in the suggestion strip after . ! ? or at the start of a field</string>
+    <string name="pref_neural_suggestions_title">Neural suggestions (experimental)</string>
+    <string name="pref_neural_suggestions_summary">Learn word sequences from your typing to predict the next word based on context</string>
     <string name="pref_category_typing">Typing</string>
     <string name="pref_swipe_dist_title">Swiping distance</string>
     <string name="pref_swipe_dist_summary">Distance of characters in the corners of the keys (%s)</string>

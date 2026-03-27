@@ -69,6 +69,7 @@ public final class Config
   public boolean auto_space_after_punct;
   public boolean capitalize_suggestions_at_sentence_start;
   public boolean user_dictionary_enabled;
+  public boolean neural_suggestions_enabled;
 
   // Dynamically set
   /** Configuration options implied by the connected editor. */
@@ -191,6 +192,7 @@ public final class Config
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean("capitalize_suggestions_at_sentence_start", true);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
+    neural_suggestions_enabled = _prefs.getBoolean("neural_suggestions", false);
   }
 
   public int get_current_layout()
