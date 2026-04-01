@@ -49,6 +49,11 @@ public final class CurrentlyTypedWord
     return _has_selection;
   }
 
+  public boolean is_at_sentence_start()
+  {
+    return _at_sentence_start;
+  }
+
   public void started(Config conf, InputConnection ic)
   {
     _ic = ic;

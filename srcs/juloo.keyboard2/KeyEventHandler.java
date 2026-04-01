@@ -39,6 +39,12 @@ public final class KeyEventHandler
   /** True between a manual shift key_down and the resulting latch (mods_changed)
       or unlatch (key_up). Used to distinguish user taps from auto-cap. */
   boolean _shift_manually_pressed = false;
+  /** Capitalisation override shown in the suggestion strip after shift-cycling.
+      Null means no override (natural capitalisation).  Cleared whenever the
+      typed word changes so the override only lives as long as the word does. */
+  String _suggestion_word_override = null;
+  /** The word that [_suggestion_word_override] was computed for. */
+  String _cap_cycle_base_word = null;
 
   public KeyEventHandler(IReceiver recv, Config config)
   {
@@ -172,7 +178,13 @@ public final class KeyEventHandler
   @Override
   public void currently_typed_word(String word, boolean sentence_start)
   {
-    _suggestions.currently_typed_word(word, sentence_start);
+    // Clear shift-cycle override whenever the base word changes.
+    if (_suggestion_word_override != null && !word.equalsIgnoreCase(_cap_cycle_base_word))
+    {
+      _suggestion_word_override = null;
+      _cap_cycle_base_word = null;
+    }
+    _suggestions.currently_typed_word(word, sentence_start, _suggestion_word_override);
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if
@@ -282,6 +294,11 @@ public final class KeyEventHandler
     if (is_single_punct)
     {
       CharSequence before = conn.getTextBeforeCursor(1, 0);
+      // Suppress auto-space for a dot immediately after a digit so that
+      // decimal numbers like "3.14" are not split into "3. 14".
+      if (text.charAt(0) == '.' && before != null && before.length() > 0
+          && Character.isDigit(before.charAt(0)))
+        is_single_punct = false;
       if (before != null && before.length() > 0 && before.charAt(0) == ' ')
       {
         conn.beginBatchEdit();
@@ -341,8 +358,10 @@ public final class KeyEventHandler
   }
 
   /** When shift is tapped while the cursor is at the end of a word (no letter
-      after cursor), cycles the word through: lowercase → Title Case → ALL CAPS
-      → lowercase, then deactivates shift. */
+      after cursor), cycles the capitalisation shown in the suggestion strip
+      (lowercase → Title Case → ALL CAPS → lowercase) without modifying the
+      typed text.  Accepting the suggestion (space-bar or tap) then replaces
+      the typed word with the chosen capitalisation. */
   void handle_shift_retroactive_cap()
   {
     String word = _typedword.get();
@@ -354,9 +373,14 @@ public final class KeyEventHandler
     CharSequence after = conn.getTextAfterCursor(1, 0);
     if (after != null && after.length() > 0 && Character.isLetter(after.charAt(0)))
       return;
-    String new_word = cycle_word_case(word);
-    replace_text_before_cursor(word.length(), new_word);
-    _typedword.set_current_word(new_word);
+    // Cycle from the current override (or the original word if none is set).
+    String base = (_suggestion_word_override != null) ? _suggestion_word_override : word;
+    String new_word = cycle_word_case(base);
+    _cap_cycle_base_word = word;
+    // When cycling back to the original casing, clear the override.
+    _suggestion_word_override = new_word.equals(word) ? null : new_word;
+    _suggestions.currently_typed_word(word, _typedword.is_at_sentence_start(),
+        _suggestion_word_override);
     _recv.set_shift_state(false, false);
   }
 

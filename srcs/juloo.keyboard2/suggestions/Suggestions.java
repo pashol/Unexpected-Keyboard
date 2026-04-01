@@ -27,6 +27,17 @@ public final class Suggestions
 
   public void currently_typed_word(String word, boolean sentence_start)
   {
+    currently_typed_word(word, sentence_start, null);
+  }
+
+  /**
+   * Like [currently_typed_word] but forces [slot0_override] into slot 0 when
+   * non-null (used by shift-cycling to show a different capitalisation in the
+   * suggestion strip without modifying the typed text).  Dictionary lookups
+   * still use the original [word].
+   */
+  public void currently_typed_word(String word, boolean sentence_start, String slot0_override)
+  {
     Cdict dict = _config.current_dictionary;
     if (word.length() < 2 || (dict == null && !_config.user_dictionary_enabled))
     {
@@ -66,8 +77,10 @@ public final class Suggestions
     // Exception: if the word is NOT in any dictionary (not found in dst) AND
     // there is exactly 1 suggestion, keep that suggestion for unambiguous
     // autocomplete (e.g. "Grosswan" -> "Grosswangen").
-    String display_word = should_capitalize
-      ? juloo.keyboard2.Utils.capitalize_string(word) : word;
+    // When a shift-cycle override is active, use it as the display word so
+    // the strip shows the cycled capitalisation without touching the editor.
+    String display_word = (slot0_override != null) ? slot0_override :
+      (should_capitalize ? juloo.keyboard2.Utils.capitalize_string(word) : word);
     boolean at_slot_0 = dst[0] != null && dst[0].equalsIgnoreCase(display_word);
     if (!at_slot_0)
     {

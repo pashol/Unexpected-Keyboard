@@ -69,7 +69,10 @@ public final class Autocapitalisation
         _should_update_caps_mode = true;
         break;
       case KeyEvent.KEYCODE_ENTER:
-        _should_update_caps_mode = true;
+        // Newlines are not sentence-enders per getCursorCapsMode, so enable
+        // shift directly rather than relying on the query.
+        _should_enable_shift = _enabled;
+        _should_update_caps_mode = false;
         break;
     }
     callback(true);
@@ -157,7 +160,9 @@ public final class Autocapitalisation
   void type_one_char(char c)
   {
     _cursor++;
-    if (is_trigger_character(c))
+    if (c == '\n')
+      _should_enable_shift = _enabled; // newline always starts a new "sentence"
+    else if (is_trigger_character(c))
       _should_update_caps_mode = true;
     else
       _should_enable_shift = false;
