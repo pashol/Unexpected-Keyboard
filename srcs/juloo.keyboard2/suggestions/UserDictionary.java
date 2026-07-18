@@ -55,12 +55,11 @@ public final class UserDictionary
 
   public boolean add(String word)
   {
-    String normalized = valid_word(word);
-    if (normalized == null || contains(normalized))
+    ArrayList<String> words = new ArrayList<String>(_words);
+    if (!add_to(words, word) || !persist(words))
       return false;
-    _words.add(normalized);
-    sort();
-    persist();
+    _words.clear();
+    _words.addAll(words);
     return true;
   }
 
@@ -69,8 +68,12 @@ public final class UserDictionary
     int index = index_of(word);
     if (index < 0)
       return false;
-    _words.remove(index);
-    persist();
+    ArrayList<String> words = new ArrayList<String>(_words);
+    words.remove(index);
+    if (!persist(words))
+      return false;
+    _words.clear();
+    _words.addAll(words);
     return true;
   }
 
@@ -202,16 +205,6 @@ public final class UserDictionary
       if (_words.get(i).equalsIgnoreCase(word))
         return i;
     return -1;
-  }
-
-  private void sort()
-  {
-    Collections.sort(_words, String.CASE_INSENSITIVE_ORDER);
-  }
-
-  private void persist()
-  {
-    persist(_words);
   }
 
   private boolean persist(ArrayList<String> words)

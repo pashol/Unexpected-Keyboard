@@ -107,4 +107,38 @@ public class UserDictionaryTest
       dictionary.file().setWritable(true, false);
     }
   }
+
+  @Test
+  public void add_keeps_existing_words_when_persistence_fails() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("Existing");
+    assertTrue(dictionary.file().getParentFile().setWritable(false, false));
+    try
+    {
+      assertFalse(dictionary.add("Added"));
+      assertArrayEquals(new String[] { "Existing" }, dictionary.find_prefix("", 2));
+    }
+    finally
+    {
+      dictionary.file().getParentFile().setWritable(true, false);
+    }
+  }
+
+  @Test
+  public void remove_keeps_existing_words_when_persistence_fails() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("Existing");
+    assertTrue(dictionary.file().getParentFile().setWritable(false, false));
+    try
+    {
+      assertFalse(dictionary.remove("Existing"));
+      assertArrayEquals(new String[] { "Existing" }, dictionary.find_prefix("", 2));
+    }
+    finally
+    {
+      dictionary.file().getParentFile().setWritable(true, false);
+    }
+  }
 }
