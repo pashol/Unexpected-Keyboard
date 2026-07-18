@@ -130,4 +130,15 @@ public class SuggestionsTest
       directory.setWritable(true, false);
     }
   }
+
+  @Test
+  public void rejects_long_press_when_slot_replaced_before_timeout()
+  {
+    assertTrue(CandidatesView.matches_long_press_candidate(
+        "Personal", true, "Personal", true));
+    assertFalse(CandidatesView.matches_long_press_candidate(
+        "Personal", true, "Replacement", true));
+    assertFalse(CandidatesView.matches_long_press_candidate(
+        "Personal", true, "Personal", false));
+  }
 }

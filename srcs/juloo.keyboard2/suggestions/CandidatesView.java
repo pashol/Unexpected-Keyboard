@@ -168,18 +168,21 @@ public class CandidatesView extends LinearLayout
     v.setOnTouchListener(new View.OnTouchListener()
         {
           private boolean _removed;
+          private String _long_press_candidate;
+          private boolean _long_press_personal;
           private final Runnable _remove = new Runnable()
           {
             @Override
             public void run()
             {
-              String candidate = _items[item_index];
               Config config = Config.globalConfig();
               UserDictionary dictionary = UserDictionary.instance();
-              if (config != null && can_remove_personal_candidate(
-                    config.user_dictionary_enabled, item_index, _personal_items[item_index])
+              if (matches_long_press_candidate(_long_press_candidate,
+                    _long_press_personal, _items[item_index], _personal_items[item_index])
+                  && config != null && can_remove_personal_candidate(
+                    config.user_dictionary_enabled, item_index, _long_press_personal)
                   && dictionary != null
-                  && remove_personal_candidate(dictionary, candidate))
+                  && remove_personal_candidate(dictionary, _long_press_candidate))
               {
                 _items[item_index] = null;
                 _item_views[item_index].setVisibility(View.GONE);
@@ -195,10 +198,12 @@ public class CandidatesView extends LinearLayout
             {
               case MotionEvent.ACTION_DOWN:
                 _removed = false;
+                _long_press_candidate = _items[item_index];
+                _long_press_personal = _personal_items[item_index];
                 Config config = Config.globalConfig();
                 if (config != null && can_remove_personal_candidate(
                       config.user_dictionary_enabled, item_index,
-                      _personal_items[item_index]))
+                      _long_press_personal) && _long_press_candidate != null)
                   view.postDelayed(_remove, 600);
                 break;
               case MotionEvent.ACTION_UP:
@@ -235,6 +240,13 @@ public class CandidatesView extends LinearLayout
   static boolean remove_personal_candidate(UserDictionary dictionary, String candidate)
   {
     return dictionary.remove(candidate);
+  }
+
+  static boolean matches_long_press_candidate(String captured_candidate,
+      boolean captured_personal, String current_candidate, boolean current_personal)
+  {
+    return captured_personal && current_personal && captured_candidate != null
+      && captured_candidate.equals(current_candidate);
   }
 
   /** Whether the candidates view should be shown for a given editor. */

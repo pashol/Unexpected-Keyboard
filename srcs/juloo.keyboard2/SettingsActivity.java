@@ -11,12 +11,16 @@ import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 import android.widget.Toast;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import juloo.keyboard2.suggestions.UserDictionary;
 
 public class SettingsActivity extends PreferenceActivity
 {
   private static final int EXPORT_USER_DICTIONARY = 1;
   private static final int IMPORT_USER_DICTIONARY = 2;
+  private final ExecutorService _dictionary_executor = Executors.newSingleThreadExecutor();
 
   @Override
   public void onCreate(Bundle savedInstanceState)
@@ -75,11 +79,7 @@ public class SettingsActivity extends PreferenceActivity
       return;
     Uri uri = data.getData();
     if (request_code == EXPORT_USER_DICTIONARY)
-    {
-      int count = UserDictionary.instance().exportTo(getContentResolver(), uri);
-      Toast.makeText(this, count < 0 ? R.string.user_dictionary_export_failed
-          : R.string.user_dictionary_export_success, Toast.LENGTH_SHORT).show();
-    }
+      export_user_dictionary(uri);
     else if (request_code == IMPORT_USER_DICTIONARY)
     {
       new AlertDialog.Builder(this)
@@ -94,11 +94,48 @@ public class SettingsActivity extends PreferenceActivity
 
   private void import_user_dictionary(Uri uri, boolean replace)
   {
-    int count = UserDictionary.instance().importFrom(getContentResolver(), uri, replace);
-    int message = import_result_message(count);
-    CharSequence message_text = count > 0 ? getString(message, count) : getString(message);
-    Toast.makeText(this, message_text,
-        Toast.LENGTH_SHORT).show();
+    run_in_background(_dictionary_executor, () ->
+        show_import_result(UserDictionary.instance().importFrom(
+            getContentResolver(), uri, replace)));
+  }
+
+  private void export_user_dictionary(Uri uri)
+  {
+    run_in_background(_dictionary_executor, () ->
+        show_export_result(UserDictionary.instance().exportTo(getContentResolver(), uri)));
+  }
+
+  private void show_export_result(int count)
+  {
+    runOnUiThread(() ->
+      {
+        if (can_update_ui())
+          Toast.makeText(this, count < 0 ? R.string.user_dictionary_export_failed
+              : R.string.user_dictionary_export_success, Toast.LENGTH_SHORT).show();
+      });
+  }
+
+  private void show_import_result(int count)
+  {
+    runOnUiThread(() ->
+      {
+        if (!can_update_ui())
+          return;
+        int message = import_result_message(count);
+        CharSequence message_text = count > 0 ? getString(message, count) : getString(message);
+        Toast.makeText(this, message_text,
+            Toast.LENGTH_SHORT).show();
+      });
+  }
+
+  private boolean can_update_ui()
+  {
+    return !isFinishing() && (Build.VERSION.SDK_INT < 17 || !isDestroyed());
+  }
+
+  static void run_in_background(Executor executor, Runnable work)
+  {
+    executor.execute(work);
   }
 
   static int import_result_message(int count)
@@ -122,5 +159,12 @@ public class SettingsActivity extends PreferenceActivity
       .copy_preferences_to_protected_storage(this,
           getPreferenceManager().getSharedPreferences());
     super.onStop();
+  }
+
+  @Override
+  protected void onDestroy()
+  {
+    _dictionary_executor.shutdown();
+    super.onDestroy();
   }
 }
