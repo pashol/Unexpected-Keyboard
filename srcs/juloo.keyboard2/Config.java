@@ -76,6 +76,7 @@ public final class Config
   public boolean clipboard_history_enabled;
   public int clipboard_history_duration;
   public boolean space_bar_auto_complete;
+  public boolean auto_space_after_punct;
   public boolean capitalize_suggestions_at_sentence_start;
   public boolean physical_keyboard_hide;
 
@@ -148,6 +149,7 @@ public final class Config
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
+    auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
         "capitalize_suggestions_at_sentence_start", true);
     // The baseline for the swipe distance correspond to approximately the
@@ -335,7 +337,7 @@ public final class Config
   {
     public void key_down(KeyValue value, boolean is_swipe);
     public void key_up(KeyValue value, Pointers.Modifiers mods);
-    public void mods_changed(Pointers.Modifiers mods);
+    public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched);
     public void suggestion_entered(String text);
   }
 

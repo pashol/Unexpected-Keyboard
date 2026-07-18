@@ -9,7 +9,10 @@ import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
+import java.util.Locale;
+import juloo.cdict.Cdict;
 import juloo.keyboard2.suggestions.Suggestions;
+import juloo.keyboard2.suggestions.UserDictionary;
 
 public final class KeyEventHandler
   implements Config.IKeyEventHandler,
@@ -32,6 +35,10 @@ public final class KeyEventHandler
   boolean _move_cursor_force_fallback = false;
   /** Whether the space bar automatically enters the best suggestion. */
   boolean _space_bar_auto_complete = false;
+  boolean _manual_shift_latched = false;
+  boolean _auto_space_inserted = false;
+  boolean _learn_undone_autocomplete = false;
+  Config _config;
   /** Remember the action that was handled. This is used by autocorrect. */
   LastAction _last_action = null;
   LastAction _next_last_action = null;
@@ -57,7 +64,11 @@ public final class KeyEventHandler
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
+    _config = conf;
     _last_action = null;
+    _manual_shift_latched = false;
+    _auto_space_inserted = false;
+    _learn_undone_autocomplete = false;
   }
 
   /** Selection has been updated. */
@@ -126,9 +137,12 @@ public final class KeyEventHandler
   }
 
   @Override
-  public void mods_changed(Pointers.Modifiers mods)
+  public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched)
   {
     update_meta_state(mods);
+    if (manual_shift_latched && !_manual_shift_latched)
+      cycle_typed_word_case();
+    _manual_shift_latched = manual_shift_latched;
   }
 
   @Override
@@ -258,9 +272,31 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
+    if (_config != null && _config.auto_space_after_punct
+        && !_config.editor_config.no_auto_space_after_punct
+        && is_auto_spacing_punctuation(text))
+    {
+      if (_auto_space_inserted)
+      {
+        replace_surrounding_text(1, 0, "");
+        _auto_space_inserted = false;
+      }
+      CharSequence after = conn.getTextAfterCursor(1, 0);
+      boolean has_next_space = after != null && after.length() > 0
+        && Character.isWhitespace(after.charAt(0));
+      String output = has_next_space ? text : text + " ";
+      learn_typed_word(text);
+      _autocap.typed(output);
+      _typedword.typed(output);
+      conn.commitText(output, 1);
+      _auto_space_inserted = !has_next_space;
+      return;
+    }
+    learn_typed_word(text);
     _autocap.typed(text);
     _typedword.typed(text);
     conn.commitText(text, 1);
+    _auto_space_inserted = false;
   }
 
   void replace_surrounding_text(int remove_before, int remove_after,
@@ -453,7 +489,7 @@ public final class KeyEventHandler
     if (keys.length == 0)
       return;
     // Ignore modifiers that are activated at the time the macro is evaluated
-    mods_changed(Pointers.Modifiers.EMPTY);
+    mods_changed(Pointers.Modifiers.EMPTY, false);
     evaluate_macro_loop(keys, 0, Pointers.Modifiers.EMPTY, _autocap.pause());
   }
 
@@ -549,10 +585,18 @@ public final class KeyEventHandler
   /** Implement autocorrect when enabled in the settings. */
   void handle_space_bar()
   {
-    if (_space_bar_auto_complete && _suggestions.count > 0
+    if (!should_autocomplete_space(_learn_undone_autocomplete))
+    {
+      send_text(" ");
+      _learn_undone_autocomplete = false;
+    }
+    else if (_space_bar_auto_complete && _suggestions.count > 0
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
+    {
       suggestion_entered(_suggestions.suggestions[0] + " ");
+      _auto_space_inserted = true;
+    }
     else
       send_text(" ");
   }
@@ -560,11 +604,13 @@ public final class KeyEventHandler
   /** Undo the last autocorrect. */
   void handle_backspace()
   {
+    _auto_space_inserted = false;
     if (_last_action == LastAction.SUGGESTION_ENTERED
         && last_replaced_word != null)
     {
       replace_surrounding_text(last_replacement_word_len, 0, last_replaced_word);
       last_replaced_word = null;
+      _learn_undone_autocomplete = true;
     }
     else
     {
@@ -592,6 +638,64 @@ public final class KeyEventHandler
       else if (should_disable)
         _recv.set_shift_state(false, false);
     }
+  }
+
+  void cycle_typed_word_case()
+  {
+    String word = _typedword.get();
+    if (word.length() == 0 || _typedword.is_selection_not_empty()
+        || _typedword.cursor_relative() != 0)
+      return;
+    replace_surrounding_text(word.length(), 0, cycle_word_case(word));
+    _recv.set_shift_state(false, false);
+  }
+
+  void learn_typed_word(String delimiter)
+  {
+    if (_config == null)
+      return;
+    String word = _typedword.get();
+    Cdict dictionary = _config.current_dictionary;
+    boolean known = dictionary != null && dictionary.find(word).found;
+    if (should_learn_word(_config.user_dictionary_enabled, known, word, delimiter)
+        && UserDictionary.instance() != null)
+      UserDictionary.instance().add(word);
+    _learn_undone_autocomplete = false;
+  }
+
+  static String cycle_word_case(String word)
+  {
+    if (word.equals(word.toLowerCase(Locale.ROOT)))
+      return Character.toUpperCase(word.charAt(0)) + word.substring(1);
+    if (Character.isUpperCase(word.charAt(0))
+        && word.substring(1).equals(word.substring(1).toLowerCase(Locale.ROOT)))
+      return word.toUpperCase(Locale.ROOT);
+    return word.toLowerCase(Locale.ROOT);
+  }
+
+  static boolean is_auto_spacing_punctuation(String text)
+  {
+    return text.length() == 1 && ".!?;,:".indexOf(text.charAt(0)) >= 0;
+  }
+
+  static boolean should_learn_word(boolean enabled, boolean known, String word,
+      String delimiter)
+  {
+    if (!enabled || known || word.length() < 3 || delimiter.length() == 0
+        || Character.isLetter(delimiter.codePointAt(0)))
+      return false;
+    for (int i = 0; i < word.length();)
+    {
+      int c = word.codePointAt(i);
+      if (!Character.isLetter(c)) return false;
+      i += Character.charCount(c);
+    }
+    return true;
+  }
+
+  static boolean should_autocomplete_space(boolean undone_autocomplete)
+  {
+    return !undone_autocomplete;
   }
 
   public static enum LastAction

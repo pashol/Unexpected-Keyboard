@@ -83,6 +83,17 @@ public final class Pointers implements Handler.Callback
     return -1;
   }
 
+  /** Whether [kv] is currently latched by a physical touch rather than by the
+      autocapitalisation fake pointer. */
+  public boolean is_manually_latched(KeyValue kv)
+  {
+    for (Pointer p : _ptrs)
+      if (p.value != null && p.value.equals(kv)
+          && (p.flags & (FLAG_P_LATCHED | FLAG_P_FAKE)) == FLAG_P_LATCHED)
+        return true;
+    return false;
+  }
+
   /** The key must not be already latched . */
   void add_fake_pointer(KeyboardData.Key key, KeyValue kv, boolean locked)
   {

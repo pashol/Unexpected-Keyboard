@@ -50,6 +50,8 @@
     <string name="user_dictionary_import_failed">Could not import personal dictionary</string>
     <string name="pref_space_bar_auto_complete_title">Autocomplete with the space bar</string>
     <string name="pref_space_bar_auto_complete_summary">Enter the best suggestion by pressing space</string>
+    <string name="pref_auto_space_after_punct_title">Space after punctuation</string>
+    <string name="pref_auto_space_after_punct_summary">Insert a space after . ! ? , ; and :</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_title">Capitalize suggestions at sentence start</string>
     <string name="pref_capitalize_suggestions_at_sentence_start_summary">Show capitalized suggestions after . ! ? or at the start of a field</string>
     <string name="pref_category_typing">Typing</string>

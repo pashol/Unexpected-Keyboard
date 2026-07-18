@@ -19,6 +19,7 @@
     <Preference android:key="user_dictionary_export" android:title="@string/pref_user_dictionary_export"/>
     <Preference android:key="user_dictionary_import" android:title="@string/pref_user_dictionary_import"/>
     <CheckBoxPreference android:key="space_bar_auto_complete" android:title="@string/pref_space_bar_auto_complete_title" android:summary="@string/pref_space_bar_auto_complete_summary" android:defaultValue="false"/>
+    <CheckBoxPreference android:key="auto_space_after_punct" android:title="@string/pref_auto_space_after_punct_title" android:summary="@string/pref_auto_space_after_punct_summary" android:defaultValue="true"/>
     <CheckBoxPreference android:key="capitalize_suggestions_at_sentence_start" android:title="@string/pref_capitalize_suggestions_at_sentence_start_title" android:summary="@string/pref_capitalize_suggestions_at_sentence_start_summary" android:defaultValue="true"/>
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_typing">

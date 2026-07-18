@@ -188,7 +188,8 @@ public class Keyboard2View extends View
   private void updateFlags()
   {
     _mods = _pointers.getModifiers();
-    _config.handler.mods_changed(_mods);
+    _config.handler.mods_changed(_mods,
+        _pointers.is_manually_latched(KeyValue.SHIFT));
   }
 
   @Override
