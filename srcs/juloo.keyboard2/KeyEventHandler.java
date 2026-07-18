@@ -149,15 +149,16 @@ public final class KeyEventHandler
   }
 
   @Override
-  public void currently_typed_word(String word)
+  public void currently_typed_word(String word, boolean sentence_start)
   {
-    _suggestions.currently_typed_word(word);
+    _suggestions.currently_typed_word(word, sentence_start);
   }
 
   public void ime_subtype_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.
-    _suggestions.currently_typed_word(_typedword.get());
+    _suggestions.currently_typed_word(_typedword.get(),
+        _typedword.sentence_start());
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if

@@ -34,6 +34,10 @@ public final class CurrentlyTypedWord
   /** The cursor position within the current word relative to the end of the
       word in chars. Equal to [0] when the cursor is at the end of the word. */
   int _w_cursor;
+  String _text_before_cursor = "";
+  boolean _sentence_start = true;
+
+  static final int SENTENCE_CONTEXT_LENGTH = 100;
 
   public CurrentlyTypedWord(Handler h, Callback cb)
   {
@@ -55,6 +59,11 @@ public final class CurrentlyTypedWord
   public int cursor_relative()
   {
     return _w_cursor;
+  }
+
+  public boolean sentence_start()
+  {
+    return _sentence_start;
   }
 
   public void started(Config conf, InputConnection ic)
@@ -129,15 +138,19 @@ public final class CurrentlyTypedWord
     int len = _w.length();
     int c = len + _w_cursor;
     _w.delete(Math.max(c - remove_before, 0), Math.min(c + remove_after, len));
+    _text_before_cursor = _text_before_cursor.substring(0,
+        Math.max(_text_before_cursor.length() - remove_before, 0));
     _cursor -= remove_before;
     _w_cursor -= Math.min(remove_after, 0);
+    _sentence_start = sentence_start_from_context(_text_before_cursor,
+        _w.length() + _w_cursor);
     callback();
   }
 
   void callback()
   {
     String w = _w.toString();
-    _callback.currently_typed_word(w);
+    _callback.currently_typed_word(w, _sentence_start);
   }
 
   /** Estimate the currently typed word after [chars] has been typed. */
@@ -163,6 +176,9 @@ public final class CurrentlyTypedWord
   void type_chars(CharSequence s)
   {
     type_chars(s, 0, s.length());
+    _text_before_cursor += s;
+    _sentence_start = sentence_start_from_context(_text_before_cursor,
+        _w.length() + _w_cursor);
   }
 
   /** Append chars to the current word without moving the cursor. Return the
@@ -195,17 +211,21 @@ public final class CurrentlyTypedWord
     if (_has_selection)
       set_current_word("");
     else if (VERSION.SDK_INT >= 31)
-      set_current_word(_ic.getSurroundingText(20, 20, 0));
+      set_current_word(_ic.getSurroundingText(SENTENCE_CONTEXT_LENGTH, 20, 0));
     else
-      set_current_word(_ic.getTextBeforeCursor(20, 0));
+      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0));
   }
 
   /** Refresh the current word by immediately querying the editor. */
   void set_current_word(CharSequence text_before_cursor)
   {
     _w.setLength(0);
+    _text_before_cursor = "";
     if (text_before_cursor == null)
+    {
+      _sentence_start = true;
       return;
+    }
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
@@ -216,13 +236,20 @@ public final class CurrentlyTypedWord
   void set_current_word(SurroundingText st)
   {
     _w.setLength(0);
+    _text_before_cursor = "";
     if (st == null)
+    {
+      _sentence_start = true;
       return;
+    }
     int saved_cursor = _cursor;
     int st_sel = st.getSelectionStart();
     CharSequence st_text = st.getText();
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
+    _text_before_cursor = st_text.subSequence(0, st_sel).toString();
+    _sentence_start = sentence_start_from_context(_text_before_cursor,
+        _w.length() + _w_cursor);
     _cursor = saved_cursor;
     callback();
   }
@@ -251,8 +278,28 @@ public final class CurrentlyTypedWord
     return Character.isLetterOrDigit(c) || (c == '\'');
   }
 
+  static boolean sentence_start_from_context(String text, int wordLength)
+  {
+    if (wordLength > text.length())
+      return false;
+    int i = Math.max(0, text.length() - wordLength);
+    if (i == 0)
+      return true;
+    if (!Character.isWhitespace(text.charAt(i - 1)))
+      return false;
+    boolean newline = false;
+    while (i > 0 && Character.isWhitespace(text.charAt(i - 1)))
+    {
+      newline |= text.charAt(--i) == '\n';
+    }
+    if (i == 0)
+      return true;
+    char c = text.charAt(i - 1);
+    return newline || c == '.' || c == '!' || c == '?';
+  }
+
   public static interface Callback
   {
-    public void currently_typed_word(String word);
+    public void currently_typed_word(String word, boolean sentence_start);
   }
 }

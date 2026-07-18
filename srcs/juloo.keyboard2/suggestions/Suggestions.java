@@ -37,7 +37,7 @@ public final class Suggestions
     clear();
   }
 
-  public void currently_typed_word(String word)
+  public void currently_typed_word(String word, boolean sentence_start)
   {
     if (!_enabled)
       return;

@@ -39,6 +39,8 @@ public final class EditorConfig
   /** Suggestions. */
   // Doesn't override [_config.suggestions_enabled].
   public boolean should_show_candidates_view;
+  /** Whether punctuation auto-spacing is unsafe for this editor. */
+  public boolean no_auto_space_after_punct;
 
   public EditorConfig() {}
 
@@ -94,13 +96,34 @@ public final class EditorConfig
     /* CurrentlyTypedWord */
     if (VERSION.SDK_INT >= 30)
     {
-      initial_text_before_cursor = info.getInitialTextBeforeCursor(20, 0);
+      initial_text_before_cursor = info.getInitialTextBeforeCursor(
+          CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH, 0);
       initial_text_after_cursor = info.getInitialTextAfterCursor(20, 0);
     }
     initial_sel_start = info.initialSelStart;
     initial_sel_end = info.initialSelEnd;
     /* Suggestions */
     should_show_candidates_view = CandidatesView.should_show(info);
+    no_auto_space_after_punct = no_auto_space_after_punct_for_input_type(
+        info.inputType);
+  }
+
+  static boolean no_auto_space_after_punct_for_input_type(int inputType)
+  {
+    if ((inputType & InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT)
+      return true;
+    switch (inputType & InputType.TYPE_MASK_VARIATION)
+    {
+      case InputType.TYPE_TEXT_VARIATION_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_URI:
+      case InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS:
+      case InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS:
+        return true;
+      default:
+        return false;
+    }
   }
 
   String actionLabel_of_imeAction(int action, Resources res)
