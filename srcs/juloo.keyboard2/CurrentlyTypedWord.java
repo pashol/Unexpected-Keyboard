@@ -35,7 +35,7 @@ public final class CurrentlyTypedWord
       word in chars. Equal to [0] when the cursor is at the end of the word. */
   int _w_cursor;
   String _text_before_cursor = "";
-  boolean _sentence_start = true;
+  boolean _sentence_start = false;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
   static final int MAX_RELIABLE_WORD_LENGTH = SENTENCE_CONTEXT_LENGTH - 1;
@@ -224,7 +224,7 @@ public final class CurrentlyTypedWord
     _text_before_cursor = "";
     if (text_before_cursor == null)
     {
-      _sentence_start = true;
+      _sentence_start = false;
       return;
     }
     int saved_cursor = _cursor;
@@ -240,7 +240,7 @@ public final class CurrentlyTypedWord
     _text_before_cursor = "";
     if (st == null)
     {
-      _sentence_start = true;
+      _sentence_start = false;
       return;
     }
     int saved_cursor = _cursor;

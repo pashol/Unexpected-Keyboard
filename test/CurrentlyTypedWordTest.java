@@ -24,6 +24,16 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void sentence_start_is_false_for_null_editor_context()
+  {
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null, null);
+    word.set_current_word((CharSequence)null);
+    assertFalse(word.sentence_start());
+    word.set_current_word((android.view.inputmethod.SurroundingText)null);
+    assertFalse(word.sentence_start());
+  }
+
+  @Test
   public void sentence_start_from_context_after_sentence_terminator()
   {
     assertTrue(CurrentlyTypedWord.sentence_start_from_context("Hello. World", 5));
