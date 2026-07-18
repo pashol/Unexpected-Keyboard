@@ -45,7 +45,8 @@
     <string name="user_dictionary_import_replace">Replace existing words</string>
     <string name="user_dictionary_export_success">Personal dictionary exported</string>
     <string name="user_dictionary_export_failed">Could not export personal dictionary</string>
-    <string name="user_dictionary_import_success">Personal dictionary imported</string>
+    <string name="user_dictionary_import_success">Imported %d personal dictionary words</string>
+    <string name="user_dictionary_import_no_new_words">No new personal dictionary words to import</string>
     <string name="user_dictionary_import_failed">Could not import personal dictionary</string>
     <string name="pref_space_bar_auto_complete_title">Autocomplete with the space bar</string>
     <string name="pref_space_bar_auto_complete_summary">Enter the best suggestion by pressing space</string>

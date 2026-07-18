@@ -77,9 +77,11 @@ public class SuggestionsTest
   public void prepends_personal_candidates_without_duplicate_cdict_words()
   {
     String[] candidates = { "Erde", "Erden", "Erdbeere" };
-    Suggestions.prepend_personal_candidates(candidates,
+    boolean[] personal = new boolean[Suggestions.MAX_COUNT];
+    Suggestions.prepend_personal_candidates(candidates, personal,
         new String[] { "erde", "Erdling", "Erdung" });
     assertArrayEquals(new String[] { "Erdling", "Erde", "Erden" }, candidates);
+    assertArrayEquals(new boolean[] { true, false, false }, personal);
   }
 
   @Test
@@ -91,9 +93,21 @@ public class SuggestionsTest
         new java.io.File(directory, "user_words.txt"));
     dictionary.add("Personal");
 
-    assertTrue(CandidatesView.can_remove_personal_candidate(true, 0, "personal", dictionary));
-    assertFalse(CandidatesView.can_remove_personal_candidate(false, 0, "personal", dictionary));
-    assertFalse(CandidatesView.can_remove_personal_candidate(true, 3, "personal", dictionary));
-    assertFalse(CandidatesView.can_remove_personal_candidate(true, 0, "System", dictionary));
+    assertTrue(CandidatesView.can_remove_personal_candidate(true, 0, true));
+    assertFalse(CandidatesView.can_remove_personal_candidate(false, 0, true));
+    assertFalse(CandidatesView.can_remove_personal_candidate(true, 3, true));
+    assertFalse(CandidatesView.can_remove_personal_candidate(true, 0, false));
+  }
+
+  @Test
+  public void keeps_personal_provenance_when_promoting_a_candidate()
+  {
+    String[] candidates = { "System", "Personal", null };
+    boolean[] personal = { false, true, false };
+
+    Suggestions.promote_typed_word(candidates, personal, "personal");
+
+    assertArrayEquals(new String[] { "Personal", "System", null }, candidates);
+    assertArrayEquals(new boolean[] { true, false, false }, personal);
   }
 }

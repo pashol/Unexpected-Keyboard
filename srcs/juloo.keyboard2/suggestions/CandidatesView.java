@@ -26,6 +26,7 @@ public class CandidatesView extends LinearLayout
       - Entries at indexes [0] to [2] are word suggestions.
       - Entry at index [3] is the emoji suggestion. */
   String[] _items = new String[NUM_CANDIDATES];
+  boolean[] _personal_items = new boolean[NUM_CANDIDATES];
 
   /** Text views showing the candidates in [_items]. Text views visibility is
       set to [GONE] when there are less than [NUM_CANDIDATES] suggestions. */
@@ -54,8 +55,12 @@ public class CandidatesView extends LinearLayout
   {
     int s_count = s.count;
     for (int i = 0; i < Suggestions.MAX_COUNT; i++)
+    {
       _items[i] = (i < s_count) ? s.suggestions[i] : null;
+      _personal_items[i] = i < s_count && s.personal_suggestions[i];
+    }
     _items[3] = s.emoji_suggestion;
+    _personal_items[3] = false;
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -79,6 +84,7 @@ public class CandidatesView extends LinearLayout
     for (int i = 0; i < _item_views.length; i++)
     {
       _items[i] = null;
+      _personal_items[i] = false;
       _item_views[i].setVisibility(View.GONE);
     }
   }
@@ -171,7 +177,8 @@ public class CandidatesView extends LinearLayout
               Config config = Config.globalConfig();
               UserDictionary dictionary = UserDictionary.instance();
               if (config != null && can_remove_personal_candidate(
-                    config.user_dictionary_enabled, item_index, candidate, dictionary))
+                    config.user_dictionary_enabled, item_index, _personal_items[item_index])
+                  && dictionary != null)
               {
                 dictionary.remove(candidate);
                 _items[item_index] = null;
@@ -190,8 +197,8 @@ public class CandidatesView extends LinearLayout
                 _removed = false;
                 Config config = Config.globalConfig();
                 if (config != null && can_remove_personal_candidate(
-                      config.user_dictionary_enabled, item_index, _items[item_index],
-                      UserDictionary.instance()))
+                      config.user_dictionary_enabled, item_index,
+                      _personal_items[item_index]))
                   view.postDelayed(_remove, 600);
                 break;
               case MotionEvent.ACTION_UP:
@@ -219,10 +226,10 @@ public class CandidatesView extends LinearLayout
   }
 
   static boolean can_remove_personal_candidate(boolean dictionary_enabled,
-      int item_index, String candidate, UserDictionary dictionary)
+      int item_index, boolean personal_candidate)
   {
     return dictionary_enabled && item_index < Suggestions.MAX_COUNT
-      && candidate != null && dictionary != null && dictionary.contains(candidate);
+      && personal_candidate;
   }
 
   /** Whether the candidates view should be shown for a given editor. */

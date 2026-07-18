@@ -17,6 +17,8 @@ public final class Suggestions
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
+  /** Whether each suggestion slot was sourced from the personal dictionary. */
+  public boolean[] personal_suggestions = new boolean[MAX_COUNT];
   /** Number of suggestions at the beginning of the [suggestions] array that
       are not [null]. */
   public int count = 0;
@@ -52,7 +54,10 @@ public final class Suggestions
   {
     count = 0;
     for (int i = 0; i < MAX_COUNT; i++)
+    {
       suggestions[i] = null;
+      personal_suggestions[i] = false;
+    }
     emoji_suggestion = null;
   }
 
@@ -62,7 +67,10 @@ public final class Suggestions
     boolean first_char_upper = Character.isUpperCase(typed_word.charAt(0));
     String word = apply_substitutions(typed_word);
     for (int i = 0; i < MAX_COUNT; i++)
+    {
       suggestions[i] = null;
+      personal_suggestions[i] = false;
+    }
     int i = 0;
     if (dict != null)
     {
@@ -106,30 +114,37 @@ public final class Suggestions
       }
     }
     if (_config.user_dictionary_enabled && UserDictionary.instance() != null)
-      prepend_personal_candidates(suggestions, UserDictionary.instance().find_prefix(word, 2));
+      prepend_personal_candidates(suggestions, personal_suggestions,
+          UserDictionary.instance().find_prefix(word, 2));
     boolean capitalize = first_char_upper
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
       capitalize_results(suggestions);
-    promote_typed_word(suggestions, capitalize
+    promote_typed_word(suggestions, personal_suggestions, capitalize
         ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
     count = count_suggestions(suggestions);
     return count;
   }
 
-  static void prepend_personal_candidates(String[] candidates, String[] personal)
+  static void prepend_personal_candidates(String[] candidates, boolean[] personal_candidates,
+      String[] personal)
   {
     String[] merged = new String[candidates.length];
+    boolean[] merged_personal = new boolean[candidates.length];
     int count = 0;
     for (int i = 0; i < personal.length && i < 2 && count < merged.length; i++)
       if (!already_in(candidates, candidates.length, personal[i])
           && !already_in(merged, count, personal[i]))
-        merged[count++] = personal[i];
+      {
+        merged[count] = personal[i];
+        merged_personal[count++] = true;
+      }
     for (int i = 0; i < candidates.length && count < merged.length; i++)
       if (candidates[i] != null && !already_in(merged, count, candidates[i]))
         merged[count++] = candidates[i];
     System.arraycopy(merged, 0, candidates, 0, candidates.length);
+    System.arraycopy(merged_personal, 0, personal_candidates, 0, candidates.length);
   }
 
   static void capitalize_results(String[] candidates)
@@ -149,6 +164,12 @@ public final class Suggestions
 
   static void promote_typed_word(String[] candidates, String typed_word)
   {
+    promote_typed_word(candidates, null, typed_word);
+  }
+
+  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+      String typed_word)
+  {
     int matching_index = -1;
     int candidate_count = 0;
     for (int i = 0; i < candidates.length; i++)
@@ -165,14 +186,28 @@ public final class Suggestions
     if (matching_index > 0)
     {
       String matching_word = candidates[matching_index];
+      boolean matching_personal = personal_candidates != null
+        && personal_candidates[matching_index];
       for (int i = matching_index; i > 0; i--)
+      {
         candidates[i] = candidates[i - 1];
+        if (personal_candidates != null)
+          personal_candidates[i] = personal_candidates[i - 1];
+      }
       candidates[0] = matching_word;
+      if (personal_candidates != null)
+        personal_candidates[0] = matching_personal;
       return;
     }
     for (int i = candidates.length - 1; i > 0; i--)
+    {
       candidates[i] = candidates[i - 1];
+      if (personal_candidates != null)
+        personal_candidates[i] = personal_candidates[i - 1];
+    }
     candidates[0] = typed_word;
+    if (personal_candidates != null)
+      personal_candidates[0] = false;
   }
 
   static String alternate_first_character(String word)

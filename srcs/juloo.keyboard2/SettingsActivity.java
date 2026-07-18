@@ -95,8 +95,19 @@ public class SettingsActivity extends PreferenceActivity
   private void import_user_dictionary(Uri uri, boolean replace)
   {
     int count = UserDictionary.instance().importFrom(getContentResolver(), uri, replace);
-    Toast.makeText(this, count < 0 ? R.string.user_dictionary_import_failed
-        : R.string.user_dictionary_import_success, Toast.LENGTH_SHORT).show();
+    int message = import_result_message(count);
+    CharSequence message_text = count > 0 ? getString(message, count) : getString(message);
+    Toast.makeText(this, message_text,
+        Toast.LENGTH_SHORT).show();
+  }
+
+  static int import_result_message(int count)
+  {
+    if (count < 0)
+      return R.string.user_dictionary_import_failed;
+    if (count == 0)
+      return R.string.user_dictionary_import_no_new_words;
+    return R.string.user_dictionary_import_success;
   }
 
   void fallbackEncrypted()
