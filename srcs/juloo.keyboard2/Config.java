@@ -75,6 +75,7 @@ public final class Config
   public boolean clipboard_history_enabled;
   public int clipboard_history_duration;
   public boolean space_bar_auto_complete;
+  public boolean capitalize_suggestions_at_sentence_start;
   public boolean physical_keyboard_hide;
 
   // Dynamically set
@@ -145,6 +146,8 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
+        "capitalize_suggestions_at_sentence_start", true);
     // The baseline for the swipe distance correspond to approximately the
     // width of a key in portrait mode, as most layouts have 10 columns.
     // Multipled by the DPI ratio because most swipes are made in the diagonals.

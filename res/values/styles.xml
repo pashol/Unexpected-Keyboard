@@ -16,6 +16,7 @@
     <item name="android:layout_marginTop">@dimen/candidates_margin_vertical</item>
     <item name="android:layout_marginBottom">@dimen/candidates_margin_vertical</item>
     <item name="android:padding">@dimen/candidates_suggestions_padding</item>
+    <item name="android:paddingHorizontal">6dp</item>
     <item name="android:gravity">center</item>
     <item name="android:background">@drawable/suggestions_item_background</item>
     <item name="android:textColor">?attr/colorLabel</item>

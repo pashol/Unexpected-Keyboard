@@ -104,7 +104,7 @@ public class CandidatesView extends LinearLayout
     p.height = (int)row_height;
     setLayoutParams(p);
     // Match the size of labels on the keyboard.
-    float text_size = row_height * config.characterSize * config.labelTextSize;
+    float text_size = row_height * config.characterSize * config.labelTextSize * 1.15f;
     for (int i = 0; i < NUM_CANDIDATES; i++)
     {
       TextView v = _item_views[i];

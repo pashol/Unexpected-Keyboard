@@ -1,12 +1,11 @@
 package juloo.keyboard2.suggestions;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Locale;
 import juloo.cdict.Cdict;
-import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
+import juloo.keyboard2.Utils;
 
 /** Keep track of the word being typed and provide suggestions for
     [CandidatesView]. */
@@ -44,7 +43,7 @@ public final class Suggestions
     if (word.length() < 2 || _config.current_dictionary == null)
       clear();
     else
-      query_suggestions(word);
+      query_suggestions(word, sentence_start);
     _callback.set_suggestions(this);
   }
 
@@ -56,38 +55,119 @@ public final class Suggestions
     emoji_suggestion = null;
   }
 
-  int query_suggestions(String word)
+  int query_suggestions(String typed_word, boolean sentence_start)
   {
     Cdict dict = _config.current_dictionary;
-    boolean first_char_upper = Character.isUpperCase(word.charAt(0));
-    word = apply_substitutions(word);
-    Cdict.Result r = dict.find(word);
+    boolean first_char_upper = Character.isUpperCase(typed_word.charAt(0));
+    String word = apply_substitutions(typed_word);
+    for (int i = 0; i < MAX_COUNT; i++)
+      suggestions[i] = null;
+    Cdict.Result r_exact = dict.find(word);
+    Cdict.Result r_alt = dict.find(alternate_first_character(word));
     int i = 0;
-    if (r.found)
-      suggestions[i++] = dict.word(r.index);
-    int[] suffixes = dict.suffixes(r, MAX_COUNT);
+    if (r_exact.found)
+    {
+      String result = dict.word(r_exact.index);
+      if (!already_in(suggestions, i, result))
+        suggestions[i++] = result;
+    }
+    if (r_alt.found && i < MAX_COUNT)
+    {
+      String result = dict.word(r_alt.index);
+      if (!already_in(suggestions, i, result))
+        suggestions[i++] = result;
+    }
+    Cdict.Result r_for_suffixes =
+      (r_exact.found || r_exact.prefix_ptr != 0) ? r_exact : r_alt;
+    int[] suffixes = dict.suffixes(r_for_suffixes, MAX_COUNT);
     // Disable distance search for small words
     int[] dist = (word.length() < 3 || i + 1 >= MAX_COUNT) ? NO_RESULTS :
       dict.distance(word, 1, MAX_COUNT);
     for (int j = 0; j < MAX_COUNT && i < MAX_COUNT; j++)
     {
       if (suffixes.length > j)
-        suggestions[i++] = dict.word(suffixes[j]);
+      {
+        String result = dict.word(suffixes[j]);
+        if (!already_in(suggestions, i, result))
+          suggestions[i++] = result;
+      }
       if (dist.length > j && i < MAX_COUNT)
-        suggestions[i++] = dict.word(dist[j]);
+      {
+        String result = dict.word(dist[j]);
+        if (!already_in(suggestions, i, result))
+          suggestions[i++] = result;
+      }
     }
-    if (first_char_upper)
-      capitalize_results();
+    boolean capitalize = first_char_upper
+      || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
+    if (capitalize)
+      capitalize_results(suggestions);
+    promote_typed_word(suggestions, capitalize
+        ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
-    count = i;
-    return i;
+    count = count_suggestions(suggestions);
+    return count;
   }
 
-  void capitalize_results()
+  static void capitalize_results(String[] candidates)
+  {
+    for (int i = 0; i < candidates.length; i++)
+      if (candidates[i] != null)
+        candidates[i] = Utils.capitalize_string(candidates[i]);
+  }
+
+  static boolean already_in(String[] candidates, int count, String word)
   {
     for (int i = 0; i < count; i++)
-      suggestions[i] = suggestions[i].substring(0, 1).toUpperCase()
-        + suggestions[i].substring(1);
+      if (candidates[i] != null && candidates[i].equalsIgnoreCase(word))
+        return true;
+    return false;
+  }
+
+  static void promote_typed_word(String[] candidates, String typed_word)
+  {
+    int matching_index = -1;
+    int candidate_count = 0;
+    for (int i = 0; i < candidates.length; i++)
+    {
+      if (candidates[i] != null)
+      {
+        candidate_count++;
+        if (candidates[i].equalsIgnoreCase(typed_word))
+          matching_index = i;
+      }
+    }
+    if (matching_index == 0 || (matching_index == -1 && candidate_count < 2))
+      return;
+    if (matching_index > 0)
+    {
+      String matching_word = candidates[matching_index];
+      for (int i = matching_index; i > 0; i--)
+        candidates[i] = candidates[i - 1];
+      candidates[0] = matching_word;
+      return;
+    }
+    for (int i = candidates.length - 1; i > 0; i--)
+      candidates[i] = candidates[i - 1];
+    candidates[0] = typed_word;
+  }
+
+  static String alternate_first_character(String word)
+  {
+    int first_char_end = word.offsetByCodePoints(0, 1);
+    String first_char = word.substring(0, first_char_end);
+    String rest = word.substring(first_char_end);
+    return Character.isUpperCase(word.codePointAt(0))
+      ? first_char.toLowerCase(Locale.getDefault()) + rest
+      : Utils.capitalize_string(word);
+  }
+
+  static int count_suggestions(String[] candidates)
+  {
+    int count = 0;
+    for (int i = 0; i < candidates.length && candidates[i] != null; i++)
+      count++;
+    return count;
   }
 
   String query_emoji(String word)
