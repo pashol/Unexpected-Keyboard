@@ -34,6 +34,29 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void sentence_start_stays_false_after_typing_without_editor_context()
+  {
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+        });
+    word._enabled = true;
+    word.set_current_word((CharSequence)null);
+    word.typed("a");
+    assertFalse(word.sentence_start());
+  }
+
+  @Test
+  public void sentence_start_requires_nontruncated_whitespace_context()
+  {
+    String truncated = new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - 1]).replace('\0', ' ') + "a";
+    assertFalse(CurrentlyTypedWord.sentence_start_from_context(truncated, 1));
+    assertTrue(CurrentlyTypedWord.sentence_start_from_context("   a", 1));
+  }
+
+  @Test
   public void sentence_start_from_context_after_sentence_terminator()
   {
     assertTrue(CurrentlyTypedWord.sentence_start_from_context("Hello. World", 5));

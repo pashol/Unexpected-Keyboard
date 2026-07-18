@@ -35,6 +35,8 @@ public final class CurrentlyTypedWord
       word in chars. Equal to [0] when the cursor is at the end of the word. */
   int _w_cursor;
   String _text_before_cursor = "";
+  /** Whether [_text_before_cursor] came from a successful editor query. */
+  boolean _context_known = false;
   boolean _sentence_start = false;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
@@ -143,8 +145,7 @@ public final class CurrentlyTypedWord
         Math.max(_text_before_cursor.length() - remove_before, 0));
     _cursor -= remove_before;
     _w_cursor -= Math.min(remove_after, 0);
-    _sentence_start = sentence_start_from_context(_text_before_cursor,
-        _w.length() + _w_cursor);
+    update_sentence_start();
     callback();
   }
 
@@ -178,8 +179,7 @@ public final class CurrentlyTypedWord
   {
     type_chars(s, 0, s.length());
     _text_before_cursor += s;
-    _sentence_start = sentence_start_from_context(_text_before_cursor,
-        _w.length() + _w_cursor);
+    update_sentence_start();
   }
 
   /** Append chars to the current word without moving the cursor. Return the
@@ -224,9 +224,11 @@ public final class CurrentlyTypedWord
     _text_before_cursor = "";
     if (text_before_cursor == null)
     {
+      _context_known = false;
       _sentence_start = false;
       return;
     }
+    _context_known = true;
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
@@ -240,17 +242,18 @@ public final class CurrentlyTypedWord
     _text_before_cursor = "";
     if (st == null)
     {
+      _context_known = false;
       _sentence_start = false;
       return;
     }
+    _context_known = true;
     int saved_cursor = _cursor;
     int st_sel = st.getSelectionStart();
     CharSequence st_text = st.getText();
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
-    _sentence_start = sentence_start_from_context(_text_before_cursor,
-        _w.length() + _w_cursor);
+    update_sentence_start();
     _cursor = saved_cursor;
     callback();
   }
@@ -286,7 +289,7 @@ public final class CurrentlyTypedWord
       return false;
     int i = Math.max(0, text.length() - wordLength);
     if (i == 0)
-      return true;
+      return text.length() < SENTENCE_CONTEXT_LENGTH;
     if (!Character.isWhitespace(text.charAt(i - 1)))
       return false;
     boolean newline = false;
@@ -295,9 +298,16 @@ public final class CurrentlyTypedWord
       newline |= text.charAt(--i) == '\n';
     }
     if (i == 0)
-      return true;
+      return text.length() < SENTENCE_CONTEXT_LENGTH;
     char c = text.charAt(i - 1);
     return newline || c == '.' || c == '!' || c == '?';
+  }
+
+  void update_sentence_start()
+  {
+    _sentence_start = _context_known && _w.length() > 0 &&
+      sentence_start_from_context(_text_before_cursor,
+          _w.length() + _w_cursor);
   }
 
   public static interface Callback
