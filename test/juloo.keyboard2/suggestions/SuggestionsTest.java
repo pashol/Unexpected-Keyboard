@@ -47,6 +47,13 @@ public class SuggestionsTest
   }
 
   @Test
+  public void falls_back_to_alternate_case_only_without_a_prefix_node()
+  {
+    assertTrue(Suggestions.should_lookup_alternate_case(0));
+    assertFalse(Suggestions.should_lookup_alternate_case(1));
+  }
+
+  @Test
   public void capitalizes_only_word_candidates_at_sentence_start()
   {
     String[] candidates = { "erde", "erdbeere", null };

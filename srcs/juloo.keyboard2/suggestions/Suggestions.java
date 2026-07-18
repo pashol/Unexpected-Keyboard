@@ -63,7 +63,6 @@ public final class Suggestions
     for (int i = 0; i < MAX_COUNT; i++)
       suggestions[i] = null;
     Cdict.Result r_exact = dict.find(word);
-    Cdict.Result r_alt = dict.find(alternate_first_character(word));
     int i = 0;
     if (r_exact.found)
     {
@@ -71,14 +70,18 @@ public final class Suggestions
       if (!already_in(suggestions, i, result))
         suggestions[i++] = result;
     }
-    if (r_alt.found && i < MAX_COUNT)
+    Cdict.Result r_for_suffixes = r_exact;
+    if (should_lookup_alternate_case(r_exact.prefix_ptr))
     {
-      String result = dict.word(r_alt.index);
-      if (!already_in(suggestions, i, result))
-        suggestions[i++] = result;
+      Cdict.Result r_alt = dict.find(alternate_first_character(word));
+      if (r_alt.found && i < MAX_COUNT)
+      {
+        String result = dict.word(r_alt.index);
+        if (!already_in(suggestions, i, result))
+          suggestions[i++] = result;
+      }
+      r_for_suffixes = r_alt;
     }
-    Cdict.Result r_for_suffixes =
-      (r_exact.found || r_exact.prefix_ptr != 0) ? r_exact : r_alt;
     int[] suffixes = dict.suffixes(r_for_suffixes, MAX_COUNT);
     // Disable distance search for small words
     int[] dist = (word.length() < 3 || i + 1 >= MAX_COUNT) ? NO_RESULTS :
@@ -160,6 +163,11 @@ public final class Suggestions
     return Character.isUpperCase(word.codePointAt(0))
       ? first_char.toLowerCase(Locale.getDefault()) + rest
       : Utils.capitalize_string(word);
+  }
+
+  static boolean should_lookup_alternate_case(long prefix_ptr)
+  {
+    return prefix_ptr == 0;
   }
 
   static int count_suggestions(String[] candidates)
