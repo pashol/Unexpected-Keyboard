@@ -38,6 +38,9 @@ public final class KeyEventHandler
   boolean _manual_shift_latched = false;
   boolean _auto_space_inserted = false;
   boolean _learn_undone_autocomplete = false;
+  boolean _auto_space_after_punct = true;
+  boolean _no_auto_space_after_punct = false;
+  boolean _user_dictionary_enabled = false;
   Config _config;
   /** Remember the action that was handled. This is used by autocorrect. */
   LastAction _last_action = null;
@@ -65,6 +68,8 @@ public final class KeyEventHandler
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
     _config = conf;
+    refresh_typing_config(conf.auto_space_after_punct,
+        conf.editor_config.no_auto_space_after_punct, conf.user_dictionary_enabled);
     _last_action = null;
     _manual_shift_latched = false;
     _auto_space_inserted = false;
@@ -269,9 +274,9 @@ public final class KeyEventHandler
 
   void send_text(String text)
   {
-    boolean auto_space = _config != null && should_auto_space_after_punctuation(
-        _config.auto_space_after_punct,
-        _config.editor_config.no_auto_space_after_punct, text);
+    refresh_typing_config_from_config();
+    boolean auto_space = should_auto_space_after_punctuation(
+        _auto_space_after_punct, _no_auto_space_after_punct, text);
     send_text(text, auto_space);
   }
 
@@ -654,9 +659,9 @@ public final class KeyEventHandler
         || _typedword.cursor_relative() != 0)
       return;
     InputConnection conn = _recv.getCurrentInputConnection();
-    CharSequence after = conn == null ? null : conn.getTextAfterCursor(1, 0);
+    CharSequence after = conn == null ? null : conn.getTextAfterCursor(2, 0);
     if (after != null && after.length() > 0
-        && Character.isLetter(after.charAt(0)))
+        && Character.isLetter(Character.codePointAt(after, 0)))
       return;
     replace_surrounding_text(word.length(), 0, cycle_word_case(word));
     _recv.set_shift_state(false, false);
@@ -664,14 +669,30 @@ public final class KeyEventHandler
 
   void learn_typed_word(String delimiter)
   {
-    if (_config == null)
-      return;
+    refresh_typing_config_from_config();
     String word = _typedword.get();
-    Cdict dictionary = _config.current_dictionary;
+    Cdict dictionary = _config == null ? null : _config.current_dictionary;
     boolean known = dictionary != null && dictionary.find(word).found;
-    learn_word(UserDictionary.instance(), _config.user_dictionary_enabled, known,
+    learn_word(UserDictionary.instance(), _user_dictionary_enabled, known,
         word, delimiter);
     _learn_undone_autocomplete = false;
+  }
+
+  /** Refreshes typing options when the active keyboard configuration changes. */
+  void refresh_typing_config(boolean auto_space_after_punct,
+      boolean no_auto_space_after_punct, boolean user_dictionary_enabled)
+  {
+    _auto_space_after_punct = auto_space_after_punct;
+    _no_auto_space_after_punct = no_auto_space_after_punct;
+    _user_dictionary_enabled = user_dictionary_enabled;
+  }
+
+  void refresh_typing_config_from_config()
+  {
+    if (_config != null)
+      refresh_typing_config(_config.auto_space_after_punct,
+          _config.editor_config.no_auto_space_after_punct,
+          _config.user_dictionary_enabled);
   }
 
   static String cycle_word_case(String word)

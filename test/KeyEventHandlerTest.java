@@ -54,21 +54,25 @@ public class KeyEventHandlerTest
 
     handler.suggestion_entered("word");
 
-    assertEquals("word", connection.committed);
+    assertEquals("word", connection.text());
   }
 
   @Test
-  public void case_cycle_leaves_word_unchanged_before_a_following_letter()
+  public void manual_shift_latch_leaves_word_unchanged_before_supplementary_letter()
   {
-    FakeInputConnection connection = new FakeInputConnection();
-    connection.after = "world";
+    FakeInputConnection connection = new FakeInputConnection("hello\uD801\uDC00");
+    connection.cursor = 5;
     KeyEventHandler handler = new_handler(connection);
     handler._typedword._enabled = true;
     handler._typedword.set_current_word("hello");
 
-    handler.cycle_typed_word_case();
+    handler.key_down(KeyValue.SHIFT, false);
+    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
 
-    assertEquals("", connection.committed);
+    assertEquals("hello\uD801\uDC00", connection.text());
+    assertEquals(2, connection.after_cursor_request);
+    assertTrue(handler._manual_shift_latched);
+    assertEquals(0, ((Receiver)handler._recv).shift_changes);
   }
 
   @Test
@@ -97,8 +101,7 @@ public class KeyEventHandlerTest
     handler.send_text(".", true);
     handler.send_text("!", true);
 
-    assertEquals(". ! ", connection.committed);
-    assertEquals(1, connection.deleted_before);
+    assertEquals(".! ", connection.text());
   }
 
   @Test
@@ -121,6 +124,57 @@ public class KeyEventHandlerTest
     assertTrue(dictionary.contains("typed"));
   }
 
+  @Test
+  public void handler_reads_refreshed_auto_space_preference_and_editor_exclusion()
+      throws Exception
+  {
+    FakeInputConnection connection = new FakeInputConnection("word");
+    KeyEventHandler handler = new_handler(connection);
+    handler.refresh_typing_config(true, false, false);
+    handler.send_text(".");
+    handler.refresh_typing_config(false, false, false);
+    handler.send_text("!");
+    handler.refresh_typing_config(true, true, false);
+    handler.send_text("?");
+
+    assertEquals("word. !?", connection.text());
+  }
+
+  @Test
+  public void handler_learns_only_enabled_unknown_words_and_learns_after_undo()
+      throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    set_user_dictionary_instance(dictionary);
+    FakeInputConnection connection = new FakeInputConnection("typed");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+
+    handler.refresh_typing_config(false, false, false);
+    handler._typedword.set_current_word("disabled");
+    handler.send_text(" ");
+    assertFalse(dictionary.contains("disabled"));
+
+    handler.refresh_typing_config(false, false, true);
+    handler._typedword.set_current_word("unknown");
+    handler.send_text(" ");
+    assertTrue(dictionary.contains("unknown"));
+
+    connection = new FakeInputConnection("typed");
+    handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("typed");
+    handler.refresh_typing_config(false, false, true);
+    handler._space_bar_auto_complete = true;
+    handler._suggestions.suggestions[0] = "corrected";
+    handler._suggestions.count = 1;
+    handler.handle_space_bar();
+    handler._last_action = KeyEventHandler.LastAction.SUGGESTION_ENTERED;
+    handler.handle_backspace();
+    handler.send_text(".");
+    assertTrue(dictionary.contains("typed"));
+  }
+
   KeyEventHandler new_handler(FakeInputConnection connection)
   {
     Receiver receiver = new Receiver(connection.connection);
@@ -136,13 +190,21 @@ public class KeyEventHandlerTest
     return constructor.newInstance(new File(directory, "user_words.txt"));
   }
 
+  void set_user_dictionary_instance(UserDictionary dictionary) throws Exception
+  {
+    java.lang.reflect.Field field = UserDictionary.class.getDeclaredField("_instance");
+    field.setAccessible(true);
+    field.set(null, dictionary);
+  }
+
   static class Receiver implements KeyEventHandler.IReceiver
   {
     final InputConnection connection;
+    int shift_changes = 0;
 
     Receiver(InputConnection connection) { this.connection = connection; }
     public void handle_event_key(KeyValue.Event event) {}
-    public void set_shift_state(boolean state, boolean lock) {}
+    public void set_shift_state(boolean state, boolean lock) { shift_changes++; }
     public void set_compose_pending(boolean pending) {}
     public void selection_state_changed(boolean selection) {}
     public InputConnection getCurrentInputConnection() { return connection; }
@@ -152,12 +214,19 @@ public class KeyEventHandlerTest
 
   static class FakeInputConnection implements InvocationHandler
   {
-    String committed = "";
-    String after = "";
-    int deleted_before = 0;
+    StringBuilder text;
+    int cursor;
+    int after_cursor_request = 0;
 
     FakeInputConnection()
     {
+      this("");
+    }
+
+    FakeInputConnection(String text)
+    {
+      this.text = new StringBuilder(text);
+      cursor = text.length();
       connection = (InputConnection)Proxy.newProxyInstance(
           InputConnection.class.getClassLoader(), new Class[] { InputConnection.class }, this);
     }
@@ -167,15 +236,29 @@ public class KeyEventHandlerTest
     public Object invoke(Object proxy, Method method, Object[] args)
     {
       if (method.getName().equals("commitText"))
-        committed += args[0].toString();
+      {
+        String inserted = args[0].toString();
+        text.insert(cursor, inserted);
+        cursor += inserted.length();
+      }
       if (method.getName().equals("getTextAfterCursor"))
-        return after;
+      {
+        after_cursor_request = ((Integer)args[0]).intValue();
+        return text.substring(cursor, Math.min(text.length(), cursor + after_cursor_request));
+      }
       if (method.getName().equals("deleteSurroundingText"))
-        deleted_before += ((Integer)args[0]).intValue();
+      {
+        int before = ((Integer)args[0]).intValue();
+        int after = ((Integer)args[1]).intValue();
+        text.delete(cursor - before, cursor + after);
+        cursor -= before;
+      }
       Class<?> type = method.getReturnType();
       if (type == Boolean.TYPE) return true;
       if (type == Integer.TYPE) return 0;
       return null;
     }
+
+    String text() { return text.toString(); }
   }
 }
