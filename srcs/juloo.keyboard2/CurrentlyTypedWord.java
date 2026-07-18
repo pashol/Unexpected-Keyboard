@@ -38,6 +38,7 @@ public final class CurrentlyTypedWord
   boolean _sentence_start = true;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
+  static final int MAX_RELIABLE_WORD_LENGTH = SENTENCE_CONTEXT_LENGTH - 1;
 
   public CurrentlyTypedWord(Handler h, Callback cb)
   {
@@ -280,7 +281,8 @@ public final class CurrentlyTypedWord
 
   static boolean sentence_start_from_context(String text, int wordLength)
   {
-    if (wordLength > text.length())
+    if (wordLength == 0 || wordLength > MAX_RELIABLE_WORD_LENGTH ||
+        wordLength > text.length())
       return false;
     int i = Math.max(0, text.length() - wordLength);
     if (i == 0)
