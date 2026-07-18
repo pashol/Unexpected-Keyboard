@@ -57,6 +57,43 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void typed_preserves_word_and_cursor_without_editor_context()
+  {
+    CurrentlyTypedWord known = new_typed_word();
+    known.set_current_word("hello");
+    known._cursor = 5;
+    CurrentlyTypedWord unknown = new_typed_word();
+    unknown.set_current_word((CharSequence)null);
+    unknown.typed("hello");
+
+    type_at_and_move_from_cursor(known);
+    type_at_and_move_from_cursor(unknown);
+  }
+
+  void type_at_and_move_from_cursor(CurrentlyTypedWord word)
+  {
+    word.selection_updated(5, 3, 3);
+    word.typed("X");
+    assertEquals("helXlo", word.get());
+    assertEquals(-2, word.cursor_relative());
+    word.selection_updated(4, 2, 2);
+    word.typed("Y");
+    assertEquals("heYlXlo", word.get());
+    assertEquals(-4, word.cursor_relative());
+  }
+
+  CurrentlyTypedWord new_typed_word()
+  {
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+        });
+    word._enabled = true;
+    return word;
+  }
+
+  @Test
   public void sentence_start_from_context_after_sentence_terminator()
   {
     assertTrue(CurrentlyTypedWord.sentence_start_from_context("Hello. World", 5));
