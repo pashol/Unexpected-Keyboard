@@ -141,4 +141,17 @@ public class UserDictionaryTest
       dictionary.file().getParentFile().setWritable(true, false);
     }
   }
+
+  @Test
+  public void snapshots_remain_stable_after_later_mutations() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("Existing");
+    String[] snapshot = dictionary.snapshot_words();
+
+    dictionary.add("Later");
+
+    assertArrayEquals(new String[] { "Existing" }, snapshot);
+    assertArrayEquals(new String[] { "Existing", "Later" }, dictionary.snapshot_words());
+  }
 }

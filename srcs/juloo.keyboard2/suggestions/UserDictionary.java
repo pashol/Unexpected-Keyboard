@@ -22,9 +22,12 @@ import java.util.Collections;
 /** Persistent, user-managed words for the suggestion row. */
 public final class UserDictionary
 {
-  private static UserDictionary _instance;
+  private static volatile UserDictionary _instance;
   private final File _file;
   private final ArrayList<String> _words = new ArrayList<String>();
+  private final Object _words_lock = new Object();
+  /** Serializes durable writes without blocking candidate lookups. */
+  private final Object _mutation_lock = new Object();
 
   public static synchronized void init(Context context)
   {
@@ -50,56 +53,65 @@ public final class UserDictionary
 
   public boolean contains(String word)
   {
-    return index_of(word) >= 0;
+    synchronized (_words_lock)
+    {
+      return index_of(_words, word) >= 0;
+    }
   }
 
   public boolean add(String word)
   {
-    ArrayList<String> words = new ArrayList<String>(_words);
-    if (!add_to(words, word) || !persist(words))
-      return false;
-    _words.clear();
-    _words.addAll(words);
-    return true;
+    synchronized (_mutation_lock)
+    {
+      ArrayList<String> words = snapshot();
+      if (!add_to(words, word) || !persist(words))
+        return false;
+      replace_words(words);
+      return true;
+    }
   }
 
   public boolean remove(String word)
   {
-    int index = index_of(word);
-    if (index < 0)
-      return false;
-    ArrayList<String> words = new ArrayList<String>(_words);
-    words.remove(index);
-    if (!persist(words))
-      return false;
-    _words.clear();
-    _words.addAll(words);
-    return true;
+    synchronized (_mutation_lock)
+    {
+      ArrayList<String> words = snapshot();
+      int index = index_of(words, word);
+      if (index < 0)
+        return false;
+      words.remove(index);
+      if (!persist(words))
+        return false;
+      replace_words(words);
+      return true;
+    }
   }
 
   public String[] find_prefix(String prefix, int max_count)
   {
     if (max_count <= 0)
       return new String[0];
+    ArrayList<String> words = snapshot();
     ArrayList<String> results = new ArrayList<String>();
-    for (int i = 0; i < _words.size() && results.size() < max_count; i++)
-      if (_words.get(i).equalsIgnoreCase(prefix))
-        results.add(_words.get(i));
-    for (int i = 0; i < _words.size() && results.size() < max_count; i++)
-      if (_words.get(i).regionMatches(true, 0, prefix, 0, prefix.length())
-          && !_words.get(i).equalsIgnoreCase(prefix))
-        results.add(_words.get(i));
+    for (int i = 0; i < words.size() && results.size() < max_count; i++)
+      if (words.get(i).equalsIgnoreCase(prefix))
+        results.add(words.get(i));
+    for (int i = 0; i < words.size() && results.size() < max_count; i++)
+      if (words.get(i).regionMatches(true, 0, prefix, 0, prefix.length())
+          && !words.get(i).equalsIgnoreCase(prefix))
+        results.add(words.get(i));
     return results.toArray(new String[results.size()]);
   }
 
   public int exportTo(ContentResolver resolver, Uri uri)
   {
+    ArrayList<String> words = snapshot();
     try (OutputStream stream = resolver.openOutputStream(uri))
     {
       if (stream == null)
         return -1;
-      write_words(stream);
-      return _words.size();
+      write_words(stream, words);
+      return words.size();
     }
     catch (IOException | SecurityException e) { return -1; }
   }
@@ -117,17 +129,18 @@ public final class UserDictionary
 
   int import_lines(Iterable<String> lines, boolean replace)
   {
-    ArrayList<String> words = replace ? new ArrayList<String>()
-      : new ArrayList<String>(_words);
-    int added = 0;
-    for (String line : lines)
-      if (add_to(words, line))
-        added++;
-    if (!persist(words))
-      return -1;
-    _words.clear();
-    _words.addAll(words);
-    return added;
+    synchronized (_mutation_lock)
+    {
+      ArrayList<String> words = replace ? new ArrayList<String>() : snapshot();
+      int added = 0;
+      for (String line : lines)
+        if (add_to(words, line))
+          added++;
+      if (!persist(words))
+        return -1;
+      replace_words(words);
+      return added;
+    }
   }
 
   private int import_stream(InputStream stream, boolean replace)
@@ -166,7 +179,10 @@ public final class UserDictionary
 
   private boolean add_without_persist(String word)
   {
-    return add_to(_words, word);
+    synchronized (_words_lock)
+    {
+      return add_to(_words, word);
+    }
   }
 
   private static boolean add_to(ArrayList<String> words, String word)
@@ -197,12 +213,35 @@ public final class UserDictionary
     return word.length() >= 3 ? word : null;
   }
 
-  private int index_of(String word)
+  String[] snapshot_words()
+  {
+    ArrayList<String> words = snapshot();
+    return words.toArray(new String[words.size()]);
+  }
+
+  private ArrayList<String> snapshot()
+  {
+    synchronized (_words_lock)
+    {
+      return new ArrayList<String>(_words);
+    }
+  }
+
+  private void replace_words(ArrayList<String> words)
+  {
+    synchronized (_words_lock)
+    {
+      _words.clear();
+      _words.addAll(words);
+    }
+  }
+
+  private static int index_of(ArrayList<String> words, String word)
   {
     if (word == null)
       return -1;
-    for (int i = 0; i < _words.size(); i++)
-      if (_words.get(i).equalsIgnoreCase(word))
+    for (int i = 0; i < words.size(); i++)
+      if (words.get(i).equalsIgnoreCase(word))
         return i;
     return -1;
   }
@@ -229,11 +268,6 @@ public final class UserDictionary
       if (temporary != null && temporary.exists())
         temporary.delete();
     }
-  }
-
-  private void write_words(OutputStream stream) throws IOException
-  {
-    write_words(stream, _words);
   }
 
   private void write_words(OutputStream stream, Iterable<String> words) throws IOException
