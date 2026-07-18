@@ -269,14 +269,21 @@ public final class KeyEventHandler
 
   void send_text(String text)
   {
+    boolean auto_space = _config != null && should_auto_space_after_punctuation(
+        _config.auto_space_after_punct,
+        _config.editor_config.no_auto_space_after_punct, text);
+    send_text(text, auto_space);
+  }
+
+  /** Sends text using the caller's current auto-space eligibility. */
+  void send_text(String text, boolean auto_space)
+  {
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
-    if (_config != null && _config.auto_space_after_punct
-        && !_config.editor_config.no_auto_space_after_punct
-        && is_auto_spacing_punctuation(text))
+    if (auto_space)
     {
-      if (_auto_space_inserted)
+      if (should_remove_auto_space(_auto_space_inserted, text))
       {
         replace_surrounding_text(1, 0, "");
         _auto_space_inserted = false;
@@ -284,16 +291,16 @@ public final class KeyEventHandler
       CharSequence after = conn.getTextAfterCursor(1, 0);
       boolean has_next_space = after != null && after.length() > 0
         && Character.isWhitespace(after.charAt(0));
-      String output = has_next_space ? text : text + " ";
+      String output = auto_space_text(text, has_next_space);
       learn_typed_word(text);
-      _autocap.typed(output);
+      if (_autocap._enabled) _autocap.typed(output);
       _typedword.typed(output);
       conn.commitText(output, 1);
       _auto_space_inserted = !has_next_space;
       return;
     }
     learn_typed_word(text);
-    _autocap.typed(text);
+    if (_autocap._enabled) _autocap.typed(text);
     _typedword.typed(text);
     conn.commitText(text, 1);
     _auto_space_inserted = false;
@@ -646,6 +653,11 @@ public final class KeyEventHandler
     if (word.length() == 0 || _typedword.is_selection_not_empty()
         || _typedword.cursor_relative() != 0)
       return;
+    InputConnection conn = _recv.getCurrentInputConnection();
+    CharSequence after = conn == null ? null : conn.getTextAfterCursor(1, 0);
+    if (after != null && after.length() > 0
+        && Character.isLetter(after.charAt(0)))
+      return;
     replace_surrounding_text(word.length(), 0, cycle_word_case(word));
     _recv.set_shift_state(false, false);
   }
@@ -657,9 +669,8 @@ public final class KeyEventHandler
     String word = _typedword.get();
     Cdict dictionary = _config.current_dictionary;
     boolean known = dictionary != null && dictionary.find(word).found;
-    if (should_learn_word(_config.user_dictionary_enabled, known, word, delimiter)
-        && UserDictionary.instance() != null)
-      UserDictionary.instance().add(word);
+    learn_word(UserDictionary.instance(), _config.user_dictionary_enabled, known,
+        word, delimiter);
     _learn_undone_autocomplete = false;
   }
 
@@ -678,6 +689,22 @@ public final class KeyEventHandler
     return text.length() == 1 && ".!?;,:".indexOf(text.charAt(0)) >= 0;
   }
 
+  static boolean should_auto_space_after_punctuation(boolean enabled,
+      boolean editor_excluded, String text)
+  {
+    return enabled && !editor_excluded && is_auto_spacing_punctuation(text);
+  }
+
+  static boolean should_remove_auto_space(boolean automatic_space, String text)
+  {
+    return automatic_space && is_auto_spacing_punctuation(text);
+  }
+
+  static String auto_space_text(String punctuation, boolean next_is_space)
+  {
+    return next_is_space ? punctuation : punctuation + " ";
+  }
+
   static boolean should_learn_word(boolean enabled, boolean known, String word,
       String delimiter)
   {
@@ -691,6 +718,19 @@ public final class KeyEventHandler
       i += Character.charCount(c);
     }
     return true;
+  }
+
+  static boolean learn_word(UserDictionary dictionary, boolean enabled,
+      boolean known, String word, String delimiter)
+  {
+    return dictionary != null && should_learn_word(enabled, known, word, delimiter)
+      && dictionary.add(word);
+  }
+
+  static boolean should_learn_after_autocomplete_undo(boolean undone,
+      String word, String delimiter)
+  {
+    return undone && should_learn_word(true, false, word, delimiter);
   }
 
   static boolean should_autocomplete_space(boolean undone_autocomplete)
