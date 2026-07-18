@@ -158,7 +158,7 @@ val compileComposeSequences by tasks.registering(Exec::class) {
   doFirst { println("\nGenerating $out") }
   val sequences = `in`.listFiles { it: File ->
     !it.name.endsWith(".py") && !it.name.endsWith(".md")
-  }!!.map { it.absolutePath }.toTypedArray()
+  }!!.sortedBy { it.name }.map { it.absolutePath }.toTypedArray()
   workingDir = projectDir
   commandLine("python", `in`.resolve("compile.py").absolutePath, *sequences)
   doFirst { standardOutput = FileOutputStream(out) }
