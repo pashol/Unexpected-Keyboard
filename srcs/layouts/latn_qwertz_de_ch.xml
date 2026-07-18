@@ -24,7 +24,7 @@
     <key key0="l" key2="|" key3="\\"/>
   </row>
   <row>
-    <key width="1.5" key0="shift" key2="loc capslock"/>
+    <key width="1.5" role="action" key0="shift" key2="loc capslock"/>
     <key key0="y"/>
     <key key0="x"/>
     <key key0="c" key1="loc accent_cedille" key2="&lt;"/>
@@ -32,13 +32,13 @@
     <key key0="b" key1="loc accent_tilde" key3="/" key4="'"/>
     <key key0="n" key2=":"/>
     <key key0="m" key3="&quot;" key4=";"/>
-    <key width="1.5" key0="backspace" key2="delete" key3="delete_word" key8="loc switch_clipboard"/>
+    <key width="1.5" role="action" key0="backspace" key2="delete" key3="delete_word" key8="loc switch_clipboard"/>
   </row>
   <row>
-    <key width="1.7" key0="ctrl" key1="loc switch_greekmath" key2="switch_numeric" key4="loc meta"/>
-    <key width="1.1" key0="fn" key1="loc alt" key2="loc change_method" key4="config"/>
-    <key width="4.4" key0="space" key5="cursor_left" key6="cursor_right" key7="switch_forward" key8="switch_backward"/>
+    <key width="1.7" role="action" key0="ctrl" key1="loc switch_greekmath" key2="switch_numeric" key4="loc meta"/>
+    <key width="1.1" role="action" key0="fn" key1="loc alt" key2="loc change_method" key4="config"/>
+    <key width="4.4" role="space_bar" key0="space" key5="cursor_left" key6="cursor_right" key7="switch_forward" key8="switch_backward"/>
     <key key0="." key1="switch_emoji" key2="," key5="\?" key6="!"/>
-    <key width="1.7" key0="enter" key1="loc voice_typing" key2="action"/>
+    <key width="1.7" role="action" key0="enter" key1="loc voice_typing" key2="action"/>
   </row>
 </keyboard>

@@ -28,12 +28,6 @@ latn_dvorak: Missing important key, missing: loc capslock
 latn_neo2: Layout redefines the bottom row but some important keys are missing, missing: loc switch_clipboard
 latn_qwertz_cz_multifunctional: Layout includes some ASCII punctuation but not all, missing: `
 latn_qwertz_de_ch: Layout redefines the bottom row but some important keys are missing, missing: down, left, loc compose, loc end, loc home, loc page_down, loc page_up, right, up
-latn_qwertz_de_ch: Key 'shift' is not on a key with role="action"
-latn_qwertz_de_ch: Key 'ctrl' is not on a key with role="action"
-latn_qwertz_de_ch: Key 'fn' is not on a key with role="action"
-latn_qwertz_de_ch: Key 'backspace' is not on a key with role="action"
-latn_qwertz_de_ch: Key 'enter' is not on a key with role="action"
-latn_qwertz_de_ch: Key 'space' is not on a key with role="space_bar"
 latn_qwertz_sk: Layout includes some ASCII punctuation but not all, missing: `
 latn_qzerty_it: Layout includes some ASCII punctuation but not all, missing: #, $, \, `, ~
 urdu_phonetic_ur: Layout includes some ASCII punctuation but not all, missing: <, >, ?, `, |, ~
