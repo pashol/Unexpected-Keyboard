@@ -45,6 +45,7 @@ public final class Config
   public float swipe_dist_px;
   public float slide_step_px;
   public boolean suggestions_enabled;
+  public boolean user_dictionary_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
   // Control the vibration if [vibrate_custom] is true.
@@ -146,6 +147,7 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
         "capitalize_suggestions_at_sentence_start", true);
     // The baseline for the swipe distance correspond to approximately the

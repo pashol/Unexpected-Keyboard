@@ -15,6 +15,9 @@
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_suggestions">
     <CheckBoxPreference android:key="suggestions" android:title="@string/pref_suggestions_title" android:summary="@string/pref_suggestions_summary" android:defaultValue="true"/>
+    <CheckBoxPreference android:key="user_dictionary_enabled" android:title="@string/pref_user_dictionary_enabled_title" android:summary="@string/pref_user_dictionary_enabled_summary" android:defaultValue="false"/>
+    <Preference android:key="user_dictionary_export" android:title="@string/pref_user_dictionary_export"/>
+    <Preference android:key="user_dictionary_import" android:title="@string/pref_user_dictionary_import"/>
     <CheckBoxPreference android:key="space_bar_auto_complete" android:title="@string/pref_space_bar_auto_complete_title" android:summary="@string/pref_space_bar_auto_complete_summary" android:defaultValue="false"/>
     <CheckBoxPreference android:key="capitalize_suggestions_at_sentence_start" android:title="@string/pref_capitalize_suggestions_at_sentence_start_title" android:summary="@string/pref_capitalize_suggestions_at_sentence_start_summary" android:defaultValue="true"/>
   </PreferenceCategory>

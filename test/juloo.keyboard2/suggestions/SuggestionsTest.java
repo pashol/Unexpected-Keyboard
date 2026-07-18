@@ -72,4 +72,28 @@ public class SuggestionsTest
     assertEquals("Grosswangen", candidates[0]);
     assertEquals("map", emoji);
   }
+
+  @Test
+  public void prepends_personal_candidates_without_duplicate_cdict_words()
+  {
+    String[] candidates = { "Erde", "Erden", "Erdbeere" };
+    Suggestions.prepend_personal_candidates(candidates,
+        new String[] { "erde", "Erdling", "Erdung" });
+    assertArrayEquals(new String[] { "Erdling", "Erde", "Erden" }, candidates);
+  }
+
+  @Test
+  public void removes_only_enabled_personal_word_candidates()
+      throws Exception
+  {
+    java.io.File directory = java.nio.file.Files.createTempDirectory("dictionary").toFile();
+    UserDictionary dictionary = new UserDictionary(
+        new java.io.File(directory, "user_words.txt"));
+    dictionary.add("Personal");
+
+    assertTrue(CandidatesView.can_remove_personal_candidate(true, 0, "personal", dictionary));
+    assertFalse(CandidatesView.can_remove_personal_candidate(false, 0, "personal", dictionary));
+    assertFalse(CandidatesView.can_remove_personal_candidate(true, 3, "personal", dictionary));
+    assertFalse(CandidatesView.can_remove_personal_candidate(true, 0, "System", dictionary));
+  }
 }

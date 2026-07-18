@@ -7,6 +7,7 @@ import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -158,6 +159,51 @@ public class CandidatesView extends LinearLayout
   private void setup_item_view(final int item_index, int item_id)
   {
     TextView v = (TextView)findViewById(item_id);
+    v.setOnTouchListener(new View.OnTouchListener()
+        {
+          private boolean _removed;
+          private final Runnable _remove = new Runnable()
+          {
+            @Override
+            public void run()
+            {
+              String candidate = _items[item_index];
+              Config config = Config.globalConfig();
+              UserDictionary dictionary = UserDictionary.instance();
+              if (config != null && can_remove_personal_candidate(
+                    config.user_dictionary_enabled, item_index, candidate, dictionary))
+              {
+                dictionary.remove(candidate);
+                _items[item_index] = null;
+                _item_views[item_index].setVisibility(View.GONE);
+                _removed = true;
+              }
+            }
+          };
+
+          @Override
+          public boolean onTouch(View view, MotionEvent event)
+          {
+            switch (event.getActionMasked())
+            {
+              case MotionEvent.ACTION_DOWN:
+                _removed = false;
+                Config config = Config.globalConfig();
+                if (config != null && can_remove_personal_candidate(
+                      config.user_dictionary_enabled, item_index, _items[item_index],
+                      UserDictionary.instance()))
+                  view.postDelayed(_remove, 600);
+                break;
+              case MotionEvent.ACTION_UP:
+                view.removeCallbacks(_remove);
+                return _removed;
+              case MotionEvent.ACTION_CANCEL:
+                view.removeCallbacks(_remove);
+                break;
+            }
+            return false;
+          }
+        });
     v.setOnClickListener(new View.OnClickListener()
         {
           @Override
@@ -170,6 +216,13 @@ public class CandidatesView extends LinearLayout
         });
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
+  }
+
+  static boolean can_remove_personal_candidate(boolean dictionary_enabled,
+      int item_index, String candidate, UserDictionary dictionary)
+  {
+    return dictionary_enabled && item_index < Suggestions.MAX_COUNT
+      && candidate != null && dictionary != null && dictionary.contains(candidate);
   }
 
   /** Whether the candidates view should be shown for a given editor. */

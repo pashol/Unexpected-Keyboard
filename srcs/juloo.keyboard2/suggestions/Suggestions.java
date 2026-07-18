@@ -40,7 +40,8 @@ public final class Suggestions
   {
     if (!_enabled)
       return;
-    if (word.length() < 2 || _config.current_dictionary == null)
+    if (word.length() < 2 || (_config.current_dictionary == null
+          && (!_config.user_dictionary_enabled || UserDictionary.instance() == null)))
       clear();
     else
       query_suggestions(word, sentence_start);
@@ -62,45 +63,50 @@ public final class Suggestions
     String word = apply_substitutions(typed_word);
     for (int i = 0; i < MAX_COUNT; i++)
       suggestions[i] = null;
-    Cdict.Result r_exact = dict.find(word);
     int i = 0;
-    if (r_exact.found)
+    if (dict != null)
     {
-      String result = dict.word(r_exact.index);
-      if (!already_in(suggestions, i, result))
-        suggestions[i++] = result;
-    }
-    Cdict.Result r_for_suffixes = r_exact;
-    if (should_lookup_alternate_case(r_exact.prefix_ptr))
-    {
-      Cdict.Result r_alt = dict.find(alternate_first_character(word));
-      if (r_alt.found && i < MAX_COUNT)
+      Cdict.Result r_exact = dict.find(word);
+      if (r_exact.found)
       {
-        String result = dict.word(r_alt.index);
+        String result = dict.word(r_exact.index);
         if (!already_in(suggestions, i, result))
           suggestions[i++] = result;
       }
-      r_for_suffixes = r_alt;
-    }
-    int[] suffixes = dict.suffixes(r_for_suffixes, MAX_COUNT);
-    // Disable distance search for small words
-    int[] dist = (word.length() < 3 || i + 1 >= MAX_COUNT) ? NO_RESULTS :
-      dict.distance(word, 1, MAX_COUNT);
-    for (int j = 0; j < MAX_COUNT && i < MAX_COUNT; j++)
-    {
-      if (suffixes.length > j)
+      Cdict.Result r_for_suffixes = r_exact;
+      if (should_lookup_alternate_case(r_exact.prefix_ptr))
       {
-        String result = dict.word(suffixes[j]);
-        if (!already_in(suggestions, i, result))
-          suggestions[i++] = result;
+        Cdict.Result r_alt = dict.find(alternate_first_character(word));
+        if (r_alt.found && i < MAX_COUNT)
+        {
+          String result = dict.word(r_alt.index);
+          if (!already_in(suggestions, i, result))
+            suggestions[i++] = result;
+        }
+        r_for_suffixes = r_alt;
       }
-      if (dist.length > j && i < MAX_COUNT)
+      int[] suffixes = dict.suffixes(r_for_suffixes, MAX_COUNT);
+      // Disable distance search for small words
+      int[] dist = (word.length() < 3 || i + 1 >= MAX_COUNT) ? NO_RESULTS :
+        dict.distance(word, 1, MAX_COUNT);
+      for (int j = 0; j < MAX_COUNT && i < MAX_COUNT; j++)
       {
-        String result = dict.word(dist[j]);
-        if (!already_in(suggestions, i, result))
-          suggestions[i++] = result;
+        if (suffixes.length > j)
+        {
+          String result = dict.word(suffixes[j]);
+          if (!already_in(suggestions, i, result))
+            suggestions[i++] = result;
+        }
+        if (dist.length > j && i < MAX_COUNT)
+        {
+          String result = dict.word(dist[j]);
+          if (!already_in(suggestions, i, result))
+            suggestions[i++] = result;
+        }
       }
     }
+    if (_config.user_dictionary_enabled && UserDictionary.instance() != null)
+      prepend_personal_candidates(suggestions, UserDictionary.instance().find_prefix(word, 2));
     boolean capitalize = first_char_upper
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
@@ -110,6 +116,20 @@ public final class Suggestions
     emoji_suggestion = query_emoji(word); // word with substitutions applied
     count = count_suggestions(suggestions);
     return count;
+  }
+
+  static void prepend_personal_candidates(String[] candidates, String[] personal)
+  {
+    String[] merged = new String[candidates.length];
+    int count = 0;
+    for (int i = 0; i < personal.length && i < 2 && count < merged.length; i++)
+      if (!already_in(candidates, candidates.length, personal[i])
+          && !already_in(merged, count, personal[i]))
+        merged[count++] = personal[i];
+    for (int i = 0; i < candidates.length && count < merged.length; i++)
+      if (candidates[i] != null && !already_in(merged, count, candidates[i]))
+        merged[count++] = candidates[i];
+    System.arraycopy(merged, 0, candidates, 0, candidates.length);
   }
 
   static void capitalize_results(String[] candidates)
