@@ -110,4 +110,24 @@ public class SuggestionsTest
     assertArrayEquals(new String[] { "Personal", "System", null }, candidates);
     assertArrayEquals(new boolean[] { true, false, false }, personal);
   }
+
+  @Test
+  public void does_not_confirm_candidate_removal_when_persistence_fails()
+      throws Exception
+  {
+    java.io.File directory = java.nio.file.Files.createTempDirectory("dictionary").toFile();
+    UserDictionary dictionary = new UserDictionary(
+        new java.io.File(directory, "user_words.txt"));
+    dictionary.add("Personal");
+    assertTrue(directory.setWritable(false, false));
+    try
+    {
+      assertFalse(CandidatesView.remove_personal_candidate(dictionary, "Personal"));
+      assertTrue(dictionary.contains("Personal"));
+    }
+    finally
+    {
+      directory.setWritable(true, false);
+    }
+  }
 }

@@ -178,9 +178,9 @@ public class CandidatesView extends LinearLayout
               UserDictionary dictionary = UserDictionary.instance();
               if (config != null && can_remove_personal_candidate(
                     config.user_dictionary_enabled, item_index, _personal_items[item_index])
-                  && dictionary != null)
+                  && dictionary != null
+                  && remove_personal_candidate(dictionary, candidate))
               {
-                dictionary.remove(candidate);
                 _items[item_index] = null;
                 _item_views[item_index].setVisibility(View.GONE);
                 _removed = true;
@@ -230,6 +230,11 @@ public class CandidatesView extends LinearLayout
   {
     return dictionary_enabled && item_index < Suggestions.MAX_COUNT
       && personal_candidate;
+  }
+
+  static boolean remove_personal_candidate(UserDictionary dictionary, String candidate)
+  {
+    return dictionary.remove(candidate);
   }
 
   /** Whether the candidates view should be shown for a given editor. */
