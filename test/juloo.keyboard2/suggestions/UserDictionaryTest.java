@@ -1,6 +1,8 @@
 package juloo.keyboard2.suggestions;
 
 import java.io.File;
+import java.io.ByteArrayInputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -13,6 +15,15 @@ public class UserDictionaryTest
   {
     File directory = Files.createTempDirectory("user-dictionary").toFile();
     return new UserDictionary(new File(directory, "user_words.txt"));
+  }
+
+  private int import_stream(UserDictionary dictionary, byte[] input, boolean replace)
+      throws Exception
+  {
+    Method method = UserDictionary.class.getDeclaredMethod("import_stream",
+        java.io.InputStream.class, boolean.class);
+    method.setAccessible(true);
+    return ((Integer)method.invoke(dictionary, new ByteArrayInputStream(input), replace)).intValue();
   }
 
   @Test
@@ -65,5 +76,35 @@ public class UserDictionaryTest
     assertFalse(reloaded.contains("ok"));
     assertTrue(reloaded.contains("fine"));
     assertTrue(reloaded.contains("valid"));
+  }
+
+  @Test
+  public void keeps_words_when_replace_import_has_invalid_utf8() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("Existing");
+
+    assertEquals(-1, import_stream(dictionary,
+        new byte[] { 'N', 'e', 'w', (byte)0xc3, 0x28 }, true));
+    assertArrayEquals(new String[] { "Existing" }, dictionary.find_prefix("", 2));
+  }
+
+  @Test
+  public void keeps_words_when_replace_persistence_fails() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("Existing");
+    assertTrue(dictionary.file().setWritable(false, false));
+    assertTrue(dictionary.file().getParentFile().setWritable(false, false));
+    try
+    {
+      assertEquals(-1, dictionary.import_lines(Arrays.asList("Replacement"), true));
+      assertArrayEquals(new String[] { "Existing" }, dictionary.find_prefix("", 2));
+    }
+    finally
+    {
+      dictionary.file().getParentFile().setWritable(true, false);
+      dictionary.file().setWritable(true, false);
+    }
   }
 }

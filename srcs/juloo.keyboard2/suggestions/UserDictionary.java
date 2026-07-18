@@ -14,6 +14,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -112,26 +114,30 @@ public final class UserDictionary
 
   int import_lines(Iterable<String> lines, boolean replace)
   {
-    if (replace)
-      _words.clear();
+    ArrayList<String> words = replace ? new ArrayList<String>()
+      : new ArrayList<String>(_words);
     int added = 0;
     for (String line : lines)
-      if (add_without_persist(line))
+      if (add_to(words, line))
         added++;
-    persist();
+    if (!persist(words))
+      return -1;
+    _words.clear();
+    _words.addAll(words);
     return added;
   }
 
-  private int import_stream(InputStream stream, boolean replace) throws IOException
+  private int import_stream(InputStream stream, boolean replace)
   {
     ArrayList<String> lines = new ArrayList<String>();
     try (BufferedReader reader = new BufferedReader(
-        new InputStreamReader(stream, StandardCharsets.UTF_8)))
+        new InputStreamReader(stream, strict_utf8_decoder())))
     {
       String line;
       while ((line = reader.readLine()) != null)
         lines.add(line);
     }
+    catch (IOException e) { return -1; }
     return import_lines(lines, replace);
   }
 
@@ -157,12 +163,27 @@ public final class UserDictionary
 
   private boolean add_without_persist(String word)
   {
+    return add_to(_words, word);
+  }
+
+  private static boolean add_to(ArrayList<String> words, String word)
+  {
     String normalized = valid_word(word);
-    if (normalized == null || contains(normalized))
+    if (normalized == null)
       return false;
-    _words.add(normalized);
-    sort();
+    for (String existing : words)
+      if (existing.equalsIgnoreCase(normalized))
+        return false;
+    words.add(normalized);
+    Collections.sort(words, String.CASE_INSENSITIVE_ORDER);
     return true;
+  }
+
+  private static CharsetDecoder strict_utf8_decoder()
+  {
+    return StandardCharsets.UTF_8.newDecoder()
+      .onMalformedInput(CodingErrorAction.REPORT)
+      .onUnmappableCharacter(CodingErrorAction.REPORT);
   }
 
   private static String valid_word(String word)
@@ -190,23 +211,47 @@ public final class UserDictionary
 
   private void persist()
   {
-    try (OutputStream stream = new FileOutputStream(_file))
+    persist(_words);
+  }
+
+  private boolean persist(ArrayList<String> words)
+  {
+    File parent = _file.getAbsoluteFile().getParentFile();
+    File temporary = null;
+    try
     {
-      write_words(stream);
+      temporary = File.createTempFile(".user_words", ".tmp", parent);
+      try (FileOutputStream stream = new FileOutputStream(temporary))
+      {
+        write_words(stream, words);
+        stream.getFD().sync();
+      }
+      if (!temporary.renameTo(_file))
+        return false;
+      return true;
     }
-    catch (IOException | SecurityException e) { }
+    catch (IOException | SecurityException e) { return false; }
+    finally
+    {
+      if (temporary != null && temporary.exists())
+        temporary.delete();
+    }
   }
 
   private void write_words(OutputStream stream) throws IOException
   {
-    try (BufferedWriter writer = new BufferedWriter(
-        new OutputStreamWriter(stream, StandardCharsets.UTF_8)))
+    write_words(stream, _words);
+  }
+
+  private void write_words(OutputStream stream, Iterable<String> words) throws IOException
+  {
+    BufferedWriter writer = new BufferedWriter(
+        new OutputStreamWriter(stream, StandardCharsets.UTF_8));
+    for (String word : words)
     {
-      for (String word : _words)
-      {
-        writer.write(word);
-        writer.newLine();
-      }
+      writer.write(word);
+      writer.newLine();
     }
+    writer.flush();
   }
 }
