@@ -309,6 +309,98 @@ public class CurrentlyTypedWordTest
     assertEquals(Arrays.asList("one"), received.get(1).precedingWords);
   }
 
+  @Test
+  public void typing_delimiter_mid_word_resets_composing_cursor()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("one hello");
+    word._cursor = 9;
+    word.selection_updated(9, 7, 7);
+
+    word.typed(" ");
+
+    assertEquals("", received[0].composingText);
+    assertEquals(0, received[0].composingCursorCodePoint);
+    assertEquals(Arrays.asList("one", "hel"), received[0].precedingWords);
+  }
+
+  @Test
+  public void backspace_removes_one_supplementary_code_point()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("one A\ud801\udc00B");
+    word._cursor = 8;
+    word.selection_updated(8, 7, 7);
+
+    word.event_sent(android.view.KeyEvent.KEYCODE_DEL, 0);
+
+    assertEquals("AB", word.get());
+    assertEquals("one A", word._text_before_cursor);
+    assertEquals(6, word._cursor);
+    assertEquals(1, received[0].composingCursorCodePoint);
+    assertFalse(has_unpaired_surrogate(word.get()));
+    assertFalse(has_unpaired_surrogate(word._text_before_cursor));
+  }
+
+  @Test
+  public void editor_bounded_context_ignores_truncated_leading_word()
+      throws Exception
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received[0] = context;
+          }
+        });
+    EditorConfig editor = new EditorConfig();
+    editor.initial_text_before_cursor =
+        repeat('x', 88) + " one two cur";
+    editor.initial_sel_start = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH;
+    editor.initial_sel_end = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH;
+
+    word.started(config_with(editor), null);
+
+    assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
+        word._text_before_cursor.length());
+    assertEquals(Arrays.asList("one", "two"), received[0].precedingWords);
+  }
+
+  @Test
+  public void locally_trimmed_context_ignores_truncated_leading_word()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("");
+
+    word.typed("old " + repeat('x', 100) + " one two cur");
+
+    assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
+        word._text_before_cursor.length());
+    assertEquals(Arrays.asList("one", "two"), received[0].precedingWords);
+  }
+
+  private boolean has_unpaired_surrogate(String value)
+  {
+    for (int i = 0; i < value.length(); i++)
+    {
+      char c = value.charAt(i);
+      if (Character.isHighSurrogate(c))
+      {
+        if (i + 1 >= value.length() ||
+            !Character.isLowSurrogate(value.charAt(++i)))
+          return true;
+      }
+      else if (Character.isLowSurrogate(c))
+        return true;
+    }
+    return false;
+  }
+
   private CurrentlyTypedWord capturing_typed_word(
       final ComposingContext[] received)
   {

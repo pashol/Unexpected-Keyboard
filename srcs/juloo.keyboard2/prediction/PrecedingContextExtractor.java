@@ -16,6 +16,14 @@ public final class PrecedingContextExtractor
   public static List<String> extract(
       String textBeforeCursor, int composingPrefixChars)
   {
+    return extract(textBeforeCursor, composingPrefixChars, true);
+  }
+
+  public static List<String> extract(
+      String textBeforeCursor,
+      int composingPrefixChars,
+      boolean contextStartsAtWordBoundary)
+  {
     Objects.requireNonNull(textBeforeCursor, "textBeforeCursor");
     if (composingPrefixChars < 0 || composingPrefixChars > textBeforeCursor.length())
       throw new IllegalArgumentException(
@@ -28,22 +36,25 @@ public final class PrecedingContextExtractor
 
     List<String> words = new ArrayList<>();
     int wordStart = -1;
+    boolean skipLeadingWord = !contextStartsAtWordBoundary && contextEnd > 0 &&
+      WordCharacter.isWordChar(Character.codePointAt(textBeforeCursor, 0));
     for (int i = 0; i < contextEnd;)
     {
       int codePoint = Character.codePointAt(textBeforeCursor, i);
-      if (isWordChar(codePoint))
+      if (WordCharacter.isWordChar(codePoint))
       {
         if (wordStart < 0)
           wordStart = i;
       }
       else if (wordStart >= 0)
       {
-        addWord(words, textBeforeCursor.substring(wordStart, i));
+        if (!(skipLeadingWord && wordStart == 0))
+          addWord(words, textBeforeCursor.substring(wordStart, i));
         wordStart = -1;
       }
       i += Character.charCount(codePoint);
     }
-    if (wordStart >= 0)
+    if (wordStart >= 0 && !(skipLeadingWord && wordStart == 0))
       addWord(words, textBeforeCursor.substring(wordStart, contextEnd));
     return Collections.unmodifiableList(words);
   }
@@ -53,10 +64,5 @@ public final class PrecedingContextExtractor
     if (words.size() == MAX_PRECEDING_WORDS)
       words.remove(0);
     words.add(word);
-  }
-
-  private static boolean isWordChar(int codePoint)
-  {
-    return Character.isLetterOrDigit(codePoint) || codePoint == '\'';
   }
 }

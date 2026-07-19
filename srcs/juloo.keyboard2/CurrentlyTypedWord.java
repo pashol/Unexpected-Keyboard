@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import juloo.keyboard2.prediction.ComposingContext;
 import juloo.keyboard2.prediction.PrecedingContextExtractor;
+import juloo.keyboard2.prediction.WordCharacter;
 
 /** Keep track of the word being typed. This also tracks whether the selection
     is empty. */
@@ -40,6 +41,8 @@ public final class CurrentlyTypedWord
   String _text_before_cursor = "";
   /** Whether [_text_before_cursor] came from a successful editor query. */
   boolean _context_known = false;
+  /** Whether the first word in [_text_before_cursor] is known to be complete. */
+  boolean _context_starts_at_word_boundary = false;
   boolean _sentence_start = false;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
@@ -137,7 +140,17 @@ public final class CurrentlyTypedWord
     {
       case KeyEvent.KEYCODE_DEL:
         if (meta == 0)
-          remove_surrounding_text(1, 0);
+        {
+          int word_cursor = _w.length() + _w_cursor;
+          int remove_before = 1;
+          if (word_cursor > 0)
+            remove_before = Character.charCount(
+                Character.codePointBefore(_w, word_cursor));
+          else if (_text_before_cursor.length() > 0)
+            remove_before = Character.charCount(Character.codePointBefore(
+                _text_before_cursor, _text_before_cursor.length()));
+          remove_surrounding_text(remove_before, 0);
+        }
         else
           delayed_refresh();
         break;
@@ -154,10 +167,14 @@ public final class CurrentlyTypedWord
     int len = _w.length();
     int c = len + _w_cursor;
     int removed_after = Math.min(Math.max(remove_after, 0), len - c);
+    int context_length = _text_before_cursor.length();
+    int removed_context_chars = Math.min(remove_before, context_length);
+    int context_remove_start = context_length - removed_context_chars;
+    int removed_before_code_points = remove_before - removed_context_chars +
+      _text_before_cursor.codePointCount(context_remove_start, context_length);
     _w.delete(Math.max(c - remove_before, 0), Math.min(c + remove_after, len));
-    _text_before_cursor = _text_before_cursor.substring(0,
-        Math.max(_text_before_cursor.length() - remove_before, 0));
-    _cursor -= remove_before;
+    _text_before_cursor = _text_before_cursor.substring(0, context_remove_start);
+    _cursor -= removed_before_code_points;
     _w_cursor += removed_after - Math.min(remove_after, 0);
     update_sentence_start();
     callback();
@@ -174,7 +191,8 @@ public final class CurrentlyTypedWord
       int boundedPrefixChars = Math.min(
           composingPrefixChars, _text_before_cursor.length());
       precedingWords = PrecedingContextExtractor.extract(
-          _text_before_cursor, boundedPrefixChars);
+          _text_before_cursor, boundedPrefixChars,
+          _context_starts_at_word_boundary);
     }
     _callback.currently_typed_word(new ComposingContext(
         w, cursorCodePoint, precedingWords, _sentence_start, _context_known));
@@ -196,7 +214,10 @@ public final class CurrentlyTypedWord
         insert_start = i;
     }
     if (insert_start > 0)
+    {
       _w.setLength(0);
+      _w_cursor = 0;
+    }
     _w.insert(Math.max(_w.length() + _w_cursor, 0), s, insert_start, end);
   }
 
@@ -215,6 +236,10 @@ public final class CurrentlyTypedWord
       int start = _text_before_cursor.length() - SENTENCE_CONTEXT_LENGTH;
       if (Character.isLowSurrogate(_text_before_cursor.charAt(start)))
         start++;
+      int previous = Character.codePointBefore(_text_before_cursor, start);
+      int first = Character.codePointAt(_text_before_cursor, start);
+      _context_starts_at_word_boundary =
+        !is_word_char(previous) || !is_word_char(first);
       _text_before_cursor = _text_before_cursor.substring(start);
     }
   }
@@ -289,6 +314,7 @@ public final class CurrentlyTypedWord
   {
     _w.setLength(0);
     _text_before_cursor = "";
+    _context_starts_at_word_boundary = false;
     if (text_before_cursor == null)
     {
       _context_known = false;
@@ -296,8 +322,11 @@ public final class CurrentlyTypedWord
       return;
     }
     _context_known = true;
+    _context_starts_at_word_boundary = true;
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
+    _context_starts_at_word_boundary =
+      text_before_cursor.length() < SENTENCE_CONTEXT_LENGTH;
     _cursor = saved_cursor;
     if (notify)
       callback();
@@ -308,6 +337,7 @@ public final class CurrentlyTypedWord
   {
     _w.setLength(0);
     _text_before_cursor = "";
+    _context_starts_at_word_boundary = false;
     if (st == null)
     {
       _context_known = false;
@@ -321,6 +351,8 @@ public final class CurrentlyTypedWord
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
+    _context_starts_at_word_boundary =
+      _text_before_cursor.length() < SENTENCE_CONTEXT_LENGTH;
     update_sentence_start();
     _cursor = saved_cursor;
     callback();
@@ -347,7 +379,7 @@ public final class CurrentlyTypedWord
       returns [true]. */
   public static boolean is_word_char(int c)
   {
-    return Character.isLetterOrDigit(c) || (c == '\'');
+    return WordCharacter.isWordChar(c);
   }
 
   static boolean sentence_start_from_context(String text, int wordLength)
