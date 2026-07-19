@@ -145,9 +145,10 @@ public final class KeyEventHandler
   public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched)
   {
     update_meta_state(mods);
-    if (manual_shift_latched && !_manual_shift_latched)
-      cycle_typed_word_case();
+    boolean newly_latched = manual_shift_latched && !_manual_shift_latched;
     _manual_shift_latched = manual_shift_latched;
+    if (newly_latched)
+      cycle_typed_word_case();
   }
 
   @Override
@@ -634,6 +635,7 @@ public final class KeyEventHandler
   {
     public void handle_event_key(KeyValue.Event ev);
     public void set_shift_state(boolean state, boolean lock);
+    public void clear_shift_latch();
     public void set_compose_pending(boolean pending);
     public void selection_state_changed(boolean selection_is_ongoing);
     public InputConnection getCurrentInputConnection();
@@ -664,7 +666,7 @@ public final class KeyEventHandler
         && Character.isLetter(Character.codePointAt(after, 0)))
       return;
     replace_surrounding_text(word.length(), 0, cycle_word_case(word));
-    _recv.set_shift_state(false, false);
+    _recv.clear_shift_latch();
   }
 
   void learn_typed_word(String delimiter)
@@ -698,9 +700,15 @@ public final class KeyEventHandler
   static String cycle_word_case(String word)
   {
     if (word.equals(word.toLowerCase(Locale.ROOT)))
-      return Character.toUpperCase(word.charAt(0)) + word.substring(1);
-    if (Character.isUpperCase(word.charAt(0))
-        && word.substring(1).equals(word.substring(1).toLowerCase(Locale.ROOT)))
+    {
+      int first = word.codePointAt(0);
+      return new String(Character.toChars(Character.toTitleCase(first)))
+        + word.substring(Character.charCount(first));
+    }
+    int first = word.codePointAt(0);
+    int rest = Character.charCount(first);
+    if (Character.isUpperCase(first)
+        && word.substring(rest).equals(word.substring(rest).toLowerCase(Locale.ROOT)))
       return word.toUpperCase(Locale.ROOT);
     return word.toLowerCase(Locale.ROOT);
   }

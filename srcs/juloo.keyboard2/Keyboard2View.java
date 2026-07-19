@@ -135,6 +135,12 @@ public class Keyboard2View extends View
     set_fake_ptr_latched(_shift_key, KeyValue.SHIFT, latched, lock);
   }
 
+  /** Clears a manually latched Shift after retroactive case cycling. */
+  public void clear_shift_latch()
+  {
+    _pointers.clear_manual_latch(KeyValue.SHIFT);
+  }
+
   /** Called from [KeyEventHandler]. */
   public void set_compose_pending(boolean pending)
   {

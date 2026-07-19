@@ -21,6 +21,17 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void cycle_word_case_rotates_supplementary_plane_letters()
+  {
+    String lower = "\uD801\uDC28\uD801\uDC29";
+    String title = "\uD801\uDC00\uD801\uDC29";
+    String upper = "\uD801\uDC00\uD801\uDC01";
+    assertEquals(title, KeyEventHandler.cycle_word_case(lower));
+    assertEquals(upper, KeyEventHandler.cycle_word_case(title));
+    assertEquals(lower, KeyEventHandler.cycle_word_case(upper));
+  }
+
+  @Test
   public void punctuation_auto_spacing_accepts_only_single_supported_punctuation()
   {
     assertTrue(KeyEventHandler.is_auto_spacing_punctuation("."));
@@ -73,6 +84,22 @@ public class KeyEventHandlerTest
     assertEquals(2, connection.after_cursor_request);
     assertTrue(handler._manual_shift_latched);
     assertEquals(0, ((Receiver)handler._recv).shift_changes);
+  }
+
+  @Test
+  public void successful_manual_shift_cycle_clears_physical_latch()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("hello");
+    Receiver receiver = (Receiver)handler._recv;
+
+    handler.key_down(KeyValue.SHIFT, false);
+    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
+
+    assertEquals("Hello", connection.text());
+    assertTrue(receiver.shift_latch_cleared);
   }
 
   @Test
@@ -201,10 +228,12 @@ public class KeyEventHandlerTest
   {
     final InputConnection connection;
     int shift_changes = 0;
+    boolean shift_latch_cleared = false;
 
     Receiver(InputConnection connection) { this.connection = connection; }
     public void handle_event_key(KeyValue.Event event) {}
     public void set_shift_state(boolean state, boolean lock) { shift_changes++; }
+    public void clear_shift_latch() { shift_latch_cleared = true; }
     public void set_compose_pending(boolean pending) {}
     public void selection_state_changed(boolean selection) {}
     public InputConnection getCurrentInputConnection() { return connection; }

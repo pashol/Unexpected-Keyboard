@@ -505,6 +505,11 @@ public class Keyboard2 extends InputMethodService
       _keyboard_layout_view.set_shift_state(state, lock);
     }
 
+    public void clear_shift_latch()
+    {
+      _keyboard_layout_view.clear_shift_latch();
+    }
+
     public void set_compose_pending(boolean pending)
     {
       _keyboard_layout_view.set_compose_pending(pending);

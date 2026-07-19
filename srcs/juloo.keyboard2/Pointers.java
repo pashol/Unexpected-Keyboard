@@ -94,6 +94,26 @@ public final class Pointers implements Handler.Callback
     return false;
   }
 
+  /** Clears an unlocked physical latch for [kv], preserving fake and locked
+      modifier state. */
+  public void clear_manual_latch(KeyValue kv)
+  {
+    boolean changed = false;
+    for (int i = _ptrs.size() - 1; i >= 0; i--)
+    {
+      Pointer p = _ptrs.get(i);
+      if (p.value != null && p.value.equals(kv)
+          && (p.flags & (FLAG_P_LATCHED | FLAG_P_FAKE | FLAG_P_LOCKED))
+            == FLAG_P_LATCHED)
+      {
+        _ptrs.remove(i);
+        changed = true;
+      }
+    }
+    if (changed)
+      _handler.onPointerFlagsChanged(false);
+  }
+
   /** The key must not be already latched . */
   void add_fake_pointer(KeyboardData.Key key, KeyValue kv, boolean locked)
   {
