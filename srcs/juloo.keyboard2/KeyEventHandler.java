@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.prediction.ComposingContext;
+import juloo.keyboard2.prediction.LegacyPredictionEngine;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 
@@ -180,15 +181,13 @@ public final class KeyEventHandler
   @Override
   public void currently_typed_word(ComposingContext context)
   {
-    _suggestions.currently_typed_word(
-        context.composingText, context.sentenceStart);
+    _suggestions.currently_typed_word(context);
   }
 
   public void ime_subtype_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.
-    _suggestions.currently_typed_word(_typedword.get(),
-        _typedword.sentence_start());
+    _typedword.callback();
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if
@@ -769,7 +768,7 @@ public final class KeyEventHandler
     if (word.length() == 0)
       return false;
     return dictionary.found(word)
-      || dictionary.found(Suggestions.alternate_first_character(word));
+      || dictionary.found(LegacyPredictionEngine.alternateFirstCharacter(word));
   }
 
   static interface WordLookup

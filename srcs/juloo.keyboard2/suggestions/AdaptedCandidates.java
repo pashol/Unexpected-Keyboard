@@ -1,0 +1,31 @@
+package juloo.keyboard2.suggestions;
+
+import java.util.Collections;
+import java.util.List;
+import juloo.keyboard2.prediction.PredictionCandidate;
+
+/** Structured candidates projected into the legacy Suggestions display model. */
+public final class AdaptedCandidates
+{
+  private final String[] suggestions;
+  private final boolean[] personalSuggestions;
+  private final int count;
+  private final List<PredictionCandidate> candidates;
+  private final long generation;
+
+  AdaptedCandidates(String[] suggestions, boolean[] personalSuggestions,
+      int count, List<PredictionCandidate> candidates, long generation)
+  {
+    this.suggestions = suggestions;
+    this.personalSuggestions = personalSuggestions;
+    this.count = count;
+    this.candidates = Collections.unmodifiableList(candidates);
+    this.generation = generation;
+  }
+
+  public String[] getSuggestions() { return suggestions.clone(); }
+  public boolean[] getPersonalSuggestions() { return personalSuggestions.clone(); }
+  public int getCount() { return count; }
+  public List<PredictionCandidate> getCandidates() { return candidates; }
+  public long getGeneration() { return generation; }
+}

@@ -53,14 +53,8 @@ public class CandidatesView extends LinearLayout
 
   public void set_candidates(Suggestions s)
   {
+    copy_candidates(s, _items, _personal_items);
     int s_count = s.count;
-    for (int i = 0; i < Suggestions.MAX_COUNT; i++)
-    {
-      _items[i] = (i < s_count) ? s.suggestions[i] : null;
-      _personal_items[i] = i < s_count && s.personal_suggestions[i];
-    }
-    _items[3] = s.emoji_suggestion;
-    _personal_items[3] = false;
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -77,6 +71,19 @@ public class CandidatesView extends LinearLayout
         v.setVisibility(View.GONE);
       }
     }
+  }
+
+  static void copy_candidates(Suggestions suggestions, String[] items,
+      boolean[] personalItems)
+  {
+    for (int i = 0; i < Suggestions.MAX_COUNT; i++)
+    {
+      items[i] = i < suggestions.count ? suggestions.suggestions[i] : null;
+      personalItems[i] = i < suggestions.count
+        && suggestions.personal_suggestions[i];
+    }
+    items[3] = suggestions.emoji_suggestion;
+    personalItems[3] = false;
   }
 
   void clear_candidates()
