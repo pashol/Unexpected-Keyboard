@@ -153,11 +153,12 @@ public final class CurrentlyTypedWord
       return;
     int len = _w.length();
     int c = len + _w_cursor;
+    int removed_after = Math.min(Math.max(remove_after, 0), len - c);
     _w.delete(Math.max(c - remove_before, 0), Math.min(c + remove_after, len));
     _text_before_cursor = _text_before_cursor.substring(0,
         Math.max(_text_before_cursor.length() - remove_before, 0));
     _cursor -= remove_before;
-    _w_cursor -= Math.min(remove_after, 0);
+    _w_cursor += removed_after - Math.min(remove_after, 0);
     update_sentence_start();
     callback();
   }

@@ -275,6 +275,40 @@ public class CurrentlyTypedWordTest
     assertFalse(Character.isLowSurrogate(word._text_before_cursor.charAt(0)));
   }
 
+  @Test
+  public void removing_and_replacing_mid_token_keeps_cursor_in_context_bounds()
+  {
+    final List<ComposingContext> received = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received.add(context);
+          }
+        });
+    word._enabled = true;
+    word.set_current_word("one A\ud801\udc00B");
+    word._cursor = 8;
+    word.selection_updated(8, 5, 5);
+    received.clear();
+
+    word.remove_surrounding_text(1, 3);
+
+    assertEquals("", word.get());
+    assertEquals(0, word.cursor_relative());
+    assertEquals(1, received.size());
+    assertEquals("", received.get(0).composingText);
+    assertEquals(0, received.get(0).composingCursorCodePoint);
+    assertEquals(Arrays.asList("one"), received.get(0).precedingWords);
+
+    word.typed("nöd");
+
+    assertEquals("nöd", received.get(1).composingText);
+    assertEquals(3, received.get(1).composingCursorCodePoint);
+    assertEquals(Arrays.asList("one"), received.get(1).precedingWords);
+  }
+
   private CurrentlyTypedWord capturing_typed_word(
       final ComposingContext[] received)
   {
