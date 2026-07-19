@@ -249,7 +249,8 @@ public final class CurrentlyTypedWord
       int start = _text_before_cursor.length() - SENTENCE_CONTEXT_LENGTH;
       if (Character.isLowSurrogate(_text_before_cursor.charAt(start)))
         start++;
-      _context_starts_at_word_boundary = false;
+      _context_starts_at_word_boundary = !is_word_char(
+          Character.codePointBefore(_text_before_cursor, start));
       _text_before_cursor = _text_before_cursor.substring(start);
     }
   }

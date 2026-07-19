@@ -422,6 +422,22 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void locally_trimmed_context_keeps_word_after_known_boundary()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("");
+    String retained = "first " + repeat('.', 86) + " one cur";
+
+    word.typed("discard " + retained);
+
+    assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
+        word._text_before_cursor.length());
+    assertEquals(retained, word._text_before_cursor);
+    assertEquals(Arrays.asList("first", "one"), received[0].precedingWords);
+  }
+
+  @Test
   public void removal_uses_full_word_for_code_points_outside_retained_context()
   {
     final ComposingContext[] received = new ComposingContext[1];
