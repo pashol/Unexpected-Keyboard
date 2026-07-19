@@ -6,7 +6,16 @@ import java.io.File;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 import org.junit.Test;
+import juloo.keyboard2.prediction.CandidateType;
+import juloo.keyboard2.prediction.PredictionCandidate;
+import juloo.keyboard2.prediction.PredictionEngine;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionFeedback;
+import juloo.keyboard2.prediction.PredictionRequest;
+import juloo.keyboard2.prediction.ComposingContext;
+import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 import static org.junit.Assert.*;
 
@@ -87,6 +96,30 @@ public class KeyEventHandlerTest
   {
     assertTrue(KeyEventHandler.should_autocomplete_candidate(false));
     assertFalse(KeyEventHandler.should_autocomplete_candidate(true));
+  }
+
+  @Test
+  public void handle_space_bar_does_not_complete_experimental_generation()
+  {
+    FakeInputConnection connection = new FakeInputConnection("typed");
+    KeyEventHandler handler = handler_with_prediction(
+        connection, "experimental", true);
+
+    handler.handle_space_bar();
+
+    assertEquals("typed ", connection.text());
+  }
+
+  @Test
+  public void handle_space_bar_preserves_legacy_autocomplete_behavior()
+  {
+    FakeInputConnection connection = new FakeInputConnection("typed");
+    KeyEventHandler handler = handler_with_prediction(
+        connection, "corrected", false);
+
+    handler.handle_space_bar();
+
+    assertEquals("corrected ", connection.text());
   }
 
   @Test
@@ -269,6 +302,56 @@ public class KeyEventHandlerTest
   {
     Receiver receiver = new Receiver(connection.connection);
     return new KeyEventHandler(receiver, new juloo.keyboard2.suggestions.Suggestions(receiver, null));
+  }
+
+  KeyEventHandler handler_with_prediction(FakeInputConnection connection,
+      String candidate, boolean experimental)
+  {
+    Receiver receiver = new Receiver(connection.connection);
+    PredictionEngine selected = new SingleCandidateEngine(candidate);
+    PredictionEngineController controller = experimental
+      ? new PredictionEngineController(new SingleCandidateEngine("legacy"), selected, true)
+      : new PredictionEngineController(selected, null, false);
+    Suggestions suggestions = new Suggestions(receiver, null, controller);
+    set_suggestions_enabled(suggestions);
+    suggestions.currently_typed_word(new ComposingContext(
+        "typed", 5, Collections.emptyList(), false, false));
+    KeyEventHandler handler = new KeyEventHandler(receiver, suggestions);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("typed");
+    handler._space_bar_auto_complete = true;
+    return handler;
+  }
+
+  void set_suggestions_enabled(Suggestions suggestions)
+  {
+    try
+    {
+      java.lang.reflect.Field field = Suggestions.class.getDeclaredField("_enabled");
+      field.setAccessible(true);
+      field.setBoolean(suggestions, true);
+    }
+    catch (ReflectiveOperationException e)
+    {
+      throw new AssertionError(e);
+    }
+  }
+
+  static final class SingleCandidateEngine implements PredictionEngine
+  {
+    final String text;
+
+    SingleCandidateEngine(String text) { this.text = text; }
+
+    public java.util.List<PredictionCandidate> predict(PredictionRequest request)
+    {
+      return Collections.singletonList(new PredictionCandidate(
+          text, "en", CandidateType.COMPLETION, text, 0, 0, 0, 0, 0));
+    }
+
+    public void recordFeedback(PredictionFeedback feedback) {}
+    public void resetSession() {}
+    public void close() {}
   }
 
   UserDictionary dictionary() throws Exception

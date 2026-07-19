@@ -42,6 +42,7 @@ public class Keyboard2 extends InputMethodService
   private CandidatesView _candidates_view;
   private Suggestions _suggestions;
   private KeyEventHandler _keyeventhandler;
+  private PredictionEngineLifecycleCoordinator _prediction_lifecycle;
   /** If not 'null', the layout to use instead of [_config.current_layout]. */
   private KeyboardData _currentSpecialLayout;
   /** Layout associated with the currently selected locale. Not 'null'. */
@@ -137,6 +138,17 @@ public class Keyboard2 extends InputMethodService
     UserDictionary.init(this);
     Receiver recvr = this.new Receiver();
     _suggestions = new Suggestions(recvr, _config);
+    _prediction_lifecycle = new PredictionEngineLifecycleCoordinator(
+        new PredictionEngineLifecycleCoordinator.Target()
+        {
+          public void rebuildPredictionEngine()
+          {
+            _suggestions.rebuild_prediction_engine();
+          }
+
+          public void resetPredictionSession() { _suggestions.finished(); }
+          public void closePredictionEngines() { _suggestions.close(); }
+        });
     _keyeventhandler = new KeyEventHandler(recvr, _suggestions);
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
@@ -150,8 +162,8 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
-    if (_suggestions != null)
-      _suggestions.close();
+    if (_prediction_lifecycle != null)
+      _prediction_lifecycle.close();
     super.onDestroy();
 
     _foldStateTracker.close();
@@ -344,7 +356,7 @@ public class Keyboard2 extends InputMethodService
   {
     refreshSubtypeImm();
     refresh_current_dictionary();
-    _suggestions.rebuild_prediction_engine();
+    _prediction_lifecycle.onSubtypeChanged();
     refresh_candidates_view();
     _keyboard_layout_view.setKeyboard(current_layout());
     _keyeventhandler.ime_subtype_changed();
@@ -364,15 +376,14 @@ public class Keyboard2 extends InputMethodService
   {
     super.onFinishInputView(finishingInput);
     _keyboard_layout_view.reset();
-    _suggestions.finished();
+    _prediction_lifecycle.onInputFinished();
   }
 
   @Override
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
     refresh_config();
-    if ("experimental_prediction_engine".equals(_key))
-      _suggestions.rebuild_prediction_engine();
+    _prediction_lifecycle.onPreferenceChanged(_key);
     _keyboard_layout_view.setKeyboard(current_layout());
   }
 

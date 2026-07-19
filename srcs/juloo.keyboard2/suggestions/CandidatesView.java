@@ -228,12 +228,18 @@ public class CandidatesView extends LinearLayout
           public void onClick(View _v)
           {
             String it = _items[item_index];
-            if (it != null)
-              Config.globalConfig().handler.suggestion_entered(it);
+            Config config = Config.globalConfig();
+            select_candidate(it, config == null ? null : config.handler);
           }
         });
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
+  }
+
+  static void select_candidate(String candidate, Config.IKeyEventHandler handler)
+  {
+    if (candidate != null && handler != null)
+      handler.suggestion_entered(candidate);
   }
 
   static boolean can_remove_personal_candidate(boolean dictionary_enabled,

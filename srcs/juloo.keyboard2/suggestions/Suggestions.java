@@ -63,6 +63,12 @@ public final class Suggestions
     this(c, conf, engine, () -> active_language_tag(conf));
   }
 
+  public Suggestions(Callback c, Config conf,
+      PredictionEngineController controller)
+  {
+    this(c, conf, controller, () -> active_language_tag(conf));
+  }
+
   Suggestions(Callback c, Config conf, PredictionEngine engine,
       LanguageTagProvider languageTagProvider)
   {

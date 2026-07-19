@@ -35,9 +35,10 @@ public final class PredictionEngineFactory
   public PredictionEngineController create(Config config, String languageTag,
       boolean experimentalEnabled)
   {
+    PredictionEngine legacy = legacyCreator.create(config);
     return new PredictionEngineController(
-        legacyCreator.create(config),
-        experimentalCreator.create(config, languageTag),
+        legacy,
+        createExperimental(config, languageTag, experimentalEnabled),
         experimentalEnabled);
   }
 
@@ -46,7 +47,22 @@ public final class PredictionEngineFactory
   {
     controller.replaceEngines(
         legacyCreator.create(config),
-        experimentalCreator.create(config, languageTag),
+        createExperimental(config, languageTag, experimentalEnabled),
         experimentalEnabled);
+  }
+
+  private PredictionEngine createExperimental(Config config, String languageTag,
+      boolean experimentalEnabled)
+  {
+    if (!experimentalEnabled)
+      return null;
+    try
+    {
+      return experimentalCreator.create(config, languageTag);
+    }
+    catch (PredictionFailure unavailable)
+    {
+      return null;
+    }
   }
 }

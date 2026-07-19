@@ -12,6 +12,9 @@ import juloo.keyboard2.prediction.PredictionEngine;
 import juloo.keyboard2.prediction.PredictionEngineController;
 import juloo.keyboard2.prediction.PredictionFeedback;
 import juloo.keyboard2.prediction.PredictionRequest;
+import juloo.keyboard2.Config;
+import juloo.keyboard2.KeyValue;
+import juloo.keyboard2.Pointers;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -144,6 +147,28 @@ public class SuggestionsTest
   }
 
   @Test
+  public void experimental_candidate_remains_tappable_through_candidate_dispatch()
+  {
+    CapturingEngine experimental = new CapturingEngine(Collections.singletonList(
+        candidate("experimental", "experimental")));
+    Suggestions suggestions = new Suggestions(value -> {}, null,
+        new PredictionEngineController(
+          new CapturingEngine(Collections.emptyList()), experimental, true),
+        () -> "en");
+    suggestions._enabled = true;
+    suggestions.currently_typed_word(new ComposingContext(
+        "word", 4, Collections.emptyList(), false, false));
+    String[] items = new String[4];
+    boolean[] personal = new boolean[4];
+    CandidatesView.copy_candidates(suggestions, items, personal);
+    CapturingHandler handler = new CapturingHandler();
+
+    CandidatesView.select_candidate(items[0], handler);
+
+    assertEquals("experimental", handler.selected);
+  }
+
+  @Test
   public void candidates_view_keeps_three_words_and_emoji_in_separate_fourth_slot()
   {
     Suggestions suggestions = new Suggestions(value -> {}, null,
@@ -272,5 +297,16 @@ public class SuggestionsTest
     public void recordFeedback(PredictionFeedback feedback) {}
     public void resetSession() {}
     public void close() {}
+  }
+
+  private static final class CapturingHandler implements Config.IKeyEventHandler
+  {
+    String selected;
+
+    public void key_down(KeyValue value, boolean isSwipe) {}
+    public void key_up(KeyValue value, Pointers.Modifiers modifiers) {}
+    public void mods_changed(Pointers.Modifiers modifiers, boolean latched) {}
+    public void suggestion_entered(String text) { selected = text; }
+    public void personal_candidate_removed(String text) {}
   }
 }
