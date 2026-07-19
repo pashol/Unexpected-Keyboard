@@ -16,6 +16,7 @@ public final class PredictionRequest
   private final String languageTag;
   private final int maxResults;
   private final long generation;
+  private final EditorPredictionPolicy editorPredictionPolicy;
 
   public PredictionRequest(
       String composingText,
@@ -24,7 +25,8 @@ public final class PredictionRequest
       boolean sentenceStart,
       String languageTag,
       int maxResults,
-      long generation)
+      long generation,
+      EditorPredictionPolicy editorPredictionPolicy)
   {
     this.composingText = Objects.requireNonNull(composingText, "composingText");
     if (composingCursorCodePoint < 0 || composingCursorCodePoint >
@@ -43,6 +45,8 @@ public final class PredictionRequest
       throw new IllegalArgumentException("maxResults must be positive");
     this.maxResults = maxResults;
     this.generation = generation;
+    this.editorPredictionPolicy = Objects.requireNonNull(
+        editorPredictionPolicy, "editorPredictionPolicy");
   }
 
   public String getComposingText()
@@ -78,5 +82,10 @@ public final class PredictionRequest
   public long getGeneration()
   {
     return generation;
+  }
+
+  public EditorPredictionPolicy getEditorPredictionPolicy()
+  {
+    return editorPredictionPolicy;
   }
 }

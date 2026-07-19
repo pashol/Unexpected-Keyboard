@@ -36,6 +36,8 @@
     <string name="pref_category_suggestions">Suggestions</string>
     <string name="pref_suggestions_title">Suggestions</string>
     <string name="pref_suggestions_summary">Enable word completion and spell checking</string>
+    <string name="pref_experimental_prediction_engine_title">Experimental offline prediction</string>
+    <string name="pref_experimental_prediction_engine_summary">Try the experimental on-device engine when available. Suggestions stay offline and fall back to the standard engine if unavailable.</string>
     <string name="pref_user_dictionary_enabled_title">Personal dictionary</string>
     <string name="pref_user_dictionary_enabled_summary">Show words from your personal dictionary in suggestions</string>
     <string name="pref_user_dictionary_export">Export personal dictionary</string>

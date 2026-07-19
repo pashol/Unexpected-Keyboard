@@ -1,14 +1,19 @@
 package juloo.keyboard2.suggestions;
 
+import android.text.InputType;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
 import juloo.keyboard2.prediction.ComposingContext;
-import juloo.keyboard2.prediction.LegacyPredictionEngine;
+import juloo.keyboard2.prediction.EditorPredictionPolicy;
+import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionEngineFactory;
 import juloo.keyboard2.prediction.PredictionRequest;
 
 /** Keep track of the word being typed and provide suggestions for
@@ -18,7 +23,8 @@ public final class Suggestions
   Callback _callback;
   Config _config;
   boolean _enabled;
-  final PredictionEngine _engine;
+  final PredictionEngineController _controller;
+  final PredictionEngineFactory _factory;
   final LanguageTagProvider _language_tag_provider;
   long _generation;
   AdaptedCandidates _adapted_candidates;
@@ -36,7 +42,20 @@ public final class Suggestions
 
   public Suggestions(Callback c, Config conf)
   {
-    this(c, conf, new LegacyPredictionEngine(conf));
+    this(c, conf, PredictionEngineFactory.production());
+  }
+
+  Suggestions(Callback c, Config conf, PredictionEngineFactory factory)
+  {
+    _callback = c;
+    _config = conf;
+    _factory = factory;
+    _language_tag_provider = () -> active_language_tag(conf);
+    _controller = factory.create(conf,
+        canonical_language_tag(_language_tag_provider.active_language_tag()),
+        conf != null && conf.experimental_prediction_engine);
+    _adapted_candidates = PredictionCandidateAdapter.adapt(
+        Collections.emptyList(), _generation, false);
   }
 
   public Suggestions(Callback c, Config conf, PredictionEngine engine)
@@ -47,9 +66,17 @@ public final class Suggestions
   Suggestions(Callback c, Config conf, PredictionEngine engine,
       LanguageTagProvider languageTagProvider)
   {
+    this(c, conf, new PredictionEngineController(engine, null, false),
+        languageTagProvider);
+  }
+
+  Suggestions(Callback c, Config conf, PredictionEngineController controller,
+      LanguageTagProvider languageTagProvider)
+  {
     _callback = c;
     _config = conf;
-    _engine = engine;
+    _controller = controller;
+    _factory = null;
     _language_tag_provider = languageTagProvider;
     _adapted_candidates = PredictionCandidateAdapter.adapt(
         Collections.emptyList(), _generation);
@@ -57,8 +84,28 @@ public final class Suggestions
 
   public void started()
   {
+    _controller.resetSession();
     _enabled = _config.editor_config.should_show_candidates_view;
     clear();
+  }
+
+  public void finished()
+  {
+    _controller.resetSession();
+  }
+
+  public void close()
+  {
+    _controller.close();
+  }
+
+  public void rebuild_prediction_engine()
+  {
+    if (_factory == null)
+      return;
+    _factory.rebuild(_controller, _config,
+        canonical_language_tag(_language_tag_provider.active_language_tag()),
+        _config.experimental_prediction_engine);
   }
 
   public void currently_typed_word(ComposingContext context)
@@ -94,13 +141,33 @@ public final class Suggestions
         context.composingText, context.composingCursorCodePoint,
         context.precedingWords, context.sentenceStart,
         canonical_language_tag(_language_tag_provider.active_language_tag()),
-        MAX_COUNT, generation);
+         MAX_COUNT, generation, editor_prediction_policy());
+    List<PredictionCandidate> result = _controller.predict(request);
     _adapted_candidates = PredictionCandidateAdapter.adapt(
-        _engine.predict(request), generation);
+        result, generation, _controller.isGenerationExperimental(generation));
     apply_adapted_candidates();
     emoji_suggestion = _config == null
       ? null : query_emoji(apply_substitutions(context.composingText));
     return count;
+  }
+
+  public boolean is_current_generation_experimental()
+  {
+    return _adapted_candidates.isExperimental();
+  }
+
+  public boolean can_auto_complete_current_candidate()
+  {
+    return !_adapted_candidates.isExperimental();
+  }
+
+  private EditorPredictionPolicy editor_prediction_policy()
+  {
+    if (_config != null && _config.editor_config != null
+        && _config.editor_config.prediction_policy != null)
+      return _config.editor_config.prediction_policy;
+    return EditorPredictionPolicy.from(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL, 0, null);
   }
 
   static String canonical_language_tag(String languageTag)

@@ -9,6 +9,7 @@ import juloo.keyboard2.prediction.ComposingContext;
 import juloo.keyboard2.prediction.LegacyPredictionEngine;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
+import juloo.keyboard2.prediction.PredictionEngineController;
 import juloo.keyboard2.prediction.PredictionFeedback;
 import juloo.keyboard2.prediction.PredictionRequest;
 import org.junit.Test;
@@ -117,6 +118,29 @@ public class SuggestionsTest
 
     assertTrue(engine.request.getGeneration() > first);
     assertEquals("typed", suggestions.suggestions[0]);
+    assertFalse(suggestions.is_current_generation_experimental());
+    assertTrue(suggestions.can_auto_complete_current_candidate());
+  }
+
+  @Test
+  public void experimental_result_records_source_and_disables_only_space_autocomplete()
+  {
+    CapturingEngine legacy = new CapturingEngine(Collections.singletonList(
+        candidate("legacy", LegacyPredictionEngine.SOURCE_CDICT)));
+    CapturingEngine experimental = new CapturingEngine(Collections.singletonList(
+        candidate("experimental", "experimental")));
+    PredictionEngineController controller =
+        new PredictionEngineController(legacy, experimental, true);
+    Suggestions suggestions = new Suggestions(
+        value -> {}, null, controller, () -> "en");
+    suggestions._enabled = true;
+
+    suggestions.currently_typed_word(new ComposingContext(
+        "word", 4, Collections.emptyList(), false, false));
+
+    assertEquals("experimental", suggestions.suggestions[0]);
+    assertTrue(suggestions.is_current_generation_experimental());
+    assertFalse(suggestions.can_auto_complete_current_candidate());
   }
 
   @Test

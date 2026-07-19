@@ -83,6 +83,13 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void space_autocomplete_rejects_experimental_candidates_only()
+  {
+    assertTrue(KeyEventHandler.should_autocomplete_candidate(false));
+    assertFalse(KeyEventHandler.should_autocomplete_candidate(true));
+  }
+
+  @Test
   public void entering_suggestion_does_not_append_a_space()
   {
     FakeInputConnection connection = new FakeInputConnection();

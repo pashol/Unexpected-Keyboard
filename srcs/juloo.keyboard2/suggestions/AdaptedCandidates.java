@@ -13,15 +13,24 @@ public final class AdaptedCandidates
   private final int count;
   private final List<PredictionCandidate> candidates;
   private final long generation;
+  private final boolean experimental;
 
   AdaptedCandidates(String[] suggestions, boolean[] personalSuggestions,
       int count, List<PredictionCandidate> candidates, long generation)
+  {
+    this(suggestions, personalSuggestions, count, candidates, generation, false);
+  }
+
+  AdaptedCandidates(String[] suggestions, boolean[] personalSuggestions,
+      int count, List<PredictionCandidate> candidates, long generation,
+      boolean experimental)
   {
     this.suggestions = suggestions.clone();
     this.personalSuggestions = personalSuggestions.clone();
     this.count = count;
     this.candidates = Collections.unmodifiableList(new ArrayList<>(candidates));
     this.generation = generation;
+    this.experimental = experimental;
   }
 
   public String[] getSuggestions() { return suggestions.clone(); }
@@ -29,4 +38,5 @@ public final class AdaptedCandidates
   public int getCount() { return count; }
   public List<PredictionCandidate> getCandidates() { return candidates; }
   public long getGeneration() { return generation; }
+  public boolean isExperimental() { return experimental; }
 }

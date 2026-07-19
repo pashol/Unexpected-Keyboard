@@ -12,6 +12,12 @@ public final class PredictionCandidateAdapter
   public static AdaptedCandidates adapt(
       List<PredictionCandidate> candidates, long generation)
   {
+    return adapt(candidates, generation, false);
+  }
+
+  public static AdaptedCandidates adapt(
+      List<PredictionCandidate> candidates, long generation, boolean experimental)
+  {
     String[] suggestions = new String[Suggestions.MAX_COUNT];
     boolean[] personal = new boolean[Suggestions.MAX_COUNT];
     ArrayList<PredictionCandidate> retained = new ArrayList<>(Suggestions.MAX_COUNT);
@@ -25,7 +31,7 @@ public final class PredictionCandidateAdapter
       personal[index] = LegacyPredictionEngine.SOURCE_PERSONAL.equals(candidate.getSource());
     }
     return new AdaptedCandidates(
-        suggestions, personal, retained.size(), retained, generation);
+        suggestions, personal, retained.size(), retained, generation, experimental);
   }
 
   static AdaptedCandidates removePersonalCandidate(
@@ -36,7 +42,7 @@ public final class PredictionCandidateAdapter
       if (!LegacyPredictionEngine.SOURCE_PERSONAL.equals(candidate.getSource())
           || !candidate.getText().equals(text))
         retained.add(candidate);
-    return adapt(retained, candidates.getGeneration());
+    return adapt(retained, candidates.getGeneration(), candidates.isExperimental());
   }
 
   private static boolean contains(List<PredictionCandidate> candidates, String text)

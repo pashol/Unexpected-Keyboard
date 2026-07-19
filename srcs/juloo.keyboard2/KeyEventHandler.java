@@ -615,6 +615,8 @@ public final class KeyEventHandler
       _learn_undone_autocomplete = false;
     }
     else if (_space_bar_auto_complete && _suggestions.count > 0
+        && should_autocomplete_candidate(
+          _suggestions.is_current_generation_experimental())
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {
@@ -623,6 +625,11 @@ public final class KeyEventHandler
     }
     else
       send_text(" ");
+  }
+
+  static boolean should_autocomplete_candidate(boolean experimental)
+  {
+    return !experimental;
   }
 
   /** Undo the last autocorrect. */

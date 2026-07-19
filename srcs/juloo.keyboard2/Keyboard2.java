@@ -150,6 +150,8 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
+    if (_suggestions != null)
+      _suggestions.close();
     super.onDestroy();
 
     _foldStateTracker.close();
@@ -342,6 +344,7 @@ public class Keyboard2 extends InputMethodService
   {
     refreshSubtypeImm();
     refresh_current_dictionary();
+    _suggestions.rebuild_prediction_engine();
     refresh_candidates_view();
     _keyboard_layout_view.setKeyboard(current_layout());
     _keyeventhandler.ime_subtype_changed();
@@ -361,12 +364,15 @@ public class Keyboard2 extends InputMethodService
   {
     super.onFinishInputView(finishingInput);
     _keyboard_layout_view.reset();
+    _suggestions.finished();
   }
 
   @Override
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
     refresh_config();
+    if ("experimental_prediction_engine".equals(_key))
+      _suggestions.rebuild_prediction_engine();
     _keyboard_layout_view.setKeyboard(current_layout());
   }
 

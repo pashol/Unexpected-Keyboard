@@ -47,6 +47,18 @@ public class PredictionDomainTest
   }
 
   @Test
+  public void request_retains_immutable_editor_prediction_policy()
+  {
+    EditorPredictionPolicy policy = EditorPredictionPolicy.from(
+        android.text.InputType.TYPE_CLASS_TEXT, 0, null);
+    PredictionRequest request = new PredictionRequest(
+        "word", 4, java.util.Collections.emptyList(), false,
+        "en", 3, 1L, policy);
+
+    assertSame(policy, request.getEditorPredictionPolicy());
+  }
+
+  @Test
   public void request_rejects_cursor_past_bmp_text()
   {
     assertInvalidRequest("Grue", 5, Arrays.asList("word"), "gsw-CH");
@@ -62,7 +74,8 @@ public class PredictionDomainTest
   public void request_accepts_valid_supplementary_code_point_offset()
   {
     PredictionRequest request = new PredictionRequest(
-        "A\ud83d\ude00B", 2, Arrays.asList("word"), false, "gsw-CH", 1, 9L);
+        "A\ud83d\ude00B", 2, Arrays.asList("word"), false, "gsw-CH", 1, 9L,
+        policy());
 
     assertEquals(2, request.getComposingCursorCodePoint());
   }
@@ -219,7 +232,8 @@ public class PredictionDomainTest
   private PredictionRequest request(List<String> precedingWords, int cursor, long generation)
   {
     return new PredictionRequest(
-        "Grue", cursor, precedingWords, false, "gsw-CH", 5, generation);
+        "Grue", cursor, precedingWords, false, "gsw-CH", 5, generation,
+        policy());
   }
 
   private void assertInvalidMaxResults(int maxResults)
@@ -227,7 +241,8 @@ public class PredictionDomainTest
     try
     {
       new PredictionRequest(
-          "text", 0, Arrays.asList("word"), false, "gsw-CH", maxResults, 1L);
+          "text", 0, Arrays.asList("word"), false, "gsw-CH", maxResults, 1L,
+          policy());
       fail("max results must be positive");
     }
     catch (IllegalArgumentException expected)
@@ -240,12 +255,19 @@ public class PredictionDomainTest
   {
     try
     {
-      new PredictionRequest(text, cursor, words, false, languageTag, 1, 1L);
+      new PredictionRequest(text, cursor, words, false, languageTag, 1, 1L,
+          policy());
       fail("request must reject invalid input");
     }
     catch (NullPointerException | IllegalArgumentException expected)
     {
     }
+  }
+
+  private EditorPredictionPolicy policy()
+  {
+    return EditorPredictionPolicy.from(
+        android.text.InputType.TYPE_CLASS_TEXT, 0, null);
   }
 
   private PredictionCandidate candidate(CandidateType type, String source)

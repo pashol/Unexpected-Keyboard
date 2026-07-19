@@ -224,7 +224,8 @@ public class LegacyPredictionEngineTest
   private static PredictionRequest request(String word, boolean sentenceStart, int max)
   {
     return new PredictionRequest(word, word.codePointCount(0, word.length()),
-        Collections.emptyList(), sentenceStart, "und", max, 7L);
+        Collections.emptyList(), sentenceStart, "und", max, 7L,
+        EditorPredictionPolicy.from(android.text.InputType.TYPE_CLASS_TEXT, 0, null));
   }
 
   private static void assertCandidates(List<PredictionCandidate> candidates,

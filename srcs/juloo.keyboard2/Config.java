@@ -45,6 +45,7 @@ public final class Config
   public float swipe_dist_px;
   public float slide_step_px;
   public boolean suggestions_enabled;
+  public boolean experimental_prediction_engine;
   public boolean user_dictionary_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
@@ -148,6 +149,7 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    experimental_prediction_engine = load_experimental_prediction_engine(_prefs);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
@@ -209,6 +211,11 @@ public final class Config
     float screen_width_dp = dm.widthPixels / dm.density;
     wide_screen = screen_width_dp >= WIDE_DEVICE_THRESHOLD;
     split_layout = get_split_layout();
+  }
+
+  static boolean load_experimental_prediction_engine(SharedPreferences prefs)
+  {
+    return prefs.getBoolean("experimental_prediction_engine", false);
   }
 
   public int get_current_layout()
