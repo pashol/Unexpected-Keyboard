@@ -82,9 +82,11 @@ public final class CurrentlyTypedWord
     _w_cursor = 0;
     if (!_has_selection)
     {
-      set_current_word(e.initial_text_before_cursor);
+      set_current_word(e.initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
-        -append_chars(e.initial_text_after_cursor); 
+        -append_chars(e.initial_text_after_cursor);
+      if (_context_known)
+        callback();
     }
   }
 
@@ -113,9 +115,17 @@ public final class CurrentlyTypedWord
     else if (newSelStart != _cursor)
     {
       _cursor = newSelStart;
-      _w_cursor += newSelStart - oldSelStart;
-      if (_w_cursor < -_w.length() || _w_cursor > 0)
+      int old_word_cursor = _w_cursor;
+      int new_word_cursor = _w_cursor + newSelStart - oldSelStart;
+      int new_word_position = _w.length() + new_word_cursor;
+      if (new_word_cursor < -_w.length() || new_word_cursor > 0 ||
+          !is_code_point_boundary(_w, new_word_position))
         refresh_current_word();
+      else
+      {
+        _w_cursor = new_word_cursor;
+        synchronize_text_before_cursor(old_word_cursor);
+      }
     }
   }
 
@@ -193,6 +203,12 @@ public final class CurrentlyTypedWord
   {
     type_chars(s, 0, s.length());
     _text_before_cursor += s;
+    trim_text_before_cursor();
+    update_sentence_start();
+  }
+
+  void trim_text_before_cursor()
+  {
     if (_text_before_cursor.length() > SENTENCE_CONTEXT_LENGTH)
     {
       int start = _text_before_cursor.length() - SENTENCE_CONTEXT_LENGTH;
@@ -200,7 +216,31 @@ public final class CurrentlyTypedWord
         start++;
       _text_before_cursor = _text_before_cursor.substring(start);
     }
-    update_sentence_start();
+  }
+
+  void synchronize_text_before_cursor(int old_word_cursor)
+  {
+    if (!_context_known)
+      return;
+    int movement = _w_cursor - old_word_cursor;
+    if (movement < 0)
+    {
+      _text_before_cursor = _text_before_cursor.substring(0,
+          Math.max(0, _text_before_cursor.length() + movement));
+    }
+    else if (movement > 0)
+    {
+      int old_position = _w.length() + old_word_cursor;
+      _text_before_cursor += _w.substring(old_position, old_position + movement);
+      trim_text_before_cursor();
+    }
+  }
+
+  static boolean is_code_point_boundary(CharSequence text, int position)
+  {
+    return position <= 0 || position >= text.length() ||
+      !Character.isLowSurrogate(text.charAt(position)) ||
+      !Character.isHighSurrogate(text.charAt(position - 1));
   }
 
   /** Append chars to the current word without moving the cursor. Return the
@@ -241,6 +281,11 @@ public final class CurrentlyTypedWord
   /** Refresh the current word by immediately querying the editor. */
   void set_current_word(CharSequence text_before_cursor)
   {
+    set_current_word(text_before_cursor, true);
+  }
+
+  void set_current_word(CharSequence text_before_cursor, boolean notify)
+  {
     _w.setLength(0);
     _text_before_cursor = "";
     if (text_before_cursor == null)
@@ -253,7 +298,8 @@ public final class CurrentlyTypedWord
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
-    callback();
+    if (notify)
+      callback();
   }
 
   /** Like above but take the text after the cursor into account. */

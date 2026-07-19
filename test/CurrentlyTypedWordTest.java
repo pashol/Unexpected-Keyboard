@@ -1,6 +1,10 @@
 package juloo.keyboard2;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import juloo.keyboard2.prediction.ComposingContext;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -186,6 +190,116 @@ public class CurrentlyTypedWordTest
     assertFalse(Character.isLowSurrogate(word._text_before_cursor.charAt(0)));
     assertEquals(repeat('x', CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - 1),
         word._text_before_cursor);
+  }
+
+  @Test
+  public void started_emits_one_complete_mid_word_context() throws Exception
+  {
+    final List<ComposingContext> received = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received.add(context);
+          }
+        });
+    EditorConfig editor = new EditorConfig();
+    editor.initial_text_before_cursor = "one A\ud801\udc00";
+    editor.initial_text_after_cursor = "B";
+    editor.initial_sel_start = 7;
+    editor.initial_sel_end = 7;
+
+    word.started(config_with(editor), null);
+
+    assertEquals(1, received.size());
+    assertEquals("A\ud801\udc00B", received.get(0).composingText);
+    assertEquals(2, received.get(0).composingCursorCodePoint);
+    assertEquals(Arrays.asList("one"), received.get(0).precedingWords);
+  }
+
+  @Test
+  public void started_does_not_emit_when_initial_context_is_unknown()
+      throws Exception
+  {
+    final List<ComposingContext> received = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received.add(context);
+          }
+        });
+    EditorConfig editor = new EditorConfig();
+    editor.initial_text_before_cursor = null;
+    editor.initial_text_after_cursor = null;
+    editor.initial_sel_start = 0;
+    editor.initial_sel_end = 0;
+
+    word.started(config_with(editor), null);
+
+    assertTrue(received.isEmpty());
+  }
+
+  @Test
+  public void local_cursor_movement_keeps_preceding_context_before_current_word()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("one hello");
+    word._cursor = 9;
+
+    word.selection_updated(9, 7, 7);
+    word.typed("X");
+
+    assertEquals("helXlo", received[0].composingText);
+    assertEquals(4, received[0].composingCursorCodePoint);
+    assertEquals(Arrays.asList("one"), received[0].precedingWords);
+  }
+
+  @Test
+  public void local_cursor_movement_keeps_supplementary_context_synchronized()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    word.set_current_word("one A\ud801\udc00B");
+    word._cursor = 8;
+
+    word.selection_updated(8, 5, 5);
+    word.typed("X");
+
+    assertEquals("AX\ud801\udc00B", received[0].composingText);
+    assertEquals(2, received[0].composingCursorCodePoint);
+    assertEquals(Arrays.asList("one"), received[0].precedingWords);
+    assertFalse(Character.isLowSurrogate(word._text_before_cursor.charAt(0)));
+  }
+
+  private CurrentlyTypedWord capturing_typed_word(
+      final ComposingContext[] received)
+  {
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received[0] = context;
+          }
+        });
+    word._enabled = true;
+    return word;
+  }
+
+  private Config config_with(EditorConfig editor) throws Exception
+  {
+    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    Field singleton = unsafeClass.getDeclaredField("theUnsafe");
+    singleton.setAccessible(true);
+    Object unsafe = singleton.get(null);
+    Method allocateInstance = unsafeClass.getMethod("allocateInstance", Class.class);
+    Config config = (Config)allocateInstance.invoke(unsafe, Config.class);
+    config.editor_config = editor;
+    return config;
   }
 
   private String repeat(char c, int count)
