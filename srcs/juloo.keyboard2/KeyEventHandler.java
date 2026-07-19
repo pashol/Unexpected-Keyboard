@@ -11,6 +11,7 @@ import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
 import java.util.Locale;
 import juloo.cdict.Cdict;
+import juloo.keyboard2.prediction.ComposingContext;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 
@@ -177,9 +178,10 @@ public final class KeyEventHandler
   }
 
   @Override
-  public void currently_typed_word(String word, boolean sentence_start)
+  public void currently_typed_word(ComposingContext context)
   {
-    _suggestions.currently_typed_word(word, sentence_start);
+    _suggestions.currently_typed_word(
+        context.composingText, context.sentenceStart);
   }
 
   public void ime_subtype_changed()

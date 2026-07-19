@@ -6,7 +6,10 @@ import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.SurroundingText;
+import java.util.Collections;
 import java.util.List;
+import juloo.keyboard2.prediction.ComposingContext;
+import juloo.keyboard2.prediction.PrecedingContextExtractor;
 
 /** Keep track of the word being typed. This also tracks whether the selection
     is empty. */
@@ -152,7 +155,18 @@ public final class CurrentlyTypedWord
   void callback()
   {
     String w = _w.toString();
-    _callback.currently_typed_word(w, _sentence_start);
+    int composingPrefixChars = _w.length() + _w_cursor;
+    int cursorCodePoint = w.codePointCount(0, composingPrefixChars);
+    List<String> precedingWords = Collections.emptyList();
+    if (_context_known)
+    {
+      int boundedPrefixChars = Math.min(
+          composingPrefixChars, _text_before_cursor.length());
+      precedingWords = PrecedingContextExtractor.extract(
+          _text_before_cursor, boundedPrefixChars);
+    }
+    _callback.currently_typed_word(new ComposingContext(
+        w, cursorCodePoint, precedingWords, _sentence_start, _context_known));
   }
 
   /** Estimate the currently typed word after [chars] has been typed. */
@@ -179,6 +193,13 @@ public final class CurrentlyTypedWord
   {
     type_chars(s, 0, s.length());
     _text_before_cursor += s;
+    if (_text_before_cursor.length() > SENTENCE_CONTEXT_LENGTH)
+    {
+      int start = _text_before_cursor.length() - SENTENCE_CONTEXT_LENGTH;
+      if (Character.isLowSurrogate(_text_before_cursor.charAt(start)))
+        start++;
+      _text_before_cursor = _text_before_cursor.substring(start);
+    }
     update_sentence_start();
   }
 
@@ -312,6 +333,6 @@ public final class CurrentlyTypedWord
 
   public static interface Callback
   {
-    public void currently_typed_word(String word, boolean sentence_start);
+    public void currently_typed_word(ComposingContext context);
   }
 }

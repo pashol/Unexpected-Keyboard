@@ -1,5 +1,7 @@
 package juloo.keyboard2;
 
+import java.util.Arrays;
+import juloo.keyboard2.prediction.ComposingContext;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -39,7 +41,7 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
-          public void currently_typed_word(String text, boolean sentenceStart) {}
+          public void currently_typed_word(ComposingContext context) {}
         });
     word._enabled = true;
     word.set_current_word((CharSequence)null);
@@ -87,7 +89,7 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
-          public void currently_typed_word(String text, boolean sentenceStart) {}
+          public void currently_typed_word(ComposingContext context) {}
         });
     word._enabled = true;
     return word;
@@ -108,5 +110,89 @@ public class CurrentlyTypedWordTest
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello, world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello.world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello world", 5));
+  }
+
+  @Test
+  public void callback_receives_complete_composing_context()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received[0] = context;
+          }
+        });
+    word.set_current_word("Hallo. das isch A\ud801\udc00B");
+    word._w_cursor = -1;
+    word._text_before_cursor = "Hallo. das isch A\ud801\udc00";
+    word.callback();
+
+    assertEquals("A\ud801\udc00B", received[0].composingText);
+    assertEquals(2, received[0].composingCursorCodePoint);
+    assertEquals(Arrays.asList("Hallo", "das", "isch"),
+        received[0].precedingWords);
+    assertFalse(received[0].sentenceStart);
+    assertTrue(received[0].contextKnown);
+  }
+
+  @Test
+  public void callback_preserves_sentence_state_and_marks_unknown_context()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received[0] = context;
+          }
+        });
+    word.set_current_word("Hallo. Nöd");
+    assertTrue(received[0].sentenceStart);
+
+    word._enabled = true;
+    word.set_current_word((CharSequence)null);
+    word.typed("nöd");
+    assertFalse(received[0].contextKnown);
+    assertTrue(received[0].precedingWords.isEmpty());
+  }
+
+  @Test
+  public void local_typing_keeps_text_before_cursor_bounded()
+  {
+    CurrentlyTypedWord word = new_typed_word();
+    word.set_current_word("");
+
+    word.typed(repeat('a', CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH + 25));
+
+    assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
+        word._text_before_cursor.length());
+  }
+
+  @Test
+  public void context_trimming_never_starts_with_a_low_surrogate()
+  {
+    CurrentlyTypedWord word = new_typed_word();
+    word.set_current_word("");
+    String typed = "a\ud801\udc00" +
+        repeat('x', CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - 1);
+
+    word.typed(typed);
+
+    assertTrue(word._text_before_cursor.length() <=
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH);
+    assertFalse(Character.isLowSurrogate(word._text_before_cursor.charAt(0)));
+    assertEquals(repeat('x', CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - 1),
+        word._text_before_cursor);
+  }
+
+  private String repeat(char c, int count)
+  {
+    StringBuilder value = new StringBuilder(count);
+    for (int i = 0; i < count; i++)
+      value.append(c);
+    return value.toString();
   }
 }
