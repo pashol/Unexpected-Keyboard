@@ -40,10 +40,31 @@ public class PredictionDomainTest
   @Test
   public void request_retains_generation_and_code_point_cursor_offset()
   {
-    PredictionRequest request = request(Arrays.asList("vorher"), 7, 987654321L);
+    PredictionRequest request = request(Arrays.asList("vorher"), 3, 987654321L);
 
-    assertEquals(7, request.getComposingCursorCodePoint());
+    assertEquals(3, request.getComposingCursorCodePoint());
     assertEquals(987654321L, request.getGeneration());
+  }
+
+  @Test
+  public void request_rejects_cursor_past_bmp_text()
+  {
+    assertInvalidRequest("Grue", 5, Arrays.asList("word"), "gsw-CH");
+  }
+
+  @Test
+  public void request_rejects_cursor_past_supplementary_code_point_text()
+  {
+    assertInvalidRequest("A\ud83d\ude00B", 4, Arrays.asList("word"), "gsw-CH");
+  }
+
+  @Test
+  public void request_accepts_valid_supplementary_code_point_offset()
+  {
+    PredictionRequest request = new PredictionRequest(
+        "A\ud83d\ude00B", 2, Arrays.asList("word"), false, "gsw-CH", 1, 9L);
+
+    assertEquals(2, request.getComposingCursorCodePoint());
   }
 
   @Test
@@ -110,11 +131,36 @@ public class PredictionDomainTest
 
     try
     {
+      new PredictionFeedback(
+          FeedbackType.COMMITTED, 1L, candidate(CandidateType.TYPED, "typed"), "typed", 2L);
+      fail("committed typed text must not have a candidate");
+    }
+    catch (IllegalArgumentException expected)
+    {
+    }
+
+    try
+    {
       new PredictionFeedback(FeedbackType.REJECTED, 1L, null, "typed", 2L);
       fail("non-committed feedback requires a candidate");
     }
     catch (NullPointerException expected)
     {
+    }
+  }
+
+  @Test
+  public void candidate_backed_feedback_retains_candidate_identity()
+  {
+    PredictionCandidate candidate = candidate(CandidateType.COMPLETION, "model");
+    FeedbackType[] types = {
+        FeedbackType.ACCEPTED, FeedbackType.REJECTED, FeedbackType.REVERTED
+    };
+
+    for (FeedbackType type : types)
+    {
+      PredictionFeedback feedback = new PredictionFeedback(type, 1L, candidate, "text", 2L);
+      assertSame(candidate, feedback.getCandidate());
     }
   }
 

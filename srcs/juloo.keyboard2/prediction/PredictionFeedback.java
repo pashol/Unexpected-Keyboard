@@ -18,7 +18,9 @@ public final class PredictionFeedback
       long timestampMillis)
   {
     this.type = Objects.requireNonNull(type, "type");
-    if (candidate == null && type != FeedbackType.COMMITTED)
+    if (type == FeedbackType.COMMITTED && candidate != null)
+      throw new IllegalArgumentException("COMMITTED feedback must not have a candidate");
+    if (type != FeedbackType.COMMITTED && candidate == null)
       throw new NullPointerException("candidate");
     this.generation = generation;
     this.candidate = candidate;

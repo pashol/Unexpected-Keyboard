@@ -27,8 +27,9 @@ public final class PredictionRequest
       long generation)
   {
     this.composingText = Objects.requireNonNull(composingText, "composingText");
-    if (composingCursorCodePoint < 0)
-      throw new IllegalArgumentException("composingCursorCodePoint must not be negative");
+    if (composingCursorCodePoint < 0 || composingCursorCodePoint >
+        composingText.codePointCount(0, composingText.length()))
+      throw new IllegalArgumentException("composingCursorCodePoint is outside composingText");
     this.composingCursorCodePoint = composingCursorCodePoint;
     Objects.requireNonNull(precedingWords, "precedingWords");
     int firstWord = Math.max(0, precedingWords.size() - MAX_PRECEDING_WORDS);
