@@ -310,7 +310,7 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
-  public void typing_delimiter_mid_word_resets_composing_cursor()
+  public void typing_delimiter_mid_word_preserves_suffix_after_cursor()
   {
     final ComposingContext[] received = new ComposingContext[1];
     CurrentlyTypedWord word = capturing_typed_word(received);
@@ -320,8 +320,19 @@ public class CurrentlyTypedWordTest
 
     word.typed(" ");
 
-    assertEquals("", received[0].composingText);
+    assertEquals("lo", received[0].composingText);
     assertEquals(0, received[0].composingCursorCodePoint);
+    assertEquals(Arrays.asList("one", "hel"), received[0].precedingWords);
+
+    word = capturing_typed_word(received);
+    word.set_current_word("one hello");
+    word._cursor = 9;
+    word.selection_updated(9, 7, 7);
+
+    word.typed(" x");
+
+    assertEquals("xlo", received[0].composingText);
+    assertEquals(1, received[0].composingCursorCodePoint);
     assertEquals(Arrays.asList("one", "hel"), received[0].precedingWords);
   }
 
@@ -360,6 +371,32 @@ public class CurrentlyTypedWordTest
     EditorConfig editor = new EditorConfig();
     editor.initial_text_before_cursor =
         repeat('x', 88) + " one two cur";
+    editor.initial_sel_start = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH + 20;
+    editor.initial_sel_end = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH + 20;
+
+    word.started(config_with(editor), null);
+
+    assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
+        word._text_before_cursor.length());
+    assertEquals(Arrays.asList("one", "two"), received[0].precedingWords);
+  }
+
+  @Test
+  public void editor_exact_bounded_context_keeps_leading_word_at_document_start()
+      throws Exception
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(ComposingContext context)
+          {
+            received[0] = context;
+          }
+        });
+    EditorConfig editor = new EditorConfig();
+    editor.initial_text_before_cursor =
+        "lead " + repeat('.', 87) + " one cur";
     editor.initial_sel_start = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH;
     editor.initial_sel_end = CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH;
 
@@ -367,7 +404,7 @@ public class CurrentlyTypedWordTest
 
     assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
         word._text_before_cursor.length());
-    assertEquals(Arrays.asList("one", "two"), received[0].precedingWords);
+    assertEquals(Arrays.asList("lead", "one"), received[0].precedingWords);
   }
 
   @Test
@@ -382,6 +419,23 @@ public class CurrentlyTypedWordTest
     assertEquals(CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH,
         word._text_before_cursor.length());
     assertEquals(Arrays.asList("one", "two"), received[0].precedingWords);
+  }
+
+  @Test
+  public void removal_uses_full_word_for_code_points_outside_retained_context()
+  {
+    final ComposingContext[] received = new ComposingContext[1];
+    CurrentlyTypedWord word = capturing_typed_word(received);
+    String fullWord = "A\ud801\udc00" + repeat('x', 100);
+    word.set_current_word(fullWord);
+    word._cursor = fullWord.codePointCount(0, fullWord.length());
+
+    word.remove_surrounding_text(fullWord.length(), 0);
+
+    assertEquals(0, word._cursor);
+    assertEquals("", received[0].composingText);
+    assertEquals(0, received[0].composingCursorCodePoint);
+    assertTrue(received[0].precedingWords.isEmpty());
   }
 
   private boolean has_unpaired_surrogate(String value)

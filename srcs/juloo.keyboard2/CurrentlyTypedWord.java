@@ -85,7 +85,7 @@ public final class CurrentlyTypedWord
     _w_cursor = 0;
     if (!_has_selection)
     {
-      set_current_word(e.initial_text_before_cursor, false);
+      set_current_word(e.initial_text_before_cursor, false, true);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor);
       if (_context_known)
@@ -167,13 +167,21 @@ public final class CurrentlyTypedWord
     int len = _w.length();
     int c = len + _w_cursor;
     int removed_after = Math.min(Math.max(remove_after, 0), len - c);
+    int removed_word_chars = Math.min(remove_before, c);
+    int removed_before_code_points = _w.codePointCount(
+        c - removed_word_chars, c);
+    int remaining_before = remove_before - removed_word_chars;
     int context_length = _text_before_cursor.length();
-    int removed_context_chars = Math.min(remove_before, context_length);
-    int context_remove_start = context_length - removed_context_chars;
-    int removed_before_code_points = remove_before - removed_context_chars +
-      _text_before_cursor.codePointCount(context_remove_start, context_length);
+    int retained_word_chars = Math.min(c, context_length);
+    int preceding_context_end = context_length - retained_word_chars;
+    int removed_context_chars = Math.min(remaining_before, preceding_context_end);
+    int context_remove_start = preceding_context_end - removed_context_chars;
+    removed_before_code_points += remaining_before - removed_context_chars +
+      _text_before_cursor.codePointCount(
+          context_remove_start, preceding_context_end);
     _w.delete(Math.max(c - remove_before, 0), Math.min(c + remove_after, len));
-    _text_before_cursor = _text_before_cursor.substring(0, context_remove_start);
+    _text_before_cursor = _text_before_cursor.substring(0,
+        Math.max(0, context_length - remove_before));
     _cursor -= removed_before_code_points;
     _w_cursor += removed_after - Math.min(remove_after, 0);
     update_sentence_start();
@@ -202,6 +210,7 @@ public final class CurrentlyTypedWord
   void type_chars(CharSequence s, int start, int end)
   {
     int insert_start = 0;
+    int old_word_cursor = _w.length() + _w_cursor;
     // Iterate over code points as that's the unit of [_cursor].
     for (int i = start; i < end;)
     {
@@ -215,10 +224,14 @@ public final class CurrentlyTypedWord
     }
     if (insert_start > 0)
     {
+      String suffix = _w.substring(old_word_cursor);
       _w.setLength(0);
-      _w_cursor = 0;
+      _w.append(s, insert_start, end);
+      _w.append(suffix);
+      _w_cursor = -suffix.length();
     }
-    _w.insert(Math.max(_w.length() + _w_cursor, 0), s, insert_start, end);
+    else
+      _w.insert(Math.max(_w.length() + _w_cursor, 0), s, start, end);
   }
 
   void type_chars(CharSequence s)
@@ -236,10 +249,7 @@ public final class CurrentlyTypedWord
       int start = _text_before_cursor.length() - SENTENCE_CONTEXT_LENGTH;
       if (Character.isLowSurrogate(_text_before_cursor.charAt(start)))
         start++;
-      int previous = Character.codePointBefore(_text_before_cursor, start);
-      int first = Character.codePointAt(_text_before_cursor, start);
-      _context_starts_at_word_boundary =
-        !is_word_char(previous) || !is_word_char(first);
+      _context_starts_at_word_boundary = false;
       _text_before_cursor = _text_before_cursor.substring(start);
     }
   }
@@ -301,7 +311,8 @@ public final class CurrentlyTypedWord
     else if (VERSION.SDK_INT >= 31)
       set_current_word(_ic.getSurroundingText(SENTENCE_CONTEXT_LENGTH, 20, 0));
     else
-      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0));
+      set_current_word(
+          _ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0), true, true);
   }
 
   /** Refresh the current word by immediately querying the editor. */
@@ -311,6 +322,12 @@ public final class CurrentlyTypedWord
   }
 
   void set_current_word(CharSequence text_before_cursor, boolean notify)
+  {
+    set_current_word(text_before_cursor, notify, false);
+  }
+
+  void set_current_word(
+      CharSequence text_before_cursor, boolean notify, boolean use_cursor_evidence)
   {
     _w.setLength(0);
     _text_before_cursor = "";
@@ -322,11 +339,15 @@ public final class CurrentlyTypedWord
       return;
     }
     _context_known = true;
-    _context_starts_at_word_boundary = true;
     int saved_cursor = _cursor;
+    int represented_code_points = text_before_cursor.toString().codePointCount(
+        0, text_before_cursor.length());
+    _context_starts_at_word_boundary = !use_cursor_evidence ||
+      saved_cursor == represented_code_points ||
+      saved_cursor == text_before_cursor.length();
+    if (use_cursor_evidence && _context_starts_at_word_boundary)
+      saved_cursor = represented_code_points;
     type_chars(text_before_cursor.toString());
-    _context_starts_at_word_boundary =
-      text_before_cursor.length() < SENTENCE_CONTEXT_LENGTH;
     _cursor = saved_cursor;
     if (notify)
       callback();
@@ -351,8 +372,12 @@ public final class CurrentlyTypedWord
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
-    _context_starts_at_word_boundary =
-      _text_before_cursor.length() < SENTENCE_CONTEXT_LENGTH;
+    int represented_code_points = _text_before_cursor.codePointCount(
+        0, _text_before_cursor.length());
+    _context_starts_at_word_boundary = saved_cursor == represented_code_points ||
+      saved_cursor == _text_before_cursor.length();
+    if (_context_starts_at_word_boundary)
+      saved_cursor = represented_code_points;
     update_sentence_start();
     _cursor = saved_cursor;
     callback();
