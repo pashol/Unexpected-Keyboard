@@ -24,7 +24,7 @@ public class LegacyPredictionEngineTest
   }
 
   @Test
-  public void falls_back_to_alternate_first_character_case_without_prefix()
+  public void falls_back_from_lowercase_to_uppercase_without_prefix()
   {
     FakeSource source = new FakeSource()
       .result("erde", null, false)
@@ -32,6 +32,25 @@ public class LegacyPredictionEngineTest
 
     assertCandidates(engine(source).predict(request("erde", false, 3)), "Erde");
     assertEquals(Arrays.asList("erde", "Erde"), source.lookups);
+  }
+
+  @Test
+  public void alternates_first_character_case_in_both_directions()
+  {
+    assertEquals("Erde", LegacyPredictionEngine.alternateFirstCharacter("erde"));
+    assertEquals("erde", LegacyPredictionEngine.alternateFirstCharacter("Erde"));
+  }
+
+  @Test
+  public void requests_suffixes_only_for_selected_alternate_case_result()
+  {
+    FakeSource source = new FakeSource()
+      .result("erde", null, false, "Wrong")
+      .result("Erde", null, true, "Earth");
+
+    engine(source).predict(request("erde", false, 3));
+
+    assertEquals(Collections.singletonList("Erde"), source.suffixLookups);
   }
 
   @Test
@@ -43,10 +62,10 @@ public class LegacyPredictionEngineTest
 
     List<PredictionCandidate> result = engine(source).predict(request("erd", false, 3));
 
-    assertCandidates(result, "Erde", "Erz", "Erdbeere");
-    assertSame(CandidateType.COMPLETION, result.get(0).getType());
-    assertSame(CandidateType.CORRECTION, result.get(1).getType());
-    assertSame(CandidateType.COMPLETION, result.get(2).getType());
+    assertCandidates(result, "erd", "Erde", "Erz");
+    assertSame(CandidateType.TYPED, result.get(0).getType());
+    assertSame(CandidateType.COMPLETION, result.get(1).getType());
+    assertSame(CandidateType.CORRECTION, result.get(2).getType());
   }
 
   @Test
@@ -55,14 +74,16 @@ public class LegacyPredictionEngineTest
     FakeSource source = new FakeSource()
       .result("erd", null, true, "Erde", "Erden", "Erdbeere");
     LegacyPredictionEngine engine = new LegacyPredictionEngine(source,
-        prefix -> new String[] { "erde", "Erdling", "Erdung" }, true, true);
+        (prefix, maxResults) -> new String[] { "erd", "Erdling", "Erdung" },
+        true, true);
 
     List<PredictionCandidate> result = engine.predict(request("erd", false, 3));
 
-    assertCandidates(result, "Erdling", "Erde", "Erden");
+    assertCandidates(result, "erd", "Erdling", "Erde");
     assertEquals(LegacyPredictionEngine.SOURCE_PERSONAL, result.get(0).getSource());
-    assertSame(CandidateType.COMPLETION, result.get(0).getType());
-    assertEquals(LegacyPredictionEngine.SOURCE_CDICT, result.get(1).getSource());
+    assertSame(CandidateType.TYPED, result.get(0).getType());
+    assertEquals(LegacyPredictionEngine.SOURCE_PERSONAL, result.get(1).getSource());
+    assertSame(CandidateType.COMPLETION, result.get(1).getType());
   }
 
   @Test
@@ -71,7 +92,35 @@ public class LegacyPredictionEngineTest
     FakeSource source = new FakeSource().result("erd", null, true, "erde", "erdbeere");
 
     assertCandidates(engine(source).predict(request("erd", true, 3)),
-        "Erde", "Erdbeere");
+        "Erd", "Erde", "Erdbeere");
+  }
+
+  @Test
+  public void uses_legacy_utf16_first_char_capitalization_check()
+  {
+    String supplementaryUppercase = "\ud801\udc00word";
+    FakeSource source = new FakeSource()
+      .result(supplementaryUppercase, supplementaryUppercase, true, "alpha");
+
+    assertCandidates(engine(source).predict(
+          request(supplementaryUppercase, false, 3)), supplementaryUppercase, "alpha");
+  }
+
+  @Test
+  public void applies_diacritic_substitution_before_dictionary_lookup()
+  {
+    FakeSource source = new FakeSource().result("cafe", "café", true);
+
+    assertCandidates(engine(source).predict(request("café", false, 3)), "café");
+    assertEquals(Collections.singletonList("cafe"), source.lookups);
+  }
+
+  @Test
+  public void retains_dictionary_spelling_for_missing_diacritic_alias()
+  {
+    FakeSource source = new FakeSource().result("cafe", "café", true);
+
+    assertCandidates(engine(source).predict(request("cafe", false, 3)), "café");
   }
 
   @Test
@@ -102,7 +151,7 @@ public class LegacyPredictionEngineTest
   {
     FakeSource source = new FakeSource().result("personal", null, true, "System");
     LegacyPredictionEngine engine = new LegacyPredictionEngine(source,
-        prefix -> new String[] { "Personal" }, true, false);
+        (prefix, maxResults) -> new String[] { "Personal" }, true, false);
 
     List<PredictionCandidate> result = engine.predict(request("personal", false, 3));
 
@@ -126,7 +175,7 @@ public class LegacyPredictionEngineTest
         "Erde", "Erden", "Erdbeere");
     LegacyPredictionEngine engine = engine(source);
 
-    assertCandidates(engine.predict(request("erd", false, 2)), "Erde", "Erden");
+    assertCandidates(engine.predict(request("erd", false, 2)), "erd", "Erde");
     engine.recordFeedback(null);
     engine.resetSession();
     engine.resetSession();
@@ -158,13 +207,15 @@ public class LegacyPredictionEngineTest
       implements LegacyPredictionEngine.CandidateSource
   {
     final Map<String, LegacyPredictionEngine.Lookup> results = new HashMap<>();
+    final Map<String, List<String>> suffixes = new HashMap<>();
     final Map<String, List<String>> distances = new HashMap<>();
     final List<String> lookups = new ArrayList<>();
+    final List<String> suffixLookups = new ArrayList<>();
 
     FakeSource result(String query, String exact, boolean hasPrefix, String... suffixes)
     {
-      results.put(query, new LegacyPredictionEngine.Lookup(
-          exact, hasPrefix, Arrays.asList(suffixes)));
+      results.put(query, new LegacyPredictionEngine.Lookup(exact, hasPrefix, query));
+      this.suffixes.put(query, Arrays.asList(suffixes));
       return this;
     }
 
@@ -179,8 +230,16 @@ public class LegacyPredictionEngineTest
       lookups.add(word);
       LegacyPredictionEngine.Lookup result = results.get(word);
       return result == null
-        ? new LegacyPredictionEngine.Lookup(null, false, Collections.emptyList())
+        ? new LegacyPredictionEngine.Lookup(null, false, word)
         : result;
+    }
+
+    public List<String> suffixes(LegacyPredictionEngine.Lookup lookup, int maxResults)
+    {
+      String query = (String)lookup.token;
+      suffixLookups.add(query);
+      List<String> result = suffixes.get(query);
+      return result == null ? Collections.emptyList() : result;
     }
 
     public List<String> distance(String word, int maxDistance, int maxResults)

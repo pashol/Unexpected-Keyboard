@@ -69,12 +69,13 @@ public final class LegacyPredictionEngine implements PredictionEngine
               exactType(alternate.exact, typedWord), SOURCE_CDICT), max);
         suffixLookup = alternate;
       }
+      List<String> suffixes = source.suffixes(suffixLookup, max);
       List<String> distance = word.length() < 3 || candidates.size() + 1 >= max
         ? Collections.emptyList() : source.distance(word, 1, max);
       for (int i = 0; i < max && candidates.size() < max; i++)
       {
-        if (i < suffixLookup.suffixes.size())
-          add(candidates, candidate(suffixLookup.suffixes.get(i), request,
+        if (i < suffixes.size())
+          add(candidates, candidate(suffixes.get(i), request,
                 CandidateType.COMPLETION, SOURCE_CDICT), max);
         if (i < distance.size())
           add(candidates, candidate(distance.get(i), request,
@@ -84,7 +85,7 @@ public final class LegacyPredictionEngine implements PredictionEngine
 
     if (personal != null)
       prependPersonal(candidates, personal.findPrefix(word, 2), request, typedWord, max);
-    boolean capitalize = Character.isUpperCase(typedWord.codePointAt(0))
+    boolean capitalize = Character.isUpperCase(typedWord.charAt(0))
       || (request.isSentenceStart() && capitalizeAtSentenceStart());
     if (capitalize)
       capitalize(candidates);
@@ -243,6 +244,7 @@ public final class LegacyPredictionEngine implements PredictionEngine
   interface CandidateSource
   {
     Lookup find(String word, int maxResults);
+    List<String> suffixes(Lookup lookup, int maxResults);
     List<String> distance(String word, int maxDistance, int maxResults);
   }
 
@@ -255,13 +257,13 @@ public final class LegacyPredictionEngine implements PredictionEngine
   {
     final String exact;
     final boolean hasPrefix;
-    final List<String> suffixes;
+    final Object token;
 
-    Lookup(String exact, boolean hasPrefix, List<String> suffixes)
+    Lookup(String exact, boolean hasPrefix, Object token)
     {
       this.exact = exact;
       this.hasPrefix = hasPrefix;
-      this.suffixes = suffixes;
+      this.token = token;
     }
   }
 
@@ -277,12 +279,18 @@ public final class LegacyPredictionEngine implements PredictionEngine
     public Lookup find(String word, int maxResults)
     {
       Cdict.Result result = dictionary.find(word);
+      return new Lookup(result.found ? dictionary.word(result.index) : null,
+          result.prefix_ptr != 0, result);
+    }
+
+    public List<String> suffixes(Lookup lookup, int maxResults)
+    {
+      Cdict.Result result = (Cdict.Result)lookup.token;
       int[] indexes = dictionary.suffixes(result, maxResults);
       ArrayList<String> suffixes = new ArrayList<>(indexes.length);
       for (int index : indexes)
         suffixes.add(dictionary.word(index));
-      return new Lookup(result.found ? dictionary.word(result.index) : null,
-          result.prefix_ptr != 0, suffixes);
+      return suffixes;
     }
 
     public List<String> distance(String word, int maxDistance, int maxResults)
