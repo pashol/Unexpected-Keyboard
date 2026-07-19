@@ -79,6 +79,8 @@ public final class KeyEventHandler
   /** Selection has been updated. */
   public void selection_updated(int oldSelStart, int newSelStart, int newSelEnd)
   {
+    if (newSelStart != _typedword._cursor || newSelStart != newSelEnd)
+      _auto_space_inserted = false;
     _autocap.selection_updated(oldSelStart, newSelStart);
     _typedword.selection_updated(oldSelStart, newSelStart, newSelEnd);
   }
@@ -291,7 +293,9 @@ public final class KeyEventHandler
     {
       if (should_remove_auto_space(_auto_space_inserted, text))
       {
-        replace_surrounding_text(1, 0, "");
+        CharSequence before = conn.getTextBeforeCursor(1, 0);
+        if (before != null && before.length() == 1 && before.charAt(0) == ' ')
+          replace_surrounding_text(1, 0, "");
         _auto_space_inserted = false;
       }
       CharSequence after = conn.getTextAfterCursor(1, 0);

@@ -108,6 +108,8 @@ public final class Autocapitalisation
   /** Returns [true] if shift might be disabled. */
   public void selection_updated(int old_cursor, int new_cursor)
   {
+    if (!_enabled)
+      return;
     if (new_cursor == _cursor) // Just typing
       return;
     if (new_cursor == 0 && _ic != null)

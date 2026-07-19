@@ -132,6 +132,21 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void cursor_movement_clears_automatic_space_before_punctuation()
+  {
+    FakeInputConnection connection = new FakeInputConnection();
+    KeyEventHandler handler = new_handler(connection);
+
+    handler.send_text(".", true);
+    connection.cursor--;
+    handler.selection_updated(2, 1, 1);
+    handler.send_text("!", true);
+
+    assertFalse(handler._auto_space_inserted);
+    assertEquals(".! ", connection.text());
+  }
+
+  @Test
   public void learning_adds_unknown_words_only_when_enabled() throws Exception
   {
     UserDictionary dictionary = dictionary();
@@ -274,6 +289,11 @@ public class KeyEventHandlerTest
       {
         after_cursor_request = ((Integer)args[0]).intValue();
         return text.substring(cursor, Math.min(text.length(), cursor + after_cursor_request));
+      }
+      if (method.getName().equals("getTextBeforeCursor"))
+      {
+        int count = ((Integer)args[0]).intValue();
+        return text.substring(Math.max(0, cursor - count), cursor);
       }
       if (method.getName().equals("deleteSurroundingText"))
       {
