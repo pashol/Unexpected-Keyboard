@@ -56,9 +56,6 @@ public final class LegacyPredictionEngine implements PredictionEngine
     String word = applySubstitutions(typedWord);
     ArrayList<PredictionCandidate> candidates = new ArrayList<>(max);
 
-    if (personal != null)
-      addPersonal(candidates, personal.findPrefix(word, 2), request, typedWord, max);
-
     if (source != null)
     {
       Lookup exact = source.find(word, max);
@@ -86,6 +83,8 @@ public final class LegacyPredictionEngine implements PredictionEngine
       }
     }
 
+    if (personal != null)
+      prependPersonal(candidates, personal.findPrefix(word, 2), request, typedWord, max);
     boolean capitalize = Character.isUpperCase(typedWord.charAt(0))
       || (request.isSentenceStart() && capitalizeAtSentenceStart());
     if (capitalize)
@@ -131,13 +130,19 @@ public final class LegacyPredictionEngine implements PredictionEngine
       : capitalizeAtSentenceStart;
   }
 
-  private static void addPersonal(ArrayList<PredictionCandidate> candidates,
+  private static void prependPersonal(ArrayList<PredictionCandidate> candidates,
       String[] personal, PredictionRequest request, String typedWord, int max)
   {
-    for (int i = 0; i < personal.length && i < 2 && candidates.size() < max; i++)
-      if (!contains(candidates, personal[i]))
-        candidates.add(candidate(personal[i], request,
+    ArrayList<PredictionCandidate> merged = new ArrayList<>(max);
+    for (int i = 0; i < personal.length && i < 2 && merged.size() < max; i++)
+      if (!contains(candidates, personal[i]) && !contains(merged, personal[i]))
+        merged.add(candidate(personal[i], request,
               personalType(personal[i], typedWord), SOURCE_PERSONAL));
+    for (int i = 0; i < candidates.size() && merged.size() < max; i++)
+      if (!contains(merged, candidates.get(i).getText()))
+        merged.add(candidates.get(i));
+    candidates.clear();
+    candidates.addAll(merged);
   }
 
   private static void capitalize(ArrayList<PredictionCandidate> candidates)

@@ -84,20 +84,21 @@ public class LegacyPredictionEngineTest
   }
 
   @Test
-  public void personal_candidates_consume_capacity_before_cdict_resolution()
+  public void cdict_collision_keeps_legacy_order_and_provenance()
   {
     FakeSource source = new FakeSource()
-      .result("word", null, true, "worker", "world", "worry")
-      .distance("word", "ward", "weird");
+      .result("alpha", "alpha", true, "beta", "charlie", "echo");
     LegacyPredictionEngine engine = new LegacyPredictionEngine(source,
-        (prefix, maxResults) -> new String[] { "word" }, true, false);
+        (prefix, maxResults) -> new String[] { "beta", "delta" }, true, false);
 
-    List<PredictionCandidate> result = engine.predict(request("word", false, 3));
+    List<PredictionCandidate> result = engine.predict(request("alpha", false, 3));
 
-    assertCandidates(result, "word", "worker", "ward");
-    assertEquals(Arrays.asList("suffix:word:0", "distance:word:0"),
+    assertCandidates(result, "alpha", "delta", "beta");
+    assertEquals(Arrays.asList("suffix:alpha:0", "suffix:alpha:1"),
         source.resolutions);
-    assertEquals(LegacyPredictionEngine.SOURCE_PERSONAL, result.get(0).getSource());
+    assertEquals(LegacyPredictionEngine.SOURCE_CDICT, result.get(0).getSource());
+    assertEquals(LegacyPredictionEngine.SOURCE_PERSONAL, result.get(1).getSource());
+    assertEquals(LegacyPredictionEngine.SOURCE_CDICT, result.get(2).getSource());
   }
 
   @Test
