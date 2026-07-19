@@ -5,6 +5,7 @@ import android.os.Build.VERSION;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.inputmethod.EditorInfo;
+import juloo.keyboard2.prediction.EditorPredictionPolicy;
 import juloo.keyboard2.suggestions.CandidatesView;
 
 public final class EditorConfig
@@ -39,6 +40,7 @@ public final class EditorConfig
   /** Suggestions. */
   // Doesn't override [_config.suggestions_enabled].
   public boolean should_show_candidates_view;
+  public EditorPredictionPolicy prediction_policy;
   /** Whether punctuation auto-spacing is unsafe for this editor. */
   public boolean no_auto_space_after_punct;
 
@@ -103,6 +105,8 @@ public final class EditorConfig
     initial_sel_start = info.initialSelStart;
     initial_sel_end = info.initialSelEnd;
     /* Suggestions */
+    prediction_policy = EditorPredictionPolicy.from(
+        info.inputType, info.imeOptions, info.privateImeOptions);
     should_show_candidates_view = CandidatesView.should_show(info);
     no_auto_space_after_punct = no_auto_space_after_punct_for_input_type(
         info.inputType);
