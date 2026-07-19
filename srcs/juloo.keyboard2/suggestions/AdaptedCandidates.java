@@ -1,5 +1,6 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import juloo.keyboard2.prediction.PredictionCandidate;
@@ -16,10 +17,10 @@ public final class AdaptedCandidates
   AdaptedCandidates(String[] suggestions, boolean[] personalSuggestions,
       int count, List<PredictionCandidate> candidates, long generation)
   {
-    this.suggestions = suggestions;
-    this.personalSuggestions = personalSuggestions;
+    this.suggestions = suggestions.clone();
+    this.personalSuggestions = personalSuggestions.clone();
     this.count = count;
-    this.candidates = Collections.unmodifiableList(candidates);
+    this.candidates = Collections.unmodifiableList(new ArrayList<>(candidates));
     this.generation = generation;
   }
 

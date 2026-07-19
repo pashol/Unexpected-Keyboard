@@ -69,6 +69,38 @@ public class LegacyPredictionEngineTest
   }
 
   @Test
+  public void resolves_only_interleaved_candidates_needed_after_deduplication()
+  {
+    FakeSource source = new FakeSource()
+      .result("word", "word", true, "word", "worker", "world", "worry")
+      .distance("word", "ward", "weird", "sword");
+
+    List<PredictionCandidate> result = engine(source).predict(request("word", false, 3));
+
+    assertCandidates(result, "word", "ward", "worker");
+    assertEquals(Arrays.asList(
+          "suffix:word:0", "distance:word:0", "suffix:word:1"),
+        source.resolutions);
+  }
+
+  @Test
+  public void personal_candidates_consume_capacity_before_cdict_resolution()
+  {
+    FakeSource source = new FakeSource()
+      .result("word", null, true, "worker", "world", "worry")
+      .distance("word", "ward", "weird");
+    LegacyPredictionEngine engine = new LegacyPredictionEngine(source,
+        (prefix, maxResults) -> new String[] { "word" }, true, false);
+
+    List<PredictionCandidate> result = engine.predict(request("word", false, 3));
+
+    assertCandidates(result, "word", "worker", "ward");
+    assertEquals(Arrays.asList("suffix:word:0", "distance:word:0"),
+        source.resolutions);
+    assertEquals(LegacyPredictionEngine.SOURCE_PERSONAL, result.get(0).getSource());
+  }
+
+  @Test
   public void prepends_two_unique_personal_candidates_with_provenance()
   {
     FakeSource source = new FakeSource()
@@ -211,6 +243,7 @@ public class LegacyPredictionEngineTest
     final Map<String, List<String>> distances = new HashMap<>();
     final List<String> lookups = new ArrayList<>();
     final List<String> suffixLookups = new ArrayList<>();
+    final List<String> resolutions = new ArrayList<>();
 
     FakeSource result(String query, String exact, boolean hasPrefix, String... suffixes)
     {
@@ -234,18 +267,37 @@ public class LegacyPredictionEngineTest
         : result;
     }
 
-    public List<String> suffixes(LegacyPredictionEngine.Lookup lookup, int maxResults)
+    public LegacyPredictionEngine.CandidateSequence suffixes(
+        LegacyPredictionEngine.Lookup lookup, int maxResults)
     {
       String query = (String)lookup.token;
       suffixLookups.add(query);
       List<String> result = suffixes.get(query);
-      return result == null ? Collections.emptyList() : result;
+      return sequence("suffix", query,
+          result == null ? Collections.emptyList() : result);
     }
 
-    public List<String> distance(String word, int maxDistance, int maxResults)
+    public LegacyPredictionEngine.CandidateSequence distance(
+        String word, int maxDistance, int maxResults)
     {
       List<String> result = distances.get(word);
-      return result == null ? Collections.emptyList() : result;
+      return sequence("distance", word,
+          result == null ? Collections.emptyList() : result);
+    }
+
+    private LegacyPredictionEngine.CandidateSequence sequence(
+        String kind, String query, List<String> values)
+    {
+      return new LegacyPredictionEngine.CandidateSequence()
+      {
+        public int size() { return values.size(); }
+
+        public String resolve(int index)
+        {
+          resolutions.add(kind + ":" + query + ":" + index);
+          return values.get(index);
+        }
+      };
     }
   }
 }

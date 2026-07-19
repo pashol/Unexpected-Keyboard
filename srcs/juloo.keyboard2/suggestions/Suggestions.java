@@ -1,6 +1,7 @@
 package juloo.keyboard2.suggestions;
 
 import java.util.Collections;
+import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.ComposeKey;
@@ -18,6 +19,7 @@ public final class Suggestions
   Config _config;
   boolean _enabled;
   final PredictionEngine _engine;
+  final LanguageTagProvider _language_tag_provider;
   long _generation;
   AdaptedCandidates _adapted_candidates;
 
@@ -39,9 +41,16 @@ public final class Suggestions
 
   public Suggestions(Callback c, Config conf, PredictionEngine engine)
   {
+    this(c, conf, engine, () -> active_language_tag(conf));
+  }
+
+  Suggestions(Callback c, Config conf, PredictionEngine engine,
+      LanguageTagProvider languageTagProvider)
+  {
     _callback = c;
     _config = conf;
     _engine = engine;
+    _language_tag_provider = languageTagProvider;
     _adapted_candidates = PredictionCandidateAdapter.adapt(
         Collections.emptyList(), _generation);
   }
@@ -83,13 +92,28 @@ public final class Suggestions
     long generation = ++_generation;
     PredictionRequest request = new PredictionRequest(
         context.composingText, context.composingCursorCodePoint,
-        context.precedingWords, context.sentenceStart, "und", MAX_COUNT, generation);
+        context.precedingWords, context.sentenceStart,
+        canonical_language_tag(_language_tag_provider.active_language_tag()),
+        MAX_COUNT, generation);
     _adapted_candidates = PredictionCandidateAdapter.adapt(
         _engine.predict(request), generation);
     apply_adapted_candidates();
     emoji_suggestion = _config == null
       ? null : query_emoji(apply_substitutions(context.composingText));
     return count;
+  }
+
+  static String canonical_language_tag(String languageTag)
+  {
+    return languageTag == null || languageTag.length() == 0
+      ? "und" : Locale.forLanguageTag(languageTag).toLanguageTag();
+  }
+
+  private static String active_language_tag(Config config)
+  {
+    return config != null && config.device_locales != null
+      && config.device_locales.default_ != null
+      ? config.device_locales.default_.lang_tag : null;
   }
 
   private void apply_adapted_candidates()
@@ -150,5 +174,10 @@ public final class Suggestions
   public static interface Callback
   {
     public void set_suggestions(Suggestions suggestions);
+  }
+
+  interface LanguageTagProvider
+  {
+    String active_language_tag();
   }
 }

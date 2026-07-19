@@ -1,5 +1,6 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +42,8 @@ public class SuggestionsTest
         candidate("typed", LegacyPredictionEngine.SOURCE_TYPED),
         candidate("Personal", LegacyPredictionEngine.SOURCE_PERSONAL),
         candidate("Completion", LegacyPredictionEngine.SOURCE_CDICT)));
-    Suggestions suggestions = new Suggestions(value -> {}, null, engine);
+    Suggestions suggestions = new Suggestions(
+        value -> {}, null, engine, () -> "de-ch");
     suggestions._enabled = true;
     suggestions.emoji_suggestion = "old emoji";
 
@@ -57,7 +59,46 @@ public class SuggestionsTest
     assertEquals("typed", engine.request.getComposingText());
     assertEquals(Arrays.asList("before"), engine.request.getPrecedingWords());
     assertEquals(3, engine.request.getMaxResults());
+    assertEquals("de-CH", engine.request.getLanguageTag());
+  }
+
+  @Test
+  public void request_falls_back_to_und_without_an_active_subtype_language_tag()
+  {
+    CapturingEngine engine = new CapturingEngine(Collections.emptyList());
+    Suggestions suggestions = new Suggestions(
+        value -> {}, null, engine, () -> null);
+    suggestions._enabled = true;
+
+    suggestions.currently_typed_word(new ComposingContext(
+        "typed", 5, Collections.emptyList(), false, false));
+
     assertEquals("und", engine.request.getLanguageTag());
+  }
+
+  @Test
+  public void adapted_candidates_snapshot_constructor_inputs()
+  {
+    String[] strings = { "Original", null, null };
+    boolean[] personal = { true, false, false };
+    PredictionCandidate original = candidate(
+        "Original", LegacyPredictionEngine.SOURCE_PERSONAL);
+    ArrayList<PredictionCandidate> candidates = new ArrayList<>();
+    candidates.add(original);
+    AdaptedCandidates adapted = new AdaptedCandidates(
+        strings, personal, 1, candidates, 17L);
+
+    strings[0] = "Changed";
+    personal[0] = false;
+    candidates.clear();
+
+    assertArrayEquals(new String[] { "Original", null, null },
+        adapted.getSuggestions());
+    assertArrayEquals(new boolean[] { true, false, false },
+        adapted.getPersonalSuggestions());
+    assertEquals(Collections.singletonList(original), adapted.getCandidates());
+    assertEquals(1, adapted.getCount());
+    assertEquals(17L, adapted.getGeneration());
   }
 
   @Test

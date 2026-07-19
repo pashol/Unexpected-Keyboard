@@ -56,6 +56,9 @@ public final class LegacyPredictionEngine implements PredictionEngine
     String word = applySubstitutions(typedWord);
     ArrayList<PredictionCandidate> candidates = new ArrayList<>(max);
 
+    if (personal != null)
+      addPersonal(candidates, personal.findPrefix(word, 2), request, typedWord, max);
+
     if (source != null)
     {
       Lookup exact = source.find(word, max);
@@ -69,22 +72,20 @@ public final class LegacyPredictionEngine implements PredictionEngine
               exactType(alternate.exact, typedWord), SOURCE_CDICT), max);
         suffixLookup = alternate;
       }
-      List<String> suffixes = source.suffixes(suffixLookup, max);
-      List<String> distance = word.length() < 3 || candidates.size() + 1 >= max
-        ? Collections.emptyList() : source.distance(word, 1, max);
+      CandidateSequence suffixes = source.suffixes(suffixLookup, max);
+      CandidateSequence distance = word.length() < 3 || candidates.size() + 1 >= max
+        ? EMPTY_SEQUENCE : source.distance(word, 1, max);
       for (int i = 0; i < max && candidates.size() < max; i++)
       {
         if (i < suffixes.size())
-          add(candidates, candidate(suffixes.get(i), request,
+          add(candidates, candidate(suffixes.resolve(i), request,
                 CandidateType.COMPLETION, SOURCE_CDICT), max);
-        if (i < distance.size())
-          add(candidates, candidate(distance.get(i), request,
+        if (i < distance.size() && candidates.size() < max)
+          add(candidates, candidate(distance.resolve(i), request,
                 CandidateType.CORRECTION, SOURCE_CDICT), max);
       }
     }
 
-    if (personal != null)
-      prependPersonal(candidates, personal.findPrefix(word, 2), request, typedWord, max);
     boolean capitalize = Character.isUpperCase(typedWord.charAt(0))
       || (request.isSentenceStart() && capitalizeAtSentenceStart());
     if (capitalize)
@@ -130,19 +131,13 @@ public final class LegacyPredictionEngine implements PredictionEngine
       : capitalizeAtSentenceStart;
   }
 
-  private static void prependPersonal(ArrayList<PredictionCandidate> candidates,
+  private static void addPersonal(ArrayList<PredictionCandidate> candidates,
       String[] personal, PredictionRequest request, String typedWord, int max)
   {
-    ArrayList<PredictionCandidate> merged = new ArrayList<>(max);
-    for (int i = 0; i < personal.length && i < 2 && merged.size() < max; i++)
-      if (!contains(candidates, personal[i]) && !contains(merged, personal[i]))
-        merged.add(candidate(personal[i], request,
+    for (int i = 0; i < personal.length && i < 2 && candidates.size() < max; i++)
+      if (!contains(candidates, personal[i]))
+        candidates.add(candidate(personal[i], request,
               personalType(personal[i], typedWord), SOURCE_PERSONAL));
-    for (int i = 0; i < candidates.size() && merged.size() < max; i++)
-      if (!contains(merged, candidates.get(i).getText()))
-        merged.add(candidates.get(i));
-    candidates.clear();
-    candidates.addAll(merged);
   }
 
   private static void capitalize(ArrayList<PredictionCandidate> candidates)
@@ -244,8 +239,14 @@ public final class LegacyPredictionEngine implements PredictionEngine
   interface CandidateSource
   {
     Lookup find(String word, int maxResults);
-    List<String> suffixes(Lookup lookup, int maxResults);
-    List<String> distance(String word, int maxDistance, int maxResults);
+    CandidateSequence suffixes(Lookup lookup, int maxResults);
+    CandidateSequence distance(String word, int maxDistance, int maxResults);
+  }
+
+  interface CandidateSequence
+  {
+    int size();
+    String resolve(int index);
   }
 
   interface PersonalSource
@@ -283,23 +284,38 @@ public final class LegacyPredictionEngine implements PredictionEngine
           result.prefix_ptr != 0, result);
     }
 
-    public List<String> suffixes(Lookup lookup, int maxResults)
+    public CandidateSequence suffixes(Lookup lookup, int maxResults)
     {
       Cdict.Result result = (Cdict.Result)lookup.token;
-      int[] indexes = dictionary.suffixes(result, maxResults);
-      ArrayList<String> suffixes = new ArrayList<>(indexes.length);
-      for (int index : indexes)
-        suffixes.add(dictionary.word(index));
-      return suffixes;
+      return new CdictCandidateSequence(
+          dictionary, dictionary.suffixes(result, maxResults));
     }
 
-    public List<String> distance(String word, int maxDistance, int maxResults)
+    public CandidateSequence distance(String word, int maxDistance, int maxResults)
     {
-      int[] indexes = dictionary.distance(word, maxDistance, maxResults);
-      ArrayList<String> words = new ArrayList<>(indexes.length);
-      for (int index : indexes)
-        words.add(dictionary.word(index));
-      return words;
+      return new CdictCandidateSequence(
+          dictionary, dictionary.distance(word, maxDistance, maxResults));
     }
   }
+
+  private static final class CdictCandidateSequence implements CandidateSequence
+  {
+    private final Cdict dictionary;
+    private final int[] indexes;
+
+    CdictCandidateSequence(Cdict dictionary, int[] indexes)
+    {
+      this.dictionary = dictionary;
+      this.indexes = indexes;
+    }
+
+    public int size() { return indexes.length; }
+    public String resolve(int index) { return dictionary.word(indexes[index]); }
+  }
+
+  private static final CandidateSequence EMPTY_SEQUENCE = new CandidateSequence()
+  {
+    public int size() { return 0; }
+    public String resolve(int index) { throw new IndexOutOfBoundsException(); }
+  };
 }
