@@ -36,28 +36,40 @@ public final class EditorPredictionPolicy
   {
     int inputClass = inputType & InputType.TYPE_MASK_CLASS;
     int variation = inputType & InputType.TYPE_MASK_VARIATION;
-    boolean password =
-        (inputClass == InputType.TYPE_CLASS_TEXT &&
-          (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-           variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
-           variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
-        (inputClass == InputType.TYPE_CLASS_NUMBER &&
-          variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD);
     boolean noSuggestions =
         (inputType & InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0;
 
-    if (inputClass != InputType.TYPE_CLASS_TEXT || password || noSuggestions)
+    if (inputClass != InputType.TYPE_CLASS_TEXT || noSuggestions)
       return new EditorPredictionPolicy(
           inputType, imeOptions, privateImeOptions, false, false, false);
 
-    boolean address = variation == InputType.TYPE_TEXT_VARIATION_URI ||
-        variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
-        variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
-    boolean allowCorrection = !address;
-    boolean allowLearning = !address &&
-        (imeOptions & IME_FLAG_NO_PERSONALIZED_LEARNING) == 0;
-    return new EditorPredictionPolicy(inputType, imeOptions, privateImeOptions,
-        true, allowCorrection, allowLearning);
+    // OR-ed password variations can collapse into named upper-range values.
+    // Only explicitly supported, unambiguous variations may enable prediction.
+    switch (variation)
+    {
+      case InputType.TYPE_TEXT_VARIATION_URI:
+      case InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS:
+        return new EditorPredictionPolicy(
+            inputType, imeOptions, privateImeOptions, true, false, false);
+
+      case InputType.TYPE_TEXT_VARIATION_NORMAL:
+      case InputType.TYPE_TEXT_VARIATION_EMAIL_SUBJECT:
+      case InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE:
+      case InputType.TYPE_TEXT_VARIATION_LONG_MESSAGE:
+      case InputType.TYPE_TEXT_VARIATION_PERSON_NAME:
+      case InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS:
+        boolean allowLearning =
+            (imeOptions & IME_FLAG_NO_PERSONALIZED_LEARNING) == 0;
+        return new EditorPredictionPolicy(inputType, imeOptions,
+            privateImeOptions, true, true, allowLearning);
+
+      case InputType.TYPE_TEXT_VARIATION_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD:
+      default:
+        return new EditorPredictionPolicy(
+            inputType, imeOptions, privateImeOptions, false, false, false);
+    }
   }
 
   public int getInputType()

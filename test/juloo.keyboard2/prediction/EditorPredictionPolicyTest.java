@@ -30,8 +30,10 @@ public class EditorPredictionPolicyTest
             InputType.TYPE_TEXT_VARIATION_URI, 0, true, false, false),
         allow("email", InputType.TYPE_CLASS_TEXT |
             InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, 0, true, false, false),
-        allow("web email", InputType.TYPE_CLASS_TEXT |
-            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, 0, true, false, false),
+        allow("short message", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE, 0, true, true, true),
+        allow("person name", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_PERSON_NAME, 0, true, true, true),
         deny("no suggestions", InputType.TYPE_CLASS_TEXT |
             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0),
         deny("number", InputType.TYPE_CLASS_NUMBER, 0),
@@ -41,7 +43,19 @@ public class EditorPredictionPolicyTest
             InputType.TYPE_TEXT_VARIATION_PASSWORD, NO_PERSONALIZED_LEARNING),
         deny("password with no suggestions", InputType.TYPE_CLASS_TEXT |
             InputType.TYPE_TEXT_VARIATION_PASSWORD |
-            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0),
+        deny("text password mixed with short message", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_PASSWORD |
+            InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE, 0),
+        deny("visible password mixed with short message", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD |
+            InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE, 0),
+        deny("web password mixed with URI", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD |
+            InputType.TYPE_TEXT_VARIATION_URI, 0),
+        deny("ambiguous web email value", InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, 0),
+        deny("unknown text variation", InputType.TYPE_CLASS_TEXT | 0x100, 0)
     };
 
     for (Case testCase : cases)
