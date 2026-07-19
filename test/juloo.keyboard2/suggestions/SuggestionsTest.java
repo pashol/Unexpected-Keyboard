@@ -141,4 +141,22 @@ public class SuggestionsTest
     assertFalse(CandidatesView.matches_long_press_candidate(
         "Personal", true, "Personal", false));
   }
+
+  @Test
+  public void removing_personal_candidate_compacts_active_suggestions()
+  {
+    Suggestions suggestions = new Suggestions(new Suggestions.Callback()
+    {
+      public void set_suggestions(Suggestions value) {}
+    }, null);
+    suggestions.suggestions[0] = "Removed";
+    suggestions.suggestions[1] = "Kept";
+    suggestions.personal_suggestions[0] = true;
+    suggestions.count = 2;
+
+    assertTrue(suggestions.remove_personal_candidate("Removed"));
+    assertEquals(1, suggestions.count);
+    assertEquals("Kept", suggestions.suggestions[0]);
+    assertFalse(suggestions.personal_suggestions[0]);
+  }
 }

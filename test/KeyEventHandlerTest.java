@@ -51,6 +51,17 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void learning_recognizes_alternate_first_character_case()
+  {
+    KeyEventHandler.WordLookup lookup = new KeyEventHandler.WordLookup()
+    {
+      public boolean found(String word) { return word.equals("hello"); }
+    };
+    assertTrue(KeyEventHandler.dictionary_knows_word(lookup, "hello"));
+    assertTrue(KeyEventHandler.dictionary_knows_word(lookup, "Hello"));
+  }
+
+  @Test
   public void autocomplete_is_skipped_once_after_undo()
   {
     assertFalse(KeyEventHandler.should_autocomplete_space(true));
@@ -215,6 +226,22 @@ public class KeyEventHandlerTest
     handler.handle_backspace();
     handler.send_text(".");
     assertTrue(dictionary.contains("typed"));
+  }
+
+  @Test
+  public void removed_personal_candidate_is_not_used_by_space_autocomplete()
+  {
+    FakeInputConnection connection = new FakeInputConnection();
+    KeyEventHandler handler = new_handler(connection);
+    handler._suggestions.suggestions[0] = "Removed";
+    handler._suggestions.personal_suggestions[0] = true;
+    handler._suggestions.count = 1;
+    assertTrue(handler._suggestions.remove_personal_candidate("Removed"));
+    handler._space_bar_auto_complete = true;
+
+    handler.handle_space_bar();
+
+    assertEquals(" ", connection.text());
   }
 
   KeyEventHandler new_handler(FakeInputConnection connection)

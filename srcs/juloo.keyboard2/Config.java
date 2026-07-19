@@ -339,6 +339,7 @@ public final class Config
     public void key_up(KeyValue value, Pointers.Modifiers mods);
     public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched);
     public void suggestion_entered(String text);
+    public void personal_candidate_removed(String text);
   }
 
   /** Config migrations. */

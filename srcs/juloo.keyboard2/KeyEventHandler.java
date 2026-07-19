@@ -165,6 +165,12 @@ public final class KeyEventHandler
   }
 
   @Override
+  public void personal_candidate_removed(String text)
+  {
+    _suggestions.remove_personal_candidate(text);
+  }
+
+  @Override
   public void paste_from_clipboard_pane(String content)
   {
     send_text(content);
@@ -677,8 +683,11 @@ public final class KeyEventHandler
   {
     refresh_typing_config_from_config();
     String word = _typedword.get();
-    Cdict dictionary = _config == null ? null : _config.current_dictionary;
-    boolean known = dictionary != null && dictionary.find(word).found;
+    final Cdict dictionary = _config == null ? null : _config.current_dictionary;
+    boolean known = dictionary != null && dictionary_knows_word(new WordLookup()
+    {
+      public boolean found(String candidate) { return dictionary.find(candidate).found; }
+    }, word);
     learn_word(UserDictionary.instance(), _user_dictionary_enabled, known,
         word, delimiter);
     _learn_undone_autocomplete = false;
@@ -751,6 +760,17 @@ public final class KeyEventHandler
       i += Character.charCount(c);
     }
     return true;
+  }
+
+  static boolean dictionary_knows_word(WordLookup dictionary, String word)
+  {
+    return dictionary.found(word)
+      || dictionary.found(Suggestions.alternate_first_character(word));
+  }
+
+  static interface WordLookup
+  {
+    public boolean found(String word);
   }
 
   static boolean learn_word(UserDictionary dictionary, boolean enabled,

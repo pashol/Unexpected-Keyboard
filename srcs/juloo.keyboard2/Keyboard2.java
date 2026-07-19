@@ -535,6 +535,11 @@ public class Keyboard2 extends InputMethodService
       _candidates_view.set_candidates(suggestions);
     }
 
+    public void personal_candidate_removed(String text)
+    {
+      _keyeventhandler.personal_candidate_removed(text);
+    }
+
     public String provide_stateful_key_symbol(KeyValue.Stateful q)
     {
       switch (q)

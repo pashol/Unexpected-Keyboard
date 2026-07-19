@@ -210,7 +210,7 @@ public final class Suggestions
       personal_candidates[0] = false;
   }
 
-  static String alternate_first_character(String word)
+  public static String alternate_first_character(String word)
   {
     int first_char_end = word.offsetByCodePoints(0, 1);
     String first_char = word.substring(0, first_char_end);
@@ -231,6 +231,26 @@ public final class Suggestions
     for (int i = 0; i < candidates.length && candidates[i] != null; i++)
       count++;
     return count;
+  }
+
+  /** Removes a personal candidate from the active model and refreshes its view. */
+  public boolean remove_personal_candidate(String candidate)
+  {
+    for (int i = 0; i < count; i++)
+      if (personal_suggestions[i] && suggestions[i].equals(candidate))
+      {
+        for (int j = i; j < MAX_COUNT - 1; j++)
+        {
+          suggestions[j] = suggestions[j + 1];
+          personal_suggestions[j] = personal_suggestions[j + 1];
+        }
+        suggestions[MAX_COUNT - 1] = null;
+        personal_suggestions[MAX_COUNT - 1] = false;
+        count = count_suggestions(suggestions);
+        _callback.set_suggestions(this);
+        return true;
+      }
+    return false;
   }
 
   String query_emoji(String word)

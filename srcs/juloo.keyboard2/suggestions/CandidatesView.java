@@ -184,8 +184,7 @@ public class CandidatesView extends LinearLayout
                   && dictionary != null
                   && remove_personal_candidate(dictionary, _long_press_candidate))
               {
-                _items[item_index] = null;
-                _item_views[item_index].setVisibility(View.GONE);
+                config.handler.personal_candidate_removed(_long_press_candidate);
                 _removed = true;
               }
             }
