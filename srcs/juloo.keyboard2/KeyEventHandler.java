@@ -764,6 +764,8 @@ public final class KeyEventHandler
 
   static boolean dictionary_knows_word(WordLookup dictionary, String word)
   {
+    if (word.length() == 0)
+      return false;
     return dictionary.found(word)
       || dictionary.found(Suggestions.alternate_first_character(word));
   }

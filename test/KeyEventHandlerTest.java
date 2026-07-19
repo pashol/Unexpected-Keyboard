@@ -62,6 +62,20 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void empty_word_is_not_looked_up_or_learned_at_punctuation()
+  {
+    final int[] lookups = { 0 };
+    KeyEventHandler.WordLookup lookup = new KeyEventHandler.WordLookup()
+    {
+      public boolean found(String word) { lookups[0]++; return false; }
+    };
+
+    assertFalse(KeyEventHandler.dictionary_knows_word(lookup, ""));
+    assertEquals(0, lookups[0]);
+    assertFalse(KeyEventHandler.should_learn_word(true, false, "", "."));
+  }
+
+  @Test
   public void autocomplete_is_skipped_once_after_undo()
   {
     assertFalse(KeyEventHandler.should_autocomplete_space(true));
