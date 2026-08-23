@@ -1,7 +1,6 @@
 package juloo.keyboard2;
 
 import android.os.Handler;
-import android.view.KeyEvent;
 import android.view.inputmethod.InputConnection;
 import java.io.File;
 import java.lang.reflect.InvocationHandler;
@@ -95,7 +94,7 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void backspace_after_tapped_suggestion_deletes_one_character()
+  public void tapped_suggestion_does_not_arm_full_word_undo()
   {
     FakeInputConnection connection = new FakeInputConnection("Informa");
     KeyEventHandler handler = new_handler(connection);
@@ -103,10 +102,9 @@ public class KeyEventHandlerTest
     handler._typedword.set_current_word("Informa");
 
     handler.suggestion_entered("Informatik");
-    handler._last_action = KeyEventHandler.LastAction.SUGGESTION_ENTERED;
-    handler.handle_backspace();
 
-    assertEquals("Informati", connection.text());
+    assertEquals("Informatik", connection.text());
+    assertNull(handler.last_replaced_word);
   }
 
   @Test
@@ -376,16 +374,6 @@ public class KeyEventHandlerTest
         int after = ((Integer)args[1]).intValue();
         text.delete(cursor - before, cursor + after);
         cursor -= before;
-      }
-      if (method.getName().equals("sendKeyEvent"))
-      {
-        KeyEvent event = (KeyEvent)args[0];
-        if (event.getAction() == KeyEvent.ACTION_UP
-            && event.getKeyCode() == KeyEvent.KEYCODE_DEL && cursor > 0)
-        {
-          text.deleteCharAt(cursor - 1);
-          cursor--;
-        }
       }
       Class<?> type = method.getReturnType();
       if (type == Boolean.TYPE) return true;

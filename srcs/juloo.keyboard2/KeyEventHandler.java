@@ -156,12 +156,20 @@ public final class KeyEventHandler
   @Override
   public void suggestion_entered(String text)
   {
+    replace_suggestion(text, false);
+  }
+
+  private void replace_suggestion(String text, boolean undoable)
+  {
     String old = _typedword.get();
     int cur_rel = _typedword.cursor_relative();
     replace_surrounding_text(old.length() + cur_rel, -cur_rel, text);
-    last_replaced_word = old;
-    last_replacement_word_len = text.length();
-    _next_last_action = LastAction.SUGGESTION_ENTERED;
+    if (undoable)
+    {
+      last_replaced_word = old;
+      last_replacement_word_len = text.length();
+      _next_last_action = LastAction.SUGGESTION_ENTERED;
+    }
   }
 
   @Override
@@ -617,7 +625,7 @@ public final class KeyEventHandler
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {
-      suggestion_entered(_suggestions.suggestions[0] + " ");
+      replace_suggestion(_suggestions.suggestions[0] + " ", true);
       _auto_space_inserted = true;
     }
     else
