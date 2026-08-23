@@ -15,6 +15,9 @@ public class EditorPredictionPolicyTest
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD));
     assertFalse(EditorPredictionPolicy.allow_next_word(
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD));
+    assertFalse(EditorPredictionPolicy.allow_next_word(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+        | InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT));
   }
 
   @Test
