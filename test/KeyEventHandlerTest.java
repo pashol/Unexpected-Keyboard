@@ -1,6 +1,7 @@
 package juloo.keyboard2;
 
 import android.os.Handler;
+import android.view.KeyEvent;
 import android.view.inputmethod.InputConnection;
 import java.io.File;
 import java.lang.reflect.InvocationHandler;
@@ -91,6 +92,39 @@ public class KeyEventHandlerTest
     handler.suggestion_entered("word");
 
     assertEquals("word", connection.text());
+  }
+
+  @Test
+  public void backspace_after_tapped_suggestion_deletes_one_character()
+  {
+    FakeInputConnection connection = new FakeInputConnection("Informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("Informa");
+
+    handler.suggestion_entered("Informatik");
+    handler._last_action = KeyEventHandler.LastAction.SUGGESTION_ENTERED;
+    handler.handle_backspace();
+
+    assertEquals("Informati", connection.text());
+  }
+
+  @Test
+  public void backspace_after_space_bar_completion_restores_typed_word()
+  {
+    FakeInputConnection connection = new FakeInputConnection("Informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("Informa");
+    handler._space_bar_auto_complete = true;
+    handler._suggestions.suggestions[0] = "Informatik";
+    handler._suggestions.count = 1;
+
+    handler.handle_space_bar();
+    handler._last_action = KeyEventHandler.LastAction.SUGGESTION_ENTERED;
+    handler.handle_backspace();
+
+    assertEquals("Informa", connection.text());
   }
 
   @Test
@@ -342,6 +376,16 @@ public class KeyEventHandlerTest
         int after = ((Integer)args[1]).intValue();
         text.delete(cursor - before, cursor + after);
         cursor -= before;
+      }
+      if (method.getName().equals("sendKeyEvent"))
+      {
+        KeyEvent event = (KeyEvent)args[0];
+        if (event.getAction() == KeyEvent.ACTION_UP
+            && event.getKeyCode() == KeyEvent.KEYCODE_DEL && cursor > 0)
+        {
+          text.deleteCharAt(cursor - 1);
+          cursor--;
+        }
       }
       Class<?> type = method.getReturnType();
       if (type == Boolean.TYPE) return true;
