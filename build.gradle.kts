@@ -186,15 +186,38 @@ val copyLatinimeNotice by tasks.registering(Copy::class) {
   into("build/generated-assets/latinime")
 }
 
+val verifyReleaseEnvironment by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Checks the signing, SDK, and NDK prerequisites for release verification."
+  workingDir = projectDir
+  commandLine("/bin/sh", "tools/verify_release_environment.sh")
+}
+
+tasks.configureEach {
+  if (name == "assembleRelease") {
+    dependsOn(verifyReleaseEnvironment)
+  }
+}
+
+val verifyLatinimeNative by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Verifies every ABI in the assembled release APK has compliant LatinIME native code."
+  dependsOn("assembleRelease")
+  workingDir = projectDir
+  commandLine("tools/verify_latinime_native.sh")
+}
+
 val verifyReleasePackaging by tasks.registering(Exec::class) {
   group = "verification"
-  description = "Checks the LatinIME license asset and native verification script."
+  description = "Assembles and verifies the LatinIME NOTICE in the release APK."
+  dependsOn("assembleRelease")
   workingDir = projectDir
-  commandLine("python3", "-m", "unittest", "tools.prediction.test_release_packaging")
+  commandLine("python3", "tools/verify_release_notice.py")
 }
 
 tasks.named("check") {
   dependsOn(verifyLanguagePackFixture)
+  dependsOn(verifyLatinimeNative)
   dependsOn(verifyReleasePackaging)
 }
 
