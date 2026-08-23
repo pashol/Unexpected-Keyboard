@@ -258,6 +258,27 @@ public class KeyEventHandlerTest
     assertEquals(" ", connection.text());
   }
 
+  @Test
+  public void startup_retains_suggestions_for_initial_typed_word() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("initial");
+    set_user_dictionary_instance(dictionary);
+    FakeInputConnection connection = new FakeInputConnection("initial");
+    Receiver receiver = new Receiver(connection.connection);
+    Config config = config_with_initial_text("initial", "");
+    config.user_dictionary_enabled = true;
+    config.editor_config.should_show_candidates_view = true;
+    KeyEventHandler handler = new KeyEventHandler(receiver,
+        new juloo.keyboard2.suggestions.Suggestions(receiver, config));
+
+    handler.started(config);
+
+    assertEquals(1, receiver.suggestion_updates);
+    assertEquals(1, receiver.last_suggestions.count);
+    assertEquals("initial", receiver.last_suggestions.suggestions[0]);
+  }
+
   KeyEventHandler new_handler(FakeInputConnection connection)
   {
     Receiver receiver = new Receiver(connection.connection);
@@ -273,6 +294,22 @@ public class KeyEventHandlerTest
     return constructor.newInstance(new File(directory, "user_words.txt"));
   }
 
+  Config config_with_initial_text(String before, String after) throws Exception
+  {
+    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
+    field.setAccessible(true);
+    Object unsafe = field.get(null);
+    Method allocate = unsafeClass.getMethod("allocateInstance", Class.class);
+    Config config = (Config)allocate.invoke(unsafe, Config.class);
+    config.editor_config = new EditorConfig();
+    config.editor_config.initial_text_before_cursor = before;
+    config.editor_config.initial_text_after_cursor = after;
+    config.editor_config.initial_sel_start = before.length();
+    config.editor_config.initial_sel_end = before.length();
+    return config;
+  }
+
   void set_user_dictionary_instance(UserDictionary dictionary) throws Exception
   {
     java.lang.reflect.Field field = UserDictionary.class.getDeclaredField("_instance");
@@ -285,6 +322,8 @@ public class KeyEventHandlerTest
     final InputConnection connection;
     int shift_changes = 0;
     boolean shift_latch_cleared = false;
+    int suggestion_updates = 0;
+    juloo.keyboard2.suggestions.Suggestions last_suggestions;
 
     Receiver(InputConnection connection) { this.connection = connection; }
     public void handle_event_key(KeyValue.Event event) {}
@@ -294,7 +333,11 @@ public class KeyEventHandlerTest
     public void selection_state_changed(boolean selection) {}
     public InputConnection getCurrentInputConnection() { return connection; }
     public Handler getHandler() { return null; }
-    public void set_suggestions(juloo.keyboard2.suggestions.Suggestions suggestions) {}
+    public void set_suggestions(juloo.keyboard2.suggestions.Suggestions suggestions)
+    {
+      suggestion_updates++;
+      last_suggestions = suggestions;
+    }
   }
 
   static class FakeInputConnection implements InvocationHandler
