@@ -22,6 +22,12 @@ android {
     targetSdk { version = release(36) }
     versionCode = 55
     versionName = "2.0.4"
+
+    externalNativeBuild {
+      ndkBuild {
+        arguments += "NDK_APPLICATION_MK=vendor/Application.mk"
+      }
+    }
   }
 
   sourceSets {
