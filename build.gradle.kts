@@ -194,7 +194,7 @@ val verifyReleaseEnvironment by tasks.registering(Exec::class) {
 }
 
 tasks.configureEach {
-  if (name == "assembleRelease") {
+  if (name == "packageRelease") {
     dependsOn(verifyReleaseEnvironment)
   }
 }
@@ -210,7 +210,7 @@ val verifyLatinimeNative by tasks.registering(Exec::class) {
 val verifyReleasePackaging by tasks.registering(Exec::class) {
   group = "verification"
   description = "Assembles and verifies the LatinIME NOTICE in the release APK."
-  dependsOn("assembleRelease")
+  dependsOn(verifyReleaseEnvironment, "assembleRelease")
   workingDir = projectDir
   commandLine("python3", "tools/verify_release_notice.py")
 }

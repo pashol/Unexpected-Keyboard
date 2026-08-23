@@ -11,6 +11,20 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class ReleasePackagingTest(unittest.TestCase):
+    def test_release_environment_precedes_release_packaging_tasks(self):
+        result = subprocess.run(
+            ["./gradlew", "--no-configuration-cache", "verifyReleasePackaging", "--dry-run"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        tasks = [line.removesuffix(" SKIPPED") for line in result.stdout.splitlines() if line.startswith(":")]
+        environment = tasks.index(":verifyReleaseEnvironment")
+        self.assertLess(environment, tasks.index(":packageRelease"))
+        self.assertLess(environment, tasks.index(":assembleRelease"))
+
     def test_release_environment_verifier_reports_missing_signing_variables(self):
         environment = os.environ.copy()
         for variable in (
