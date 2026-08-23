@@ -83,11 +83,13 @@ public final class CurrentlyTypedWord
     _w_cursor = 0;
     if (!_has_selection)
     {
-      set_current_word(e.initial_text_before_cursor);
+      set_current_word(e.initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
       _cursor_at_text_end = e.initial_text_after_cursor != null
         && e.initial_text_after_cursor.length() == 0;
+      if (e.initial_text_before_cursor != null)
+        callback();
     }
   }
 
@@ -230,6 +232,11 @@ public final class CurrentlyTypedWord
   /** Refresh the current word by immediately querying the editor. */
   void set_current_word(CharSequence text_before_cursor)
   {
+    set_current_word(text_before_cursor, true);
+  }
+
+  void set_current_word(CharSequence text_before_cursor, boolean notify)
+  {
     _w.setLength(0);
     _text_before_cursor = "";
     _cursor_at_text_end = false;
@@ -243,7 +250,8 @@ public final class CurrentlyTypedWord
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
-    callback();
+    if (notify)
+      callback();
   }
 
   /** Like above but take the text after the cursor into account. */

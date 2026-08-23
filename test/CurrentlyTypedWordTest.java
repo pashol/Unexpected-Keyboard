@@ -248,6 +248,27 @@ public class CurrentlyTypedWordTest
     assertEquals(Collections.emptyList(), published.get(0));
   }
 
+  @Test
+  public void editor_started_at_end_after_whitespace_publishes_preceding_words()
+      throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text("one ", ""), null);
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
   Config config_with_initial_text(String before, String after) throws Exception
   {
     Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
