@@ -74,12 +74,24 @@ public final class LatinimeDictionary implements AutoCloseable
     }
   }
 
-  private static int[][] code_points(List<String> words)
+  static int[][] code_points(List<String> words)
   {
     int size = Math.min(3, words.size());
     int[][] result = new int[size][];
     for (int i = 0; i < size; ++i)
-      result[i] = words.get(words.size() - 1 - i).codePoints().toArray();
+      result[i] = code_points(words.get(words.size() - 1 - i));
+    return result;
+  }
+
+  private static int[] code_points(String word)
+  {
+    int[] result = new int[word.codePointCount(0, word.length())];
+    for (int offset = 0, index = 0; offset < word.length(); ++index)
+    {
+      int code_point = word.codePointAt(offset);
+      result[index] = code_point;
+      offset += Character.charCount(code_point);
+    }
     return result;
   }
 }

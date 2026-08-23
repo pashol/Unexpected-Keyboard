@@ -1,5 +1,6 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import java.io.FileOutputStream
+import java.util.zip.ZipFile
 
 plugins {
   id("com.android.application") version "8.13.2"
@@ -24,6 +25,7 @@ android {
     targetSdk { version = release(36) }
     versionCode = 55
     versionName = "2.0.4"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     externalNativeBuild {
       ndkBuild {
@@ -223,10 +225,31 @@ val verifyReleasePackaging by tasks.registering(Exec::class) {
   commandLine("python3", "tools/verify_release_notice.py")
 }
 
+val verifyLatinimeJniFacade by tasks.registering {
+  group = "verification"
+  description = "Verifies the API-21 facade and JNI-only descriptor class in the release APK."
+  dependsOn("assembleRelease")
+  inputs.file("srcs/juloo.keyboard2/prediction/LatinimeDictionary.java")
+  inputs.file("build/outputs/apk/release/Unexpected-Keyboard-release.apk")
+  doLast {
+    val source = inputs.files.single { it.name == "LatinimeDictionary.java" }
+    val apk = inputs.files.single { it.name == "Unexpected-Keyboard-release.apk" }
+    check(!source.readText().contains(".codePoints()"))
+    ZipFile(apk).use { archive ->
+      val present = archive.entries().asSequence()
+          .filter { it.name.startsWith("classes") && it.name.endsWith(".dex") }
+          .any { String(archive.getInputStream(it).readBytes(), Charsets.ISO_8859_1)
+              .contains("com/android/inputmethod/latin/utils/WordInputEventForPersonalization") }
+      check(present) { "Release APK is missing WordInputEventForPersonalization" }
+    }
+  }
+}
+
 tasks.named("check") {
   dependsOn(verifyLanguagePackFixture)
   dependsOn(verifyLatinimeNative)
   dependsOn(verifyReleasePackaging)
+  dependsOn(verifyLatinimeJniFacade)
 }
 
 val initDebugKeystore by tasks.registering(Exec::class) {

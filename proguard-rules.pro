@@ -6,3 +6,4 @@
 -keep class com.android.inputmethod.latin.BinaryDictionary { native <methods>; }
 -keep class com.android.inputmethod.latin.DicTraverseSession { native <methods>; }
 -keep class com.android.inputmethod.latin.utils.BinaryDictionaryUtils { native <methods>; }
+-keep class com.android.inputmethod.latin.utils.WordInputEventForPersonalization { *; }
