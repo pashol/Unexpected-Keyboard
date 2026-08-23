@@ -13,6 +13,7 @@ import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.prefs.CustomExtraKeysPreference;
 import juloo.keyboard2.prefs.ExtraKeysPreference;
 import juloo.keyboard2.prefs.LayoutsPreference;
+import juloo.keyboard2.suggestions.Suggestions;
 
 public final class Config
 {
@@ -342,6 +343,7 @@ public final class Config
     public void key_up(KeyValue value, Pointers.Modifiers mods);
     public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched);
     public void suggestion_entered(String text);
+    public void candidate_entered(String text, Suggestions.CandidateType type);
     public void personal_candidate_removed(String text);
   }
 

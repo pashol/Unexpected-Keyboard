@@ -166,6 +166,21 @@ public final class KeyEventHandler
   }
 
   @Override
+  public void candidate_entered(String text, Suggestions.CandidateType type)
+  {
+    if (type == Suggestions.CandidateType.NEXT_WORD)
+      next_word_entered(text);
+    else
+      suggestion_entered(text);
+  }
+
+  public void next_word_entered(String text)
+  {
+    send_text(text + " ", false);
+    _next_last_action = LastAction.OTHER;
+  }
+
+  @Override
   public void personal_candidate_removed(String text)
   {
     _suggestions.remove_personal_candidate(text);
@@ -410,8 +425,17 @@ public final class KeyEventHandler
     switch (st)
     {
       case Complete_first:
+        if (_suggestions.types[0] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_second:
+        if (_suggestions.types[1] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_third:
+        if (_suggestions.types[2] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_emoji:
         suggestion_entered(st.toString());
         break;
@@ -622,6 +646,7 @@ public final class KeyEventHandler
       _learn_undone_autocomplete = false;
     }
     else if (_space_bar_auto_complete && _suggestions.count > 0
+        && _suggestions.types[0] == Suggestions.CandidateType.COMPLETION
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {

@@ -7,6 +7,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import org.junit.Test;
+import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 import static org.junit.Assert.*;
 
@@ -91,6 +92,32 @@ public class KeyEventHandlerTest
     handler.suggestion_entered("word");
 
     assertEquals("word", connection.text());
+  }
+
+  @Test
+  public void next_word_commit_appends_one_space_without_deleting_text()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello ");
+    KeyEventHandler handler = new_handler(connection);
+
+    handler.next_word_entered("world");
+
+    assertEquals("hello world ", connection.text());
+    assertEquals(0, connection.delete_calls);
+  }
+
+  @Test
+  public void candidate_entry_preserves_completion_replacement_behavior()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hel");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("hel");
+
+    handler.candidate_entered("hello", Suggestions.CandidateType.COMPLETION);
+
+    assertEquals("hello", connection.text());
+    assertEquals(1, connection.delete_calls);
   }
 
   @Test
@@ -259,6 +286,21 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void next_word_candidate_is_not_used_by_space_autocomplete()
+  {
+    FakeInputConnection connection = new FakeInputConnection();
+    KeyEventHandler handler = new_handler(connection);
+    handler._suggestions.suggestions[0] = "world";
+    handler._suggestions.types[0] = Suggestions.CandidateType.NEXT_WORD;
+    handler._suggestions.count = 1;
+    handler._space_bar_auto_complete = true;
+
+    handler.handle_space_bar();
+
+    assertEquals(" ", connection.text());
+  }
+
+  @Test
   public void startup_retains_suggestions_for_initial_typed_word() throws Exception
   {
     UserDictionary dictionary = dictionary();
@@ -345,6 +387,7 @@ public class KeyEventHandlerTest
     StringBuilder text;
     int cursor;
     int after_cursor_request = 0;
+    int delete_calls = 0;
 
     FakeInputConnection()
     {
@@ -381,6 +424,7 @@ public class KeyEventHandlerTest
       }
       if (method.getName().equals("deleteSurroundingText"))
       {
+        delete_calls++;
         int before = ((Integer)args[0]).intValue();
         int after = ((Integer)args[1]).intValue();
         text.delete(cursor - before, cursor + after);

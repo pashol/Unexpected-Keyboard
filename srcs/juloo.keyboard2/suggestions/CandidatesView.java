@@ -27,6 +27,7 @@ public class CandidatesView extends LinearLayout
       - Entry at index [3] is the emoji suggestion. */
   String[] _items = new String[NUM_CANDIDATES];
   boolean[] _personal_items = new boolean[NUM_CANDIDATES];
+  Suggestions.CandidateType[] _types = new Suggestions.CandidateType[NUM_CANDIDATES];
 
   /** Text views showing the candidates in [_items]. Text views visibility is
       set to [GONE] when there are less than [NUM_CANDIDATES] suggestions. */
@@ -58,9 +59,11 @@ public class CandidatesView extends LinearLayout
     {
       _items[i] = (i < s_count) ? s.suggestions[i] : null;
       _personal_items[i] = i < s_count && s.personal_suggestions[i];
+      _types[i] = i < s_count ? s.types[i] : Suggestions.CandidateType.COMPLETION;
     }
     _items[3] = s.emoji_suggestion;
     _personal_items[3] = false;
+    _types[3] = Suggestions.CandidateType.COMPLETION;
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -85,6 +88,7 @@ public class CandidatesView extends LinearLayout
     {
       _items[i] = null;
       _personal_items[i] = false;
+      _types[i] = Suggestions.CandidateType.COMPLETION;
       _item_views[i].setVisibility(View.GONE);
     }
   }
@@ -170,6 +174,7 @@ public class CandidatesView extends LinearLayout
           private boolean _removed;
           private String _long_press_candidate;
           private boolean _long_press_personal;
+          private Suggestions.CandidateType _long_press_type;
           private final Runnable _remove = new Runnable()
           {
             @Override
@@ -179,8 +184,10 @@ public class CandidatesView extends LinearLayout
               UserDictionary dictionary = UserDictionary.instance();
               if (matches_long_press_candidate(_long_press_candidate,
                     _long_press_personal, _items[item_index], _personal_items[item_index])
-                  && config != null && can_remove_personal_candidate(
-                    config.user_dictionary_enabled, item_index, _long_press_personal)
+                   && config != null && can_remove_personal_candidate(
+                     config.user_dictionary_enabled, item_index, _long_press_personal,
+                     _long_press_type)
+                  && _types[item_index] == Suggestions.CandidateType.COMPLETION
                   && dictionary != null
                   && remove_personal_candidate(dictionary, _long_press_candidate))
               {
@@ -199,10 +206,11 @@ public class CandidatesView extends LinearLayout
                 _removed = false;
                 _long_press_candidate = _items[item_index];
                 _long_press_personal = _personal_items[item_index];
+                _long_press_type = _types[item_index];
                 Config config = Config.globalConfig();
                 if (config != null && can_remove_personal_candidate(
                       config.user_dictionary_enabled, item_index,
-                      _long_press_personal) && _long_press_candidate != null)
+                      _long_press_personal, _long_press_type) && _long_press_candidate != null)
                   view.postDelayed(_remove, 600);
                 break;
               case MotionEvent.ACTION_UP:
@@ -222,7 +230,7 @@ public class CandidatesView extends LinearLayout
           {
             String it = _items[item_index];
             if (it != null)
-              Config.globalConfig().handler.suggestion_entered(it);
+              Config.globalConfig().handler.candidate_entered(it, _types[item_index]);
           }
         });
     v.setVisibility(View.GONE);
@@ -234,6 +242,13 @@ public class CandidatesView extends LinearLayout
   {
     return dictionary_enabled && item_index < Suggestions.MAX_COUNT
       && personal_candidate;
+  }
+
+  static boolean can_remove_personal_candidate(boolean dictionary_enabled,
+      int item_index, boolean personal_candidate, Suggestions.CandidateType type)
+  {
+    return can_remove_personal_candidate(dictionary_enabled, item_index,
+        personal_candidate) && type == Suggestions.CandidateType.COMPLETION;
   }
 
   static boolean remove_personal_candidate(UserDictionary dictionary, String candidate)

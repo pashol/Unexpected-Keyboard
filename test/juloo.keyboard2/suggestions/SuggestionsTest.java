@@ -1,5 +1,7 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.Arrays;
+import juloo.keyboard2.prediction.PredictionCandidate;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -103,6 +105,8 @@ public class SuggestionsTest
     assertFalse(CandidatesView.can_remove_personal_candidate(false, 0, true));
     assertFalse(CandidatesView.can_remove_personal_candidate(true, 3, true));
     assertFalse(CandidatesView.can_remove_personal_candidate(true, 0, false));
+    assertFalse(CandidatesView.can_remove_personal_candidate(true, 0, true,
+        Suggestions.CandidateType.NEXT_WORD));
   }
 
   @Test
@@ -164,5 +168,44 @@ public class SuggestionsTest
     assertEquals(1, suggestions.count);
     assertEquals("Kept", suggestions.suggestions[0]);
     assertFalse(suggestions.personal_suggestions[0]);
+  }
+
+  @Test
+  public void next_word_candidates_are_typed_nonpersonal_and_have_no_emoji()
+  {
+    Suggestions suggestions = new Suggestions(null, null);
+    suggestions.emoji_suggestion = "emoji";
+
+    suggestions.set_next_word_candidates(Arrays.asList(
+        new PredictionCandidate("world", 1f),
+        new PredictionCandidate("there", .5f)));
+
+    assertArrayEquals(new String[] { "world", "there", null }, suggestions.suggestions);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.NEXT_WORD,
+        Suggestions.CandidateType.COMPLETION }, suggestions.types);
+    assertArrayEquals(new boolean[] { false, false, false }, suggestions.personal_suggestions);
+    assertEquals(2, suggestions.count);
+    assertNull(suggestions.emoji_suggestion);
+  }
+
+  @Test
+  public void removing_personal_completion_keeps_candidate_types_aligned()
+  {
+    Suggestions suggestions = new Suggestions(new Suggestions.Callback()
+    {
+      public void set_suggestions(Suggestions value) {}
+    }, null);
+    suggestions.suggestions[0] = "Removed";
+    suggestions.suggestions[1] = "Next";
+    suggestions.personal_suggestions[0] = true;
+    suggestions.types[0] = Suggestions.CandidateType.COMPLETION;
+    suggestions.types[1] = Suggestions.CandidateType.NEXT_WORD;
+    suggestions.count = 2;
+
+    assertTrue(suggestions.remove_personal_candidate("Removed"));
+    assertEquals("Next", suggestions.suggestions[0]);
+    assertEquals(Suggestions.CandidateType.NEXT_WORD, suggestions.types[0]);
+    assertEquals(Suggestions.CandidateType.COMPLETION, suggestions.types[1]);
   }
 }

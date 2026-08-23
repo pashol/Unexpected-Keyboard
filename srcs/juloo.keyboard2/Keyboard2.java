@@ -544,12 +544,18 @@ public class Keyboard2 extends InputMethodService
     {
       switch (q)
       {
-        case Complete_first: return _suggestions.suggestions[0];
-        case Complete_second: return _suggestions.suggestions[1];
-        case Complete_third: return _suggestions.suggestions[2];
+        case Complete_first: return completion_candidate(0);
+        case Complete_second: return completion_candidate(1);
+        case Complete_third: return completion_candidate(2);
         case Complete_emoji: return _suggestions.emoji_suggestion;
       }
       return "";
+    }
+
+    private String completion_candidate(int index)
+    {
+      return _suggestions.types[index] == Suggestions.CandidateType.COMPLETION
+        ? _suggestions.suggestions[index] : null;
     }
   }
 
