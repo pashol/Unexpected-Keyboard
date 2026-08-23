@@ -264,6 +264,8 @@ public final class CurrentlyTypedWord
     {
       _context_known = false;
       _sentence_start = false;
+      if (notify && _callback != null)
+        callback();
       return;
     }
     _context_known = true;
@@ -284,6 +286,8 @@ public final class CurrentlyTypedWord
     {
       _context_known = false;
       _sentence_start = false;
+      if (_callback != null)
+        callback();
       return;
     }
     _context_known = true;

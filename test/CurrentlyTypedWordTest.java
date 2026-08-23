@@ -308,6 +308,32 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void null_editor_context_publishes_empty_preceding_words() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    word.started(config_with_initial_text("one ", ""), null);
+
+    word.set_current_word((CharSequence)null);
+    word.set_current_word((android.view.inputmethod.SurroundingText)null);
+
+    assertEquals(3, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+    assertEquals(Collections.emptyList(), published.get(1));
+    assertEquals(Collections.emptyList(), published.get(2));
+  }
+
+  @Test
   public void legacy_editor_started_at_end_after_whitespace_publishes_preceding_words()
       throws Exception
   {
