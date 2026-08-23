@@ -388,9 +388,7 @@ public final class CurrentlyTypedWord
 
   public static interface Callback
   {
-    public default void currently_typed_word(String word, boolean sentence_start)
-    {
-    }
+    public void currently_typed_word(String word, boolean sentence_start);
 
     public default void currently_typed_word(String word, boolean sentence_start,
         List<String> preceding_words)

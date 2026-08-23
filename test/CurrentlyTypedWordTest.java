@@ -48,6 +48,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> precedingWords) {}
         });
@@ -97,6 +99,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> precedingWords) {}
         });
@@ -186,6 +190,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> words)
           {
@@ -206,6 +212,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> words)
           {
@@ -229,6 +237,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> words)
           {
@@ -256,6 +266,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> words)
           {
@@ -277,6 +289,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
           public void currently_typed_word(String text, boolean sentenceStart,
               List<String> words)
           {
@@ -297,13 +311,7 @@ public class CurrentlyTypedWordTest
   public void two_argument_callback_receives_context_publication()
   {
     final int[] calls = { 0 };
-    CurrentlyTypedWord.Callback callback = new CurrentlyTypedWord.Callback()
-    {
-      public void currently_typed_word(String text, boolean sentenceStart)
-      {
-        calls[0]++;
-      }
-    };
+    CurrentlyTypedWord.Callback callback = (text, sentenceStart) -> calls[0]++;
 
     callback.currently_typed_word("word", false, Collections.<String>emptyList());
 
