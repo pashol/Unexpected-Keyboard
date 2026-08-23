@@ -95,15 +95,18 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void next_word_commit_appends_one_space_without_deleting_text()
+  public void next_word_candidate_tap_batches_an_append_without_deleting_adjacent_text()
   {
-    FakeInputConnection connection = new FakeInputConnection("hello ");
+    FakeInputConnection connection = new FakeInputConnection("hello !");
+    connection.cursor = 6;
     KeyEventHandler handler = new_handler(connection);
 
-    handler.next_word_entered("world");
+    handler.candidate_entered("world", Suggestions.CandidateType.NEXT_WORD);
 
-    assertEquals("hello world ", connection.text());
+    assertEquals("hello world !", connection.text());
     assertEquals(0, connection.delete_calls);
+    assertEquals(1, connection.begin_batch_calls);
+    assertEquals(1, connection.end_batch_calls);
   }
 
   @Test
@@ -388,6 +391,8 @@ public class KeyEventHandlerTest
     int cursor;
     int after_cursor_request = 0;
     int delete_calls = 0;
+    int begin_batch_calls = 0;
+    int end_batch_calls = 0;
 
     FakeInputConnection()
     {
@@ -430,6 +435,10 @@ public class KeyEventHandlerTest
         text.delete(cursor - before, cursor + after);
         cursor -= before;
       }
+      if (method.getName().equals("beginBatchEdit"))
+        begin_batch_calls++;
+      if (method.getName().equals("endBatchEdit"))
+        end_batch_calls++;
       Class<?> type = method.getReturnType();
       if (type == Boolean.TYPE) return true;
       if (type == Integer.TYPE) return 0;

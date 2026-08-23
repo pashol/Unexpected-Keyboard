@@ -176,7 +176,18 @@ public final class KeyEventHandler
 
   public void next_word_entered(String text)
   {
-    send_text(text + " ", false);
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return;
+    conn.beginBatchEdit();
+    try
+    {
+      send_text(text + " ", false);
+    }
+    finally
+    {
+      conn.endBatchEdit();
+    }
     _next_last_action = LastAction.OTHER;
   }
 
