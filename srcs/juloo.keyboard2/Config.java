@@ -45,6 +45,7 @@ public final class Config
   public float swipe_dist_px;
   public float slide_step_px;
   public boolean suggestions_enabled;
+  public boolean next_word_predictions_enabled;
   public boolean user_dictionary_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
@@ -148,6 +149,8 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    next_word_predictions_enabled = _prefs.getBoolean(
+        "next_word_predictions_enabled", false);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
