@@ -192,4 +192,27 @@ public class CurrentlyTypedWordTest
 
     assertEquals(Collections.emptyList(), precedingWords.get(0));
   }
+
+  @Test
+  public void cursor_in_repeated_mid_text_whitespace_produces_no_next_word_context()
+  {
+    final List<List<String>> precedingWords = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            precedingWords.add(words);
+          }
+        });
+    word._context_known = true;
+    // Cursor is between the spaces in "one  two".
+    word._cursor_at_text_end = false;
+    word._cursor = 4;
+    word._text_before_cursor = "one ";
+    word.callback();
+
+    assertEquals(Collections.emptyList(), precedingWords.get(0));
+  }
 }

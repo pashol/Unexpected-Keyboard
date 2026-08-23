@@ -39,6 +39,8 @@ public final class CurrentlyTypedWord
   String _text_before_cursor = "";
   /** Whether [_text_before_cursor] came from a successful editor query. */
   boolean _context_known = false;
+  /** Whether the editor confirmed that there is no text after the cursor. */
+  boolean _cursor_at_text_end = false;
   boolean _sentence_start = false;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
@@ -84,6 +86,8 @@ public final class CurrentlyTypedWord
       set_current_word(e.initial_text_before_cursor);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
+      _cursor_at_text_end = e.initial_text_after_cursor != null
+        && e.initial_text_after_cursor.length() == 0;
     }
   }
 
@@ -111,6 +115,7 @@ public final class CurrentlyTypedWord
     }
     else if (newSelStart != _cursor)
     {
+      _cursor_at_text_end = false;
       _cursor = newSelStart;
       _w_cursor += newSelStart - oldSelStart;
       if (_w_cursor < -_w.length() || _w_cursor > 0)
@@ -154,7 +159,8 @@ public final class CurrentlyTypedWord
   void callback()
   {
     String w = _w.toString();
-    List<String> preceding_words = _has_selection ? Collections.<String>emptyList()
+    List<String> preceding_words = _has_selection || !_cursor_at_text_end
+      ? Collections.<String>emptyList()
       : preceding_words_for_next_word(_text_before_cursor, _context_known, w);
     _callback.currently_typed_word(w, _sentence_start, preceding_words);
   }
@@ -226,6 +232,7 @@ public final class CurrentlyTypedWord
   {
     _w.setLength(0);
     _text_before_cursor = "";
+    _cursor_at_text_end = false;
     if (text_before_cursor == null)
     {
       _context_known = false;
@@ -244,6 +251,7 @@ public final class CurrentlyTypedWord
   {
     _w.setLength(0);
     _text_before_cursor = "";
+    _cursor_at_text_end = false;
     if (st == null)
     {
       _context_known = false;
@@ -257,6 +265,7 @@ public final class CurrentlyTypedWord
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
+    _cursor_at_text_end = st_sel == st_text.length();
     update_sentence_start();
     _cursor = saved_cursor;
     callback();
