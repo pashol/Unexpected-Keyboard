@@ -385,6 +385,28 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void legacy_editor_start_with_null_context_publishes_empty_context() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text(null, null), input_connection(null, 0));
+
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
   public void two_argument_callback_receives_context_publication()
   {
     final int[] calls = { 0 };
@@ -420,9 +442,9 @@ public class CurrentlyTypedWordTest
           public Object invoke(Object proxy, Method method, Object[] args)
           {
             if (method.getName().equals("getTextBeforeCursor"))
-              return text.substring(0, cursor);
+              return text == null ? null : text.substring(0, cursor);
             if (method.getName().equals("getTextAfterCursor"))
-              return text.substring(cursor);
+              return text == null ? null : text.substring(cursor);
             Class<?> type = method.getReturnType();
             if (type == Boolean.TYPE) return false;
             if (type == Integer.TYPE) return 0;

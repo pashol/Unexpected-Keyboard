@@ -92,7 +92,7 @@ public final class CurrentlyTypedWord
       _cursor_at_text_end = e.initial_text_after_cursor == null
         ? text_after_cursor_is_empty()
         : e.initial_text_after_cursor.length() == 0;
-      if (initial_text_before_cursor != null)
+      if (_callback != null)
         callback();
     }
   }
