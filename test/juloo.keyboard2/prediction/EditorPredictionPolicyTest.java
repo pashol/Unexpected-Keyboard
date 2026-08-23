@@ -17,7 +17,18 @@ public class EditorPredictionPolicyTest
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD));
     assertFalse(EditorPredictionPolicy.allow_next_word(
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
-        | InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT));
+        | InputType.TYPE_TEXT_VARIATION_PERSON_NAME));
+  }
+
+  @Test
+  public void next_word_is_allowed_for_non_password_text_variations()
+  {
+    assertTrue(EditorPredictionPolicy.allow_next_word(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT));
+    assertTrue(EditorPredictionPolicy.allow_next_word(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_FILTER));
+    assertTrue(EditorPredictionPolicy.allow_next_word(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PHONETIC));
   }
 
   @Test

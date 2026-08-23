@@ -39,6 +39,8 @@ public final class CurrentlyTypedWord
   String _text_before_cursor = "";
   /** Whether [_text_before_cursor] came from a successful editor query. */
   boolean _context_known = false;
+  /** Whether the editor context may have started in the middle of a word. */
+  boolean _context_ambiguous = false;
   /** Whether the editor confirmed that there is no text after the cursor. */
   boolean _cursor_at_text_end = false;
   boolean _sentence_start = false;
@@ -266,6 +268,7 @@ public final class CurrentlyTypedWord
     _w.setLength(0);
     _text_before_cursor = "";
     _cursor_at_text_end = cursor_at_text_end;
+    _context_ambiguous = false;
     if (text_before_cursor == null)
     {
       _context_known = false;
@@ -275,6 +278,7 @@ public final class CurrentlyTypedWord
       return;
     }
     _context_known = true;
+    _context_ambiguous = context_is_ambiguous(text_before_cursor);
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
@@ -288,6 +292,7 @@ public final class CurrentlyTypedWord
     _w.setLength(0);
     _text_before_cursor = "";
     _cursor_at_text_end = false;
+    _context_ambiguous = false;
     if (st == null)
     {
       _context_known = false;
@@ -300,6 +305,9 @@ public final class CurrentlyTypedWord
     int saved_cursor = _cursor;
     int st_sel = st.getSelectionStart();
     CharSequence st_text = st.getText();
+    _context_ambiguous = st_sel == SENTENCE_CONTEXT_LENGTH
+      && (is_word_char(Character.codePointAt(st_text, 0))
+          || Character.isLowSurrogate(st_text.charAt(0)));
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
@@ -336,7 +344,7 @@ public final class CurrentlyTypedWord
   /** Return up to three complete words before an empty composition. */
   List<String> preceding_words_for_next_word()
   {
-    if (_has_selection || !_cursor_at_text_end)
+    if (_has_selection || !_cursor_at_text_end || _context_ambiguous)
       return Collections.emptyList();
     return preceding_words_for_next_word(_text_before_cursor, _context_known,
         _w.toString());
@@ -348,9 +356,7 @@ public final class CurrentlyTypedWord
   {
     if (!contextKnown || composingWord.length() != 0 || context.length() == 0
         || !Character.isWhitespace(context.codePointBefore(context.length()))
-        || (context.length() == SENTENCE_CONTEXT_LENGTH
-            && (is_word_char(context.codePointAt(0))
-                || Character.isLowSurrogate(context.charAt(0)))))
+        || context_is_ambiguous(context))
       return Collections.emptyList();
     ArrayList<String> words = new ArrayList<>();
     int i = context.length();
@@ -372,6 +378,13 @@ public final class CurrentlyTypedWord
     }
     Collections.reverse(words);
     return words;
+  }
+
+  static boolean context_is_ambiguous(CharSequence context)
+  {
+    return context.length() == SENTENCE_CONTEXT_LENGTH
+      && (is_word_char(Character.codePointAt(context, 0))
+          || Character.isLowSurrogate(context.charAt(0)));
   }
 
   static boolean sentence_start_from_context(String text, int wordLength)

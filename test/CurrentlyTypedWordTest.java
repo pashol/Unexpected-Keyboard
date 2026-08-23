@@ -210,6 +210,34 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void ambiguous_initial_context_stays_unusable_after_local_typing()
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    String suffix = " one two ";
+    String full = "x" + new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - suffix.length() - 1])
+          .replace('\0', ' ') + suffix;
+    word._enabled = true;
+    word.set_current_word(full, true, true);
+    published.clear();
+
+    word.typed("three ");
+
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
   public void selected_text_produces_no_next_word_context()
   {
     final List<List<String>> precedingWords = new ArrayList<>();

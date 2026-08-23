@@ -69,6 +69,43 @@ public class PredictionEngineControllerTest
   }
 
   @Test
+  public void controller_reset_uses_only_legacy_engine_when_disabled()
+  {
+    RecordingEngine experimental = new RecordingEngine(false, "experimental");
+    RecordingEngine legacy = new RecordingEngine(false, "legacy");
+    PredictionEngineController controller = new PredictionEngineController(
+        false, experimental, legacy);
+
+    controller.reset_session();
+
+    assertEquals(0, experimental.reset_calls);
+    assertEquals(1, legacy.reset_calls);
+  }
+
+  @Test
+  public void controller_reset_resets_legacy_when_experimental_reset_throws()
+  {
+    RecordingEngine experimental = new RecordingEngine(false, "experimental", false,
+        true);
+    RecordingEngine legacy = new RecordingEngine(false, "legacy");
+    PredictionEngineController controller = new PredictionEngineController(
+        true, experimental, legacy);
+
+    try
+    {
+      controller.reset_session();
+      fail();
+    }
+    catch (IllegalStateException e)
+    {
+      assertEquals("reset failure", e.getMessage());
+    }
+
+    assertEquals(1, experimental.reset_calls);
+    assertEquals(1, legacy.reset_calls);
+  }
+
+  @Test
   public void controller_closes_each_engine_once()
   {
     RecordingEngine experimental = new RecordingEngine(false, "experimental");
@@ -110,6 +147,7 @@ public class PredictionEngineControllerTest
     private final boolean _fails;
     private final String _result;
     private final boolean _close_fails;
+    private final boolean _reset_fails;
     int predict_calls;
     int reset_calls;
     int close_calls;
@@ -121,9 +159,15 @@ public class PredictionEngineControllerTest
 
     RecordingEngine(boolean fails, String result, boolean closeFails)
     {
+      this(fails, result, closeFails, false);
+    }
+
+    RecordingEngine(boolean fails, String result, boolean closeFails, boolean resetFails)
+    {
       _fails = fails;
       _result = result;
       _close_fails = closeFails;
+      _reset_fails = resetFails;
     }
 
     public List<PredictionCandidate> predict(PredictionRequest request)
@@ -137,6 +181,8 @@ public class PredictionEngineControllerTest
     public void reset_session()
     {
       reset_calls++;
+      if (_reset_fails)
+        throw new IllegalStateException("reset failure");
     }
 
     public void close()

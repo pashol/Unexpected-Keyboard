@@ -37,9 +37,20 @@ public final class PredictionEngineController implements PredictionEngine
   public void reset_session()
   {
     _experimental_failed = false;
-    _experimental.reset_session();
-    if (_legacy != _experimental)
+    if (!_enabled)
+    {
       _legacy.reset_session();
+      return;
+    }
+    try
+    {
+      _experimental.reset_session();
+    }
+    finally
+    {
+      if (_legacy != _experimental)
+        _legacy.reset_session();
+    }
   }
 
   public void close()
