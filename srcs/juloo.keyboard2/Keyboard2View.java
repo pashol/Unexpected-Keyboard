@@ -18,7 +18,9 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import juloo.keyboard2.prediction.PredictionRequest;
 
 public class Keyboard2View extends View
   implements View.OnTouchListener, Pointers.IPointerEventHandler
@@ -111,6 +113,30 @@ public class Keyboard2View extends View
     _compose_key = _keyboard.findKeyWithValue(KeyValue.COMPOSE);
     KeyModifier.set_modmap(_keyboard.modmap);
     reset();
+  }
+
+  /** Returns the rendered centers of ordinary character keys for native decoding. */
+  public List<PredictionRequest.KeyCenter> predictionKeyCenters()
+  {
+    ArrayList<PredictionRequest.KeyCenter> centers = new ArrayList<PredictionRequest.KeyCenter>();
+    if (_keyboard == null || _tc == null) return centers;
+    float y = _tc.margin_top;
+    for (KeyboardData.Row row : _keyboard.rows) {
+      y += row.shift * _tc.row_height;
+      float x = _marginLeft + _tc.margin_left;
+      float height = row.height * _tc.row_height - _tc.vertical_margin;
+      for (KeyboardData.Key key : row.keys) {
+        x += key.shift * _keyWidth;
+        float width = key.width * _keyWidth - _tc.horizontal_margin;
+        KeyValue value = key.keys[0];
+        if (value != null && value.getKind() == KeyValue.Kind.Char)
+          centers.add(new PredictionRequest.KeyCenter(value.getChar(),
+              Math.round(x + width / 2), Math.round(y + height / 2)));
+        x += key.width * _keyWidth;
+      }
+      y += row.height * _tc.row_height;
+    }
+    return centers;
   }
 
   public void reset()

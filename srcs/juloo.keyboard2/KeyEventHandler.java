@@ -12,7 +12,9 @@ import java.util.Iterator;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.prediction.ComposingContext;
+import juloo.keyboard2.prediction.FeedbackType;
 import juloo.keyboard2.prediction.LegacyPredictionEngine;
+import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 
@@ -85,6 +87,12 @@ public final class KeyEventHandler
       _auto_space_inserted = false;
     _autocap.selection_updated(oldSelStart, newSelStart);
     _typedword.selection_updated(oldSelStart, newSelStart, newSelEnd);
+    boolean replacementSelection = last_replaced_word != null
+      && newSelStart == newSelEnd
+      && newSelStart == oldSelStart + last_replacement_selection_delta;
+    if ((newSelStart != oldSelStart || newSelStart != newSelEnd)
+        && !replacementSelection)
+      cancel_pending_revert();
   }
 
   /** A key is being pressed. There will not necessarily be a corresponding
@@ -156,14 +164,46 @@ public final class KeyEventHandler
   }
 
   @Override
+  public void suggestion_entered(int slot, long generation)
+  {
+    PredictionCandidate candidate = _suggestions.candidate_at(slot, generation);
+    String text = _suggestions.suggestion_at(slot, generation);
+    if (text != null)
+      suggestion_entered(text, candidate, generation);
+  }
+
+  /** Inserts text for legacy stateful shortcuts that have no prediction identity. */
   public void suggestion_entered(String text)
+  {
+    suggestion_entered(text, null, 0);
+  }
+
+  private void suggestion_entered(String text, PredictionCandidate candidate)
+  {
+    suggestion_entered(text, candidate, 0);
+  }
+
+  private void suggestion_entered(String text, PredictionCandidate candidate,
+      long generation)
   {
     String old = _typedword.get();
     int cur_rel = _typedword.cursor_relative();
-    replace_surrounding_text(old.length() + cur_rel, -cur_rel, text);
+    String committed = text + " ";
+    if (candidate != null)
+    {
+      cancel_pending_revert();
+      _suggestions.retain_feedback_generation(generation);
+      _suggestions.record_feedback(FeedbackType.ACCEPTED, candidate, text, generation);
+    }
+    replace_surrounding_text(old.length() + cur_rel, -cur_rel, committed);
     last_replaced_word = old;
-    last_replacement_word_len = text.length();
+    last_replacement_word_len = committed.length();
+    last_replacement_selection_delta = committed.length() - old.length() - cur_rel;
+    last_replacement_candidate = candidate;
+    last_replacement_generation = generation;
+    _last_action = LastAction.SUGGESTION_ENTERED;
     _next_last_action = LastAction.SUGGESTION_ENTERED;
+    _auto_space_inserted = true;
   }
 
   @Override
@@ -406,7 +446,7 @@ public final class KeyEventHandler
       case Complete_second:
       case Complete_third:
       case Complete_emoji:
-        suggestion_entered(st.toString());
+        suggestion_entered(st.toString(), null);
         break;
     }
   }
@@ -605,6 +645,9 @@ public final class KeyEventHandler
   /** Length of the text before the cursor that should be replaced by
       backspace. */
   int last_replacement_word_len = 0;
+  int last_replacement_selection_delta = 0;
+  PredictionCandidate last_replacement_candidate = null;
+  long last_replacement_generation;
 
   /** Implement autocorrect when enabled in the settings. */
   void handle_space_bar()
@@ -620,8 +663,7 @@ public final class KeyEventHandler
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {
-      suggestion_entered(_suggestions.suggestions[0] + " ");
-      _auto_space_inserted = true;
+      suggestion_entered(_suggestions.suggestions[0], null);
     }
     else
       send_text(" ");
@@ -639,8 +681,18 @@ public final class KeyEventHandler
     if (_last_action == LastAction.SUGGESTION_ENTERED
         && last_replaced_word != null)
     {
+      if (last_replacement_candidate != null)
+      {
+        _suggestions.record_feedback(FeedbackType.REVERTED,
+            last_replacement_candidate, last_replaced_word,
+            last_replacement_generation);
+        _suggestions.release_feedback_generation(last_replacement_generation);
+      }
       replace_surrounding_text(last_replacement_word_len, 0, last_replaced_word);
       last_replaced_word = null;
+      last_replacement_candidate = null;
+      last_replacement_generation = 0;
+      last_replacement_selection_delta = 0;
       _learn_undone_autocomplete = true;
     }
     else
@@ -691,6 +743,14 @@ public final class KeyEventHandler
   {
     refresh_typing_config_from_config();
     String word = _typedword.get();
+    if (word.length() > 0 && delimiter.length() > 0
+        && !Character.isLetter(delimiter.codePointAt(0)))
+    {
+      PredictionCandidate correction = _suggestions.visible_correction();
+      if (correction != null)
+        _suggestions.record_feedback(FeedbackType.REJECTED, correction, word);
+      _suggestions.record_feedback(FeedbackType.COMMITTED, null, word);
+    }
     final Cdict dictionary = _config == null ? null : _config.current_dictionary;
     boolean known = dictionary != null && dictionary_knows_word(new WordLookup()
     {
@@ -799,6 +859,16 @@ public final class KeyEventHandler
   static boolean should_autocomplete_space(boolean undone_autocomplete)
   {
     return !undone_autocomplete;
+  }
+
+  private void cancel_pending_revert()
+  {
+    if (last_replacement_candidate != null)
+      _suggestions.release_feedback_generation(last_replacement_generation);
+    last_replaced_word = null;
+    last_replacement_candidate = null;
+    last_replacement_generation = 0;
+    last_replacement_selection_delta = 0;
   }
 
   public static enum LastAction

@@ -163,9 +163,10 @@ public class SuggestionsTest
     CandidatesView.copy_candidates(suggestions, items, personal);
     CapturingHandler handler = new CapturingHandler();
 
-    CandidatesView.select_candidate(items[0], handler);
+    CandidatesView.select_candidate(0, suggestions.current_generation(), handler);
 
-    assertEquals("experimental", handler.selected);
+    assertEquals(0, handler.selectedSlot);
+    assertEquals(suggestions.current_generation(), handler.selectedGeneration);
   }
 
   @Test
@@ -268,8 +269,56 @@ public class SuggestionsTest
 
     assertEquals(Collections.singletonList(kept),
         suggestions._adapted_candidates.getCandidates());
-    assertEquals(generation, suggestions._adapted_candidates.getGeneration());
+    assertTrue(suggestions._adapted_candidates.getGeneration() > generation);
     assertArrayEquals(new String[] { "Kept", null, null }, suggestions.suggestions);
+  }
+
+  @Test
+  public void removing_personal_candidate_invalidates_queued_slot_taps()
+  {
+    PredictionCandidate personal = candidate(
+        "Personal", LegacyPredictionEngine.SOURCE_PERSONAL);
+    PredictionCandidate kept = candidate("Kept", LegacyPredictionEngine.SOURCE_CDICT);
+    Suggestions suggestions = new Suggestions(value -> {}, null,
+        new CapturingEngine(Arrays.asList(personal, kept)));
+    suggestions._enabled = true;
+    suggestions.currently_typed_word(new ComposingContext(
+        "word", 4, Collections.emptyList(), false, false));
+    long queuedGeneration = suggestions.current_generation();
+
+    assertTrue(suggestions.remove_personal_candidate("Personal"));
+
+    assertNull(suggestions.candidate_at(0, queuedGeneration));
+    assertEquals("Kept", suggestions.suggestions[0]);
+  }
+
+  @Test
+  public void prediction_request_uses_active_keyboard_key_centers()
+  {
+    CapturingEngine engine = new CapturingEngine(Collections.emptyList());
+    Suggestions suggestions = new Suggestions(value -> {}, null, engine, () -> "en", () ->
+        Arrays.asList(new PredictionRequest.KeyCenter('w', 12, 34)));
+    suggestions._enabled = true;
+
+    suggestions.currently_typed_word(new ComposingContext(
+        "word", 4, Collections.emptyList(), false, false));
+
+    assertEquals(1, engine.request.getKeyCenters().size());
+    assertEquals(12, engine.request.getKeyCenters().get(0).getX());
+  }
+
+  @Test
+  public void empty_composing_text_with_context_requests_next_word_predictions()
+  {
+    CapturingEngine engine = new CapturingEngine(Collections.emptyList());
+    Suggestions suggestions = new Suggestions(value -> {}, null, engine);
+    suggestions._enabled = true;
+
+    suggestions.currently_typed_word(new ComposingContext(
+        "", 0, Collections.singletonList("hello"), false, false));
+
+    assertEquals("", engine.request.getComposingText());
+    assertEquals(Collections.singletonList("hello"), engine.request.getPrecedingWords());
   }
 
   private static PredictionCandidate candidate(String text, String source)
@@ -301,12 +350,17 @@ public class SuggestionsTest
 
   private static final class CapturingHandler implements Config.IKeyEventHandler
   {
-    String selected;
+    int selectedSlot = -1;
+    long selectedGeneration = -1;
 
     public void key_down(KeyValue value, boolean isSwipe) {}
     public void key_up(KeyValue value, Pointers.Modifiers modifiers) {}
     public void mods_changed(Pointers.Modifiers modifiers, boolean latched) {}
-    public void suggestion_entered(String text) { selected = text; }
+    public void suggestion_entered(int slot, long generation)
+    {
+      selectedSlot = slot;
+      selectedGeneration = generation;
+    }
     public void personal_candidate_removed(String text) {}
   }
 }

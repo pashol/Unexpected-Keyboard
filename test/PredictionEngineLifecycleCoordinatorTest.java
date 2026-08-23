@@ -56,6 +56,20 @@ public class PredictionEngineLifecycleCoordinatorTest
     assertEquals(1, target.closes);
   }
 
+  @Test
+  public void preference_update_after_close_does_not_rebuild_engines()
+  {
+    CountingTarget target = new CountingTarget();
+    PredictionEngineLifecycleCoordinator coordinator =
+        new PredictionEngineLifecycleCoordinator(target);
+    coordinator.close();
+
+    coordinator.onPreferenceChanged("experimental_prediction_engine");
+
+    assertEquals(0, target.rebuilds);
+    assertEquals(1, target.closes);
+  }
+
   private static final class CountingTarget
       implements PredictionEngineLifecycleCoordinator.Target
   {

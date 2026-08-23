@@ -54,6 +54,7 @@ public class Keyboard2 extends InputMethodService
   private Handler _handler;
 
   private Config _config;
+  private SharedPreferences _preferences;
 
   private FoldStateTracker _foldStateTracker;
 
@@ -128,13 +129,15 @@ public class Keyboard2 extends InputMethodService
   public void onCreate()
   {
     super.onCreate();
-    SharedPreferences prefs = DirectBootAwarePreferences.get_shared_preferences(this);
+    _preferences = DirectBootAwarePreferences.get_shared_preferences(this);
+    SharedPreferences prefs = _preferences;
     _handler = new Handler(getMainLooper());
     _foldStateTracker = new FoldStateTracker(this);
     _dictionaries = Dictionaries.instance(this);
     Config.initGlobalConfig(prefs, getResources(),
         _foldStateTracker.isUnfolded(), _dictionaries);
     _config = Config.globalConfig();
+    juloo.keyboard2.prediction.LatinPredictionAssetResolver.initialize(this);
     UserDictionary.init(this);
     Receiver recvr = this.new Receiver();
     _suggestions = new Suggestions(recvr, _config);
@@ -162,6 +165,10 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
+    if (_preferences != null) {
+      _preferences.unregisterOnSharedPreferenceChangeListener(this);
+      _preferences = null;
+    }
     if (_prediction_lifecycle != null)
       _prediction_lifecycle.close();
     super.onDestroy();
@@ -173,6 +180,8 @@ public class Keyboard2 extends InputMethodService
   {
     _keyboard_container_view = (ViewGroup)inflate_view(R.layout.keyboard);
     _keyboard_layout_view = (Keyboard2View)_keyboard_container_view.findViewById(R.id.keyboard_view);
+    if (_suggestions != null)
+      _suggestions.set_key_center_provider(_keyboard_layout_view::predictionKeyCenters);
     _candidates_view = (CandidatesView)_keyboard_container_view.findViewById(R.id.candidates_view);
   }
 

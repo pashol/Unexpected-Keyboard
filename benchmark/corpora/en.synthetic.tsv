@@ -1,0 +1,4 @@
+# Synthetic, redistributable benchmark cases only. No user text.
+# languageTag	precedingWords (space-separated)	typed	target	acceptedCorrection	reverted
+en		hel	hello	true	false
+en	hello	wor	world	true	false

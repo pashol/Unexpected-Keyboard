@@ -5,11 +5,17 @@ plugins {
   id("com.android.application") version "8.13.2"
 }
 
+val predictionBenchmarkSourceSet = objects.sourceDirectorySet(
+    "predictionBenchmark", "Prediction benchmark source set")
+predictionBenchmarkSourceSet.srcDir("benchmark/juloo.keyboard2")
+
 dependencies {
   // Following versions of androidx.window require sdk version 23
   implementation("androidx.window:window-java:1.4.0")
   implementation("androidx.core:core:1.16.0") // Version 1.17.0 available with sdk 36
   testImplementation("junit:junit:4.13.2")
+  androidTestImplementation("androidx.test:runner:1.6.2")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 android {
@@ -22,19 +28,26 @@ android {
     targetSdk { version = release(36) }
     versionCode = 55
     versionName = "2.0.4"
+
+    externalNativeBuild {
+      ndkBuild {
+        arguments("NDK_APPLICATION_MK:=${file("vendor/Application.mk").absolutePath}")
+      }
+    }
   }
 
   sourceSets {
     named("main") {
       manifest.srcFile("AndroidManifest.xml")
-      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict")
+      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict", "vendor/latinime/java")
       res.srcDirs("res", "build/generated-resources")
-      assets.srcDirs("assets")
+      assets.srcDirs("assets", "build/generated-prediction-assets")
     }
 
     named("test") {
-      java.srcDirs("test")
+      java.srcDirs("test", predictionBenchmarkSourceSet.srcDirs)
     }
+
   }
 
   externalNativeBuild {
@@ -141,6 +154,14 @@ val genMethodXml by tasks.registering(Exec::class) {
   commandLine("python", "gen_method_xml.py")
 }
 
+tasks.matching { it.name == "generateDebugAndroidTestResources" }.configureEach {
+  dependsOn(genMethodXml)
+}
+
+tasks.matching { it.name == "compileDebugJavaWithJavac" }.configureEach {
+  dependsOn(compileComposeSequences)
+}
+
 val checkKeyboardLayouts by tasks.registering(Exec::class) {
   inputs.dir(projectDir.resolve("srcs/layouts"))
   inputs.file(projectDir.resolve("srcs/juloo.keyboard2/KeyValue.java"))
@@ -168,6 +189,34 @@ tasks.withType(Test::class).configureEach {
   dependsOn(genLayoutsList, checkKeyboardLayouts, compileComposeSequences, genMethodXml)
 }
 
+tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
+  (this as Test).systemProperty("predictionBenchmarkOldestDevice",
+      providers.gradleProperty("predictionBenchmarkOldestDevice").orNull == "true")
+}
+
+val predictionBenchmark by tasks.registering {
+  group = "verification"
+  description = "Replays deterministic synthetic prediction contexts and prints aggregate JSON."
+  dependsOn("testDebugUnitTest")
+  inputs.file(layout.buildDirectory.file("reports/prediction-benchmark.json"))
+  inputs.property("oldestDevice",
+      providers.gradleProperty("predictionBenchmarkOldestDevice").orElse("false"))
+  doLast {
+    val report = inputs.files.singleFile
+    if (!report.isFile)
+      throw GradleException("Prediction benchmark did not produce an aggregate report")
+    val json = report.readText()
+    if (inputs.properties["oldestDevice"] == "true") {
+      val latencies = Regex("\\\"p(95|99)Ms\\\":([0-9.E-]+)").findAll(json).toList()
+      val p95 = latencies.last { it.groupValues[1] == "95" }.groupValues[2].toDouble()
+      val p99 = latencies.last { it.groupValues[1] == "99" }.groupValues[2].toDouble()
+      if (p95 > 15.0 || p99 > 30.0)
+        throw GradleException("Oldest-device prediction latency gate exceeded")
+    }
+    println(json)
+  }
+}
+
 val initDebugKeystore by tasks.registering(Exec::class) {
   doFirst { println("Initializing default debug keystore") }
   isEnabled = !file("debug.keystore").exists()
@@ -187,8 +236,16 @@ val copyLayoutDefinitions by tasks.registering(Copy::class) {
   into("build/generated-resources/xml")
 }
 
+val packagePredictionFixtures by tasks.registering(Copy::class) {
+  from("test/fixtures/latinime")
+  include("minimal_en.dict", "minimal_gsw.dict")
+  into("build/generated-prediction-assets/prediction")
+  rename("minimal_en.dict", "en.dict")
+  rename("minimal_gsw.dict", "gsw-CH.dict")
+}
+
 tasks.named("preBuild") {
-  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions)
+  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions, packagePredictionFixtures)
   // 'mustRunAfter' defines ordering between tasks (which is required by
   // Gradle) but doesn't create a dependency. These rules update files that are
   // checked in the repository that don't need to be updated during regular

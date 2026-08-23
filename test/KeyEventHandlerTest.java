@@ -123,14 +123,14 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void entering_suggestion_does_not_append_a_space()
+  public void entering_suggestion_commits_a_word_boundary()
   {
     FakeInputConnection connection = new FakeInputConnection();
     KeyEventHandler handler = new KeyEventHandler(new Receiver(connection.connection), null);
 
     handler.suggestion_entered("word");
 
-    assertEquals("word", connection.text());
+    assertEquals("word ", connection.text());
   }
 
   @Test

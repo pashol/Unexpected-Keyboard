@@ -1,0 +1,48 @@
+{
+  "en": {
+    "build_timestamp": 0,
+    "build_tool_commit": "1e69dd2c04258e5e9e04bfb13b46faccf6a435b0",
+    "compiler": {
+      "commit": "1e69dd2c04258e5e9e04bfb13b46faccf6a435b0",
+      "repository": "https://github.com/remi0s/aosp-dictionary-tools",
+      "sha256": "a8c5bd21f631ed0a92235d42d2fe83af5d70216172bf7e22781a9a946858237e"
+    },
+    "format": 202,
+    "locale": "en",
+    "output_hash": "eb6c8a601757da3595d6677c48b09975fb8a910814145c90319e2595ec0663ec",
+    "source_hashes": {
+      "minimal_en.ngrams.tsv": "42af7baa639fa3aa353d85dee62bfad98a8232e6fe33f15af5e092e03ab23642",
+      "minimal_en.sources.json": "f86a9d86176ea1aa956ed88a9886da24bdec2be67b80d03043d67853af82bfab",
+      "minimal_en.words.tsv": "3118d0ffcc126c739c7056ed92f445addf93b49cda811eb6d2c17921860e508c"
+    },
+    "source_licenses": [
+      "CC0-1.0"
+    ],
+    "source_provenance": [
+      "Synthetic deterministic English fixture authored for Unexpected Keyboard prediction tests."
+    ]
+  },
+  "gsw": {
+    "build_timestamp": 0,
+    "build_tool_commit": "1e69dd2c04258e5e9e04bfb13b46faccf6a435b0",
+    "compiler": {
+      "commit": "1e69dd2c04258e5e9e04bfb13b46faccf6a435b0",
+      "repository": "https://github.com/remi0s/aosp-dictionary-tools",
+      "sha256": "a8c5bd21f631ed0a92235d42d2fe83af5d70216172bf7e22781a9a946858237e"
+    },
+    "format": 202,
+    "locale": "gsw",
+    "output_hash": "23d88f3b624469935520a333bb9140ac4b7a60f53bb0d89baaf7ffe3fddf0577",
+    "source_hashes": {
+      "minimal_gsw.ngrams.tsv": "c7dcfdd7faf1a07abcfb4544ee8f84d4139f50e628bf64d933c45df0bd41c8ba",
+      "minimal_gsw.sources.json": "69c71abebc326de0ecfae4a49f872cbe5db287f09d93ba44ec3b56cde4c8bfc9",
+      "minimal_gsw.words.tsv": "00315355afa53c861a949b1558a5a4e0ebabe63b8f98aa1ee1a9c2daf1e12892"
+    },
+    "source_licenses": [
+      "CC0-1.0"
+    ],
+    "source_provenance": [
+      "Synthetic deterministic Swiss German fixture authored for Unexpected Keyboard prediction tests; regional variants are retained verbatim."
+    ]
+  }
+}

@@ -10,10 +10,12 @@ import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
 import juloo.keyboard2.prediction.ComposingContext;
 import juloo.keyboard2.prediction.EditorPredictionPolicy;
+import juloo.keyboard2.prediction.FeedbackType;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
 import juloo.keyboard2.prediction.PredictionEngineController;
 import juloo.keyboard2.prediction.PredictionEngineFactory;
+import juloo.keyboard2.prediction.PredictionFeedback;
 import juloo.keyboard2.prediction.PredictionRequest;
 
 /** Keep track of the word being typed and provide suggestions for
@@ -26,6 +28,7 @@ public final class Suggestions
   final PredictionEngineController _controller;
   final PredictionEngineFactory _factory;
   final LanguageTagProvider _language_tag_provider;
+  KeyCenterProvider _key_center_provider = Collections::emptyList;
   long _generation;
   AdaptedCandidates _adapted_candidates;
 
@@ -76,6 +79,13 @@ public final class Suggestions
         languageTagProvider);
   }
 
+  Suggestions(Callback c, Config conf, PredictionEngine engine,
+      LanguageTagProvider languageTagProvider, KeyCenterProvider keyCenterProvider)
+  {
+    this(c, conf, engine, languageTagProvider);
+    _key_center_provider = keyCenterProvider;
+  }
+
   Suggestions(Callback c, Config conf, PredictionEngineController controller,
       LanguageTagProvider languageTagProvider)
   {
@@ -114,12 +124,18 @@ public final class Suggestions
         _config.experimental_prediction_engine);
   }
 
+  public void set_key_center_provider(KeyCenterProvider provider)
+  {
+    _key_center_provider = provider;
+  }
+
   public void currently_typed_word(ComposingContext context)
   {
     if (!_enabled)
       return;
     String word = context.composingText;
-    if (word.length() < 2 || (_config != null && _config.current_dictionary == null
+    if ((word.length() < 2 && (word.length() != 0 || context.precedingWords.isEmpty()))
+        || (_config != null && _config.current_dictionary == null
           && (!_config.user_dictionary_enabled || UserDictionary.instance() == null)))
       clear();
     else
@@ -147,7 +163,7 @@ public final class Suggestions
         context.composingText, context.composingCursorCodePoint,
         context.precedingWords, context.sentenceStart,
         canonical_language_tag(_language_tag_provider.active_language_tag()),
-         MAX_COUNT, generation, editor_prediction_policy());
+          MAX_COUNT, generation, editor_prediction_policy(), _key_center_provider.keyCenters());
     List<PredictionCandidate> result = _controller.predict(request);
     _adapted_candidates = PredictionCandidateAdapter.adapt(
         result, generation, _controller.isGenerationExperimental(generation));
@@ -165,6 +181,61 @@ public final class Suggestions
   public boolean can_auto_complete_current_candidate()
   {
     return !_adapted_candidates.isExperimental();
+  }
+
+  /** Returns the candidate only when it still belongs to the displayed snapshot. */
+  public PredictionCandidate candidate_at(int slot, long generation)
+  {
+    if (generation != _adapted_candidates.getGeneration() || slot < 0
+        || slot >= _adapted_candidates.getCandidates().size())
+      return null;
+    return _adapted_candidates.getCandidates().get(slot);
+  }
+
+  public String suggestion_at(int slot, long generation)
+  {
+    if (generation != _adapted_candidates.getGeneration())
+      return null;
+    if (slot >= 0 && slot < _adapted_candidates.getCount())
+      return suggestions[slot];
+    return slot == MAX_COUNT ? emoji_suggestion : null;
+  }
+
+  public long current_generation()
+  {
+    return _adapted_candidates.getGeneration();
+  }
+
+  public PredictionCandidate visible_correction()
+  {
+    for (PredictionCandidate candidate : _adapted_candidates.getCandidates())
+      if (candidate.getType() == juloo.keyboard2.prediction.CandidateType.CORRECTION)
+        return candidate;
+    return null;
+  }
+
+  public void record_feedback(FeedbackType type, PredictionCandidate candidate,
+      String committedText)
+  {
+    record_feedback(type, candidate, committedText,
+        _adapted_candidates.getGeneration());
+  }
+
+  public void retain_feedback_generation(long generation)
+  {
+    _controller.retainFeedbackGeneration(generation);
+  }
+
+  public void release_feedback_generation(long generation)
+  {
+    _controller.releaseFeedbackGeneration(generation);
+  }
+
+  public void record_feedback(FeedbackType type, PredictionCandidate candidate,
+      String committedText, long generation)
+  {
+    _controller.recordFeedback(new PredictionFeedback(type, generation, candidate,
+        committedText, System.currentTimeMillis()));
   }
 
   private EditorPredictionPolicy editor_prediction_policy()
@@ -204,8 +275,11 @@ public final class Suggestions
     for (int i = 0; i < count; i++)
       if (personal_suggestions[i] && suggestions[i].equals(candidate))
       {
+        long generation = ++_generation;
+        _controller.adoptGeneration(generation);
         _adapted_candidates = PredictionCandidateAdapter.removePersonalCandidate(
-            _adapted_candidates, candidate);
+            _adapted_candidates, candidate, generation,
+            _controller.isGenerationExperimental(generation));
         apply_adapted_candidates();
         _callback.set_suggestions(this);
         return true;
@@ -252,5 +326,10 @@ public final class Suggestions
   interface LanguageTagProvider
   {
     String active_language_tag();
+  }
+
+  public interface KeyCenterProvider
+  {
+    List<PredictionRequest.KeyCenter> keyCenters();
   }
 }

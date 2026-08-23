@@ -20,7 +20,7 @@ final class PredictionEngineLifecycleCoordinator implements AutoCloseable
 
   void onPreferenceChanged(String key)
   {
-    if ("experimental_prediction_engine".equals(key))
+    if (!closed && "experimental_prediction_engine".equals(key))
       target.rebuildPredictionEngine();
   }
 

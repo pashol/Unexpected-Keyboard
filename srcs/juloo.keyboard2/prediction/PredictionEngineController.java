@@ -16,6 +16,10 @@ public final class PredictionEngineController implements PredictionEngine
   private boolean closed;
   private long currentGeneration = Long.MIN_VALUE;
   private PredictionEngine currentProducer;
+  private long previousGeneration = Long.MIN_VALUE;
+  private PredictionEngine previousProducer;
+  private long retainedGeneration = Long.MIN_VALUE;
+  private PredictionEngine retainedProducer;
   private boolean currentExperimental;
   private final Set<PredictionEngine> closedEngines =
       Collections.newSetFromMap(new IdentityHashMap<PredictionEngine, Boolean>());
@@ -35,11 +39,17 @@ public final class PredictionEngineController implements PredictionEngine
     if (closed || request.getGeneration() <= currentGeneration)
       return Collections.emptyList();
 
+    previousGeneration = currentGeneration;
+    previousProducer = currentProducer;
     currentGeneration = request.getGeneration();
     currentProducer = null;
     currentExperimental = false;
     if (!request.getEditorPredictionPolicy().allowsPrediction())
+    {
+      previousGeneration = Long.MIN_VALUE;
+      previousProducer = null;
       return Collections.emptyList();
+    }
 
     if (experimentalEnabled && experimental != null && !experimentalFailed)
     {
@@ -65,9 +75,50 @@ public final class PredictionEngineController implements PredictionEngine
   public synchronized void recordFeedback(PredictionFeedback feedback)
   {
     Objects.requireNonNull(feedback, "feedback");
-    if (!closed && currentProducer != null
-        && feedback.getGeneration() == currentGeneration)
+    if (!closed && feedback.getGeneration() == currentGeneration
+        && currentProducer != null)
       currentProducer.recordFeedback(feedback);
+    else if (!closed && feedback.getGeneration() == previousGeneration
+        && previousProducer != null)
+      previousProducer.recordFeedback(feedback);
+    else if (!closed && feedback.getGeneration() == retainedGeneration
+        && retainedProducer != null)
+      retainedProducer.recordFeedback(feedback);
+  }
+
+  /** Retains one accepted candidate's producer until its immediate undo resolves. */
+  public synchronized void retainFeedbackGeneration(long generation)
+  {
+    if (generation == currentGeneration)
+    {
+      retainedGeneration = generation;
+      retainedProducer = currentProducer;
+    }
+    else if (generation == previousGeneration)
+    {
+      retainedGeneration = generation;
+      retainedProducer = previousProducer;
+    }
+  }
+
+  public synchronized void releaseFeedbackGeneration(long generation)
+  {
+    if (generation == retainedGeneration)
+    {
+      retainedGeneration = Long.MIN_VALUE;
+      retainedProducer = null;
+    }
+  }
+
+  /** Advances an adapted snapshot without issuing another prediction request. */
+  public synchronized boolean adoptGeneration(long generation)
+  {
+    if (closed || currentProducer == null || generation <= currentGeneration)
+      return false;
+    previousGeneration = currentGeneration;
+    previousProducer = currentProducer;
+    currentGeneration = generation;
+    return true;
   }
 
   @Override
@@ -78,6 +129,10 @@ public final class PredictionEngineController implements PredictionEngine
     experimentalFailed = false;
     currentGeneration = Long.MIN_VALUE;
     currentProducer = null;
+    previousGeneration = Long.MIN_VALUE;
+    previousProducer = null;
+    retainedGeneration = Long.MIN_VALUE;
+    retainedProducer = null;
     currentExperimental = false;
     legacy.resetSession();
     if (experimental != null && experimental != legacy)
@@ -98,9 +153,26 @@ public final class PredictionEngineController implements PredictionEngine
     experimentalFailed = false;
     currentGeneration = Long.MIN_VALUE;
     currentProducer = null;
+    previousGeneration = Long.MIN_VALUE;
+    previousProducer = null;
+    retainedGeneration = Long.MIN_VALUE;
+    retainedProducer = null;
     currentExperimental = false;
     closeIfReplaced(oldLegacy, newLegacy, newExperimental);
     closeIfReplaced(oldExperimental, newLegacy, newExperimental);
+  }
+
+  /** Releases per-engine resources before a replacement begins construction. */
+  public synchronized void closeExperimentalForReplacement()
+  {
+    if (closed || experimental == null) return;
+    PredictionEngine old = experimental;
+    experimental = null;
+    currentProducer = currentProducer == old ? null : currentProducer;
+    previousProducer = previousProducer == old ? null : previousProducer;
+    retainedProducer = retainedProducer == old ? null : retainedProducer;
+    currentExperimental = false;
+    closeOnce(old);
   }
 
   public synchronized boolean wasLastResultExperimental()
@@ -122,6 +194,8 @@ public final class PredictionEngineController implements PredictionEngine
     closeOnce(legacy);
     closeOnce(experimental);
     currentProducer = null;
+    previousProducer = null;
+    retainedProducer = null;
     currentExperimental = false;
   }
 

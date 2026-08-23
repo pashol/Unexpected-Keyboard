@@ -17,6 +17,25 @@ public final class PredictionRequest
   private final int maxResults;
   private final long generation;
   private final EditorPredictionPolicy editorPredictionPolicy;
+  private final List<KeyCenter> keyCenters;
+
+  public static final class KeyCenter
+  {
+    private final int codePoint;
+    private final int x;
+    private final int y;
+
+    public KeyCenter(int codePoint, int x, int y)
+    {
+      this.codePoint = codePoint;
+      this.x = x;
+      this.y = y;
+    }
+
+    public int getCodePoint() { return codePoint; }
+    public int getX() { return x; }
+    public int getY() { return y; }
+  }
 
   public PredictionRequest(
       String composingText,
@@ -27,6 +46,22 @@ public final class PredictionRequest
       int maxResults,
       long generation,
       EditorPredictionPolicy editorPredictionPolicy)
+  {
+    this(composingText, composingCursorCodePoint, precedingWords, sentenceStart,
+        languageTag, maxResults, generation, editorPredictionPolicy,
+        Collections.<KeyCenter>emptyList());
+  }
+
+  public PredictionRequest(
+      String composingText,
+      int composingCursorCodePoint,
+      List<String> precedingWords,
+      boolean sentenceStart,
+      String languageTag,
+      int maxResults,
+      long generation,
+      EditorPredictionPolicy editorPredictionPolicy,
+      List<KeyCenter> keyCenters)
   {
     this.composingText = Objects.requireNonNull(composingText, "composingText");
     if (composingCursorCodePoint < 0 || composingCursorCodePoint >
@@ -47,6 +82,8 @@ public final class PredictionRequest
     this.generation = generation;
     this.editorPredictionPolicy = Objects.requireNonNull(
         editorPredictionPolicy, "editorPredictionPolicy");
+    Objects.requireNonNull(keyCenters, "keyCenters");
+    this.keyCenters = Collections.unmodifiableList(new ArrayList<KeyCenter>(keyCenters));
   }
 
   public String getComposingText()
@@ -87,5 +124,10 @@ public final class PredictionRequest
   public EditorPredictionPolicy getEditorPredictionPolicy()
   {
     return editorPredictionPolicy;
+  }
+
+  public List<KeyCenter> getKeyCenters()
+  {
+    return keyCenters;
   }
 }

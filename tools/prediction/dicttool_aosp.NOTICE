@@ -1,0 +1,11 @@
+dicttool_aosp.jar
+
+Source: https://github.com/remi0s/aosp-dictionary-tools
+Source commit: 1e69dd2c04258e5e9e04bfb13b46faccf6a435b0
+SHA-256: a8c5bd21f631ed0a92235d42d2fe83af5d70216172bf7e22781a9a946858237e
+License: Apache License, Version 2.0
+
+This prebuilt AOSP dictionary-tool distribution is vendored solely to create
+and reproduce the format-202 LatinIME fixtures. Its makedict command is
+invoked by build_language_pack.py; the resulting dictionaries are consumed by
+the pinned AOSP LatinIME decoder.

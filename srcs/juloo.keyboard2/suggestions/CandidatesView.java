@@ -27,6 +27,7 @@ public class CandidatesView extends LinearLayout
       - Entry at index [3] is the emoji suggestion. */
   String[] _items = new String[NUM_CANDIDATES];
   boolean[] _personal_items = new boolean[NUM_CANDIDATES];
+  long _generation;
 
   /** Text views showing the candidates in [_items]. Text views visibility is
       set to [GONE] when there are less than [NUM_CANDIDATES] suggestions. */
@@ -54,6 +55,7 @@ public class CandidatesView extends LinearLayout
   public void set_candidates(Suggestions s)
   {
     copy_candidates(s, _items, _personal_items);
+    _generation = s.current_generation();
     int s_count = s.count;
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
@@ -227,19 +229,18 @@ public class CandidatesView extends LinearLayout
           @Override
           public void onClick(View _v)
           {
-            String it = _items[item_index];
             Config config = Config.globalConfig();
-            select_candidate(it, config == null ? null : config.handler);
+            select_candidate(item_index, _generation, config == null ? null : config.handler);
           }
         });
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
   }
 
-  static void select_candidate(String candidate, Config.IKeyEventHandler handler)
+  static void select_candidate(int slot, long generation, Config.IKeyEventHandler handler)
   {
-    if (candidate != null && handler != null)
-      handler.suggestion_entered(candidate);
+    if (handler != null)
+      handler.suggestion_entered(slot, generation);
   }
 
   static boolean can_remove_personal_candidate(boolean dictionary_enabled,

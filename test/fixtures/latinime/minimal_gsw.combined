@@ -1,0 +1,15 @@
+dictionary=main:gsw,locale=gsw,version=1,date=0
+word=chumm,f=65
+word=chunsch,f=70
+word=d'Chind,f=45
+word=das,f=90
+bigram=isch,f=80
+word=guet,f=95
+word=isch,f=100
+bigram=guet,f=90
+word=ned,f=80
+word=nid,f=90
+word=nöd,f=100
+word=äs,f=60
+word=öppis,f=55
+word=über,f=50

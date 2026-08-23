@@ -1,0 +1,13 @@
+dictionary=main:en,locale=en,version=1,date=0
+word=cafe,f=50
+word=café,f=55
+word=held,f=70
+word=hello,f=100
+bigram=there,f=60
+bigram=world,f=80
+word=help,f=80
+word=naive,f=40
+word=naïve,f=45
+word=there,f=65
+word=word,f=75
+word=world,f=90

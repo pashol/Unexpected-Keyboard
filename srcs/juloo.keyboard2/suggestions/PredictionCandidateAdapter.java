@@ -37,12 +37,19 @@ public final class PredictionCandidateAdapter
   static AdaptedCandidates removePersonalCandidate(
       AdaptedCandidates candidates, String text)
   {
+    return removePersonalCandidate(candidates, text, candidates.getGeneration(),
+        candidates.isExperimental());
+  }
+
+  static AdaptedCandidates removePersonalCandidate(
+      AdaptedCandidates candidates, String text, long generation, boolean experimental)
+  {
     ArrayList<PredictionCandidate> retained = new ArrayList<>();
     for (PredictionCandidate candidate : candidates.getCandidates())
       if (!LegacyPredictionEngine.SOURCE_PERSONAL.equals(candidate.getSource())
           || !candidate.getText().equals(text))
         retained.add(candidate);
-    return adapt(retained, candidates.getGeneration(), candidates.isExperimental());
+    return adapt(retained, generation, experimental);
   }
 
   private static boolean contains(List<PredictionCandidate> candidates, String text)
