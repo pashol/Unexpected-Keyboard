@@ -385,6 +385,13 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void initial_context_fallback_includes_api_30()
+  {
+    assertTrue(CurrentlyTypedWord.should_query_initial_context(30, null));
+    assertFalse(CurrentlyTypedWord.should_query_initial_context(31, null));
+  }
+
+  @Test
   public void legacy_editor_start_with_null_context_publishes_empty_context() throws Exception
   {
     final List<List<String>> published = new ArrayList<>();

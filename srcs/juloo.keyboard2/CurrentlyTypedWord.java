@@ -84,7 +84,8 @@ public final class CurrentlyTypedWord
     if (!_has_selection)
     {
       CharSequence initial_text_before_cursor = e.initial_text_before_cursor;
-      if (initial_text_before_cursor == null && VERSION.SDK_INT < 30 && ic != null)
+      if (should_query_initial_context(VERSION.SDK_INT, initial_text_before_cursor)
+          && ic != null)
         initial_text_before_cursor = ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0);
       set_current_word(initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
@@ -95,6 +96,11 @@ public final class CurrentlyTypedWord
       if (_callback != null)
         callback();
     }
+  }
+
+  static boolean should_query_initial_context(int sdk, CharSequence context)
+  {
+    return context == null && sdk < 31;
   }
 
   public void typed(String s)
