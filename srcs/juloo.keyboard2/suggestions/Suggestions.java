@@ -9,6 +9,8 @@ import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
 import juloo.keyboard2.Utils;
 import juloo.keyboard2.prediction.PredictionCandidate;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionRequest;
 
 /** Keep track of the word being typed and provide suggestions for
     [CandidatesView]. */
@@ -26,6 +28,8 @@ public final class Suggestions
   Callback _callback;
   Config _config;
   boolean _enabled;
+  private PredictionEngineController _prediction_controller;
+  private int _request_generation;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
@@ -39,8 +43,20 @@ public final class Suggestions
   public String emoji_suggestion = null;
   public Suggestions(Callback c, Config conf)
   {
+    this(c, conf, null);
+  }
+
+  public Suggestions(Callback c, Config conf, PredictionEngineController predictionController)
+  {
     _callback = c;
     _config = conf;
+    _prediction_controller = predictionController;
+    clear();
+  }
+
+  public void set_prediction_controller(PredictionEngineController predictionController)
+  {
+    _prediction_controller = predictionController;
     clear();
   }
 
@@ -58,14 +74,24 @@ public final class Suggestions
   public void currently_typed_word(String word, boolean sentence_start,
       List<String> preceding_words)
   {
+    int generation = ++_request_generation;
     if (!_enabled)
       return;
-    if (word.length() < 2 || (_config.current_dictionary == null
+    if (word.length() == 0 && !preceding_words.isEmpty()
+        && _prediction_controller != null)
+    {
+      List<PredictionCandidate> candidates = _prediction_controller.predict(
+          new PredictionRequest(preceding_words, MAX_COUNT, generation));
+      if (generation == _request_generation)
+        set_next_word_candidates(candidates);
+    }
+    else if (word.length() < 2 || (_config.current_dictionary == null
           && (!_config.user_dictionary_enabled || UserDictionary.instance() == null)))
       clear();
     else
       query_suggestions(word, sentence_start);
-    _callback.set_suggestions(this);
+    if (_callback != null)
+      _callback.set_suggestions(this);
   }
 
   void clear()

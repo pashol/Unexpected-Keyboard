@@ -196,6 +196,15 @@ val copyLatinimeNotice by tasks.registering(Copy::class) {
   into("build/generated-assets/latinime")
 }
 
+val copyLatinimeFixture by tasks.registering(Copy::class) {
+  from("test/fixtures/latinime/minimal_en.dict")
+  into("build/generated-assets/latinime")
+}
+
+tasks.named("preBuild") {
+  dependsOn(copyLatinimeFixture)
+}
+
 val verifyReleaseEnvironment by tasks.registering(Exec::class) {
   group = "verification"
   description = "Checks the signing, SDK, and NDK prerequisites for release verification."

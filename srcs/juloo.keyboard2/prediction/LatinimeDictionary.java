@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class LatinimeDictionary implements AutoCloseable
+public final class LatinimeDictionary implements PredictionEngine
 {
   private static final int FORMAT_VERSION = 202;
   private static final int MAX_WORD_LENGTH = 48;
@@ -62,6 +62,16 @@ public final class LatinimeDictionary implements AutoCloseable
         results.add(new PredictionCandidate(new String(code_points, start, length), scores[i]));
     }
     return results;
+  }
+
+  @Override public List<PredictionCandidate> predict(PredictionRequest request)
+  {
+    return next_words(request.preceding_words(), request.max_candidates());
+  }
+
+  @Override public void reset_session()
+  {
+    // The native dictionary and traversal session are immutable between requests.
   }
 
   @Override public void close()

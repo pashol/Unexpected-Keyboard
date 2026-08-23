@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.content.res.AssetManager;
 import android.graphics.drawable.Drawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build.VERSION;
@@ -25,6 +26,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.DictionariesActivity;
@@ -32,6 +37,12 @@ import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
+import juloo.keyboard2.prediction.EditorPredictionPolicy;
+import juloo.keyboard2.prediction.LatinimeDictionary;
+import juloo.keyboard2.prediction.PredictionCandidate;
+import juloo.keyboard2.prediction.PredictionEngine;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionRequest;
 
 public class Keyboard2 extends InputMethodService
   implements SharedPreferences.OnSharedPreferenceChangeListener
@@ -42,6 +53,7 @@ public class Keyboard2 extends InputMethodService
   private CandidatesView _candidates_view;
   private Suggestions _suggestions;
   private KeyEventHandler _keyeventhandler;
+  private PredictionEngineController _prediction_controller;
   /** If not 'null', the layout to use instead of [_config.current_layout]. */
   private KeyboardData _currentSpecialLayout;
   /** Layout associated with the currently selected locale. Not 'null'. */
@@ -150,6 +162,8 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
+    if (_prediction_controller != null)
+      _prediction_controller.close();
     super.onDestroy();
 
     _foldStateTracker.close();
@@ -257,10 +271,71 @@ public class Keyboard2 extends InputMethodService
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
+    if (_prediction_controller != null)
+      _prediction_controller.close();
+    _prediction_controller = create_prediction_controller(info);
+    if (_prediction_controller != null)
+      _prediction_controller.reset_session();
+    _suggestions.set_prediction_controller(_prediction_controller);
     _keyeventhandler.started(_config);
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
   }
+
+  private PredictionEngineController create_prediction_controller(EditorInfo info)
+  {
+    if (!_config.next_word_predictions_enabled
+        || !EditorPredictionPolicy.allow_next_word(info.inputType))
+      return null;
+    try
+    {
+      return new PredictionEngineController(true,
+          LatinimeDictionary.open(copy_prediction_dictionary()), EMPTY_PREDICTION_ENGINE);
+    }
+    catch (IOException | RuntimeException e)
+    {
+      // A missing or invalid optional pack leaves this input session on legacy behavior.
+      return null;
+    }
+  }
+
+  private File copy_prediction_dictionary() throws IOException
+  {
+    File directory = new File(getFilesDir(), "prediction");
+    if (!directory.isDirectory() && !directory.mkdirs())
+      throw new IOException("Unable to create prediction directory");
+    File destination = new File(directory, "minimal_en.dict");
+    File temporary = new File(directory, "minimal_en.dict.tmp");
+    InputStream input = getAssets().open("latinime/minimal_en.dict", AssetManager.ACCESS_STREAMING);
+    FileOutputStream output = new FileOutputStream(temporary);
+    try
+    {
+      byte[] buffer = new byte[8192];
+      int count;
+      while ((count = input.read(buffer)) != -1)
+        output.write(buffer, 0, count);
+      output.getFD().sync();
+    }
+    finally
+    {
+      output.close();
+      input.close();
+    }
+    if (!temporary.renameTo(destination))
+      throw new IOException("Unable to install prediction dictionary");
+    return destination;
+  }
+
+  private static final PredictionEngine EMPTY_PREDICTION_ENGINE = new PredictionEngine()
+  {
+    public List<PredictionCandidate> predict(PredictionRequest request)
+    {
+      return java.util.Collections.emptyList();
+    }
+    public void reset_session() {}
+    public void close() {}
+  };
+
 
   @Override
   public void setInputView(View v)
