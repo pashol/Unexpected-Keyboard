@@ -117,7 +117,11 @@ def validate_paths(input_path, output, manifest):
         "manifest": manifest.resolve(),
     }
     for first, second in (("input", "output"), ("input", "manifest"), ("output", "manifest")):
-        if paths[first] == paths[second]:
+        try:
+            same_file = paths[first].samefile(paths[second])
+        except FileNotFoundError:
+            same_file = False
+        if paths[first] == paths[second] or same_file:
             raise ValueError(first + " and " + second + " paths must differ")
 
 

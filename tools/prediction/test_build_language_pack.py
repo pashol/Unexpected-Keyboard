@@ -49,6 +49,17 @@ class BuildLanguagePackTest(unittest.TestCase):
                     input_path, directory / "." / "input.combined", directory / "manifest.json"
                 )
 
+    def test_builder_rejects_existing_hard_link_aliases(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.combined"
+            output = directory / "output.dict"
+            input_path.write_text("input", encoding="utf-8")
+            output.hardlink_to(input_path)
+
+            with self.assertRaisesRegex(ValueError, "input and output"):
+                build_language_pack.validate_paths(input_path, output, directory / "manifest.json")
+
     def test_builder_rejects_collisions_before_creating_output_directories(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)

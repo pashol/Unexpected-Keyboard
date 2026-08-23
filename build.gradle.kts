@@ -181,6 +181,10 @@ val verifyLanguagePackFixture by tasks.registering(Exec::class) {
   commandLine("python3", "-m", "unittest", "tools.prediction.integration_test_build_language_pack")
 }
 
+tasks.named("check") {
+  dependsOn(verifyLanguagePackFixture)
+}
+
 val initDebugKeystore by tasks.registering(Exec::class) {
   doFirst { println("Initializing default debug keystore") }
   isEnabled = !file("debug.keystore").exists()
