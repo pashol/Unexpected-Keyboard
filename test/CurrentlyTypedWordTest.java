@@ -308,6 +308,31 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void legacy_editor_start_queries_context_after_trailing_space() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    Config config = config_with_initial_text(null, null);
+    config.editor_config.initial_sel_start = 4;
+    config.editor_config.initial_sel_end = 4;
+    word.started(config, input_connection("one ", 4));
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
+  @Test
   public void two_argument_callback_receives_context_publication()
   {
     final int[] calls = { 0 };
@@ -329,8 +354,8 @@ public class CurrentlyTypedWordTest
     config.editor_config = new EditorConfig();
     config.editor_config.initial_text_before_cursor = before;
     config.editor_config.initial_text_after_cursor = after;
-    config.editor_config.initial_sel_start = before.length();
-    config.editor_config.initial_sel_end = before.length();
+    config.editor_config.initial_sel_start = before == null ? 0 : before.length();
+    config.editor_config.initial_sel_end = before == null ? 0 : before.length();
     return config;
   }
 

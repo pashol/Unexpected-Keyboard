@@ -83,13 +83,16 @@ public final class CurrentlyTypedWord
     _w_cursor = 0;
     if (!_has_selection)
     {
-      set_current_word(e.initial_text_before_cursor, false);
+      CharSequence initial_text_before_cursor = e.initial_text_before_cursor;
+      if (initial_text_before_cursor == null && VERSION.SDK_INT < 30 && ic != null)
+        initial_text_before_cursor = ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0);
+      set_current_word(initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
       _cursor_at_text_end = e.initial_text_after_cursor == null
         ? text_after_cursor_is_empty()
         : e.initial_text_after_cursor.length() == 0;
-      if (e.initial_text_before_cursor != null)
+      if (initial_text_before_cursor != null)
         callback();
     }
   }
