@@ -15,3 +15,19 @@ LOCAL_LDFLAGS += -Wl,-z,max-page-size=16384
 LOCAL_LDFLAGS += -Wl,--build-id=none
 
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := jni_latinime
+LOCAL_SDK_VERSION := 21
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/latinime/jni/src
+LOCAL_CPPFLAGS := -std=c++14
+include $(LOCAL_PATH)/latinime/native-sources.mk
+LOCAL_SRC_FILES := $(LATINIME_SRC_FILES)
+
+# Android requires 16K pages.
+LOCAL_LDFLAGS += -Wl,-z,max-page-size=16384
+# Disable build ids to ensure reproducibility, needed for F-Droid.
+LOCAL_LDFLAGS += -Wl,--build-id=none
+
+include $(BUILD_SHARED_LIBRARY)
