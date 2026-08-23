@@ -38,7 +38,8 @@ public final class PredictionEngineController implements PredictionEngine
   {
     _experimental_failed = false;
     _experimental.reset_session();
-    _legacy.reset_session();
+    if (_legacy != _experimental)
+      _legacy.reset_session();
   }
 
   public void close()

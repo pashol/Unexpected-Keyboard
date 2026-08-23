@@ -57,6 +57,18 @@ public class PredictionEngineControllerTest
   }
 
   @Test
+  public void controller_resets_a_shared_engine_once()
+  {
+    RecordingEngine engine = new RecordingEngine(false, "shared");
+    PredictionEngineController controller = new PredictionEngineController(
+        true, engine, engine);
+
+    controller.reset_session();
+
+    assertEquals(1, engine.reset_calls);
+  }
+
+  @Test
   public void controller_closes_each_engine_once()
   {
     RecordingEngine experimental = new RecordingEngine(false, "experimental");
