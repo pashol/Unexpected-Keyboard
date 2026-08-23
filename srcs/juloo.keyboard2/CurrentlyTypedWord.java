@@ -337,7 +337,9 @@ public final class CurrentlyTypedWord
       boolean contextKnown, String composingWord)
   {
     if (!contextKnown || composingWord.length() != 0 || context.length() == 0
-        || !Character.isWhitespace(context.codePointBefore(context.length())))
+        || !Character.isWhitespace(context.codePointBefore(context.length()))
+        || (context.length() == SENTENCE_CONTEXT_LENGTH
+            && is_word_char(context.codePointAt(0))))
       return Collections.emptyList();
     ArrayList<String> words = new ArrayList<>();
     int i = context.length();
