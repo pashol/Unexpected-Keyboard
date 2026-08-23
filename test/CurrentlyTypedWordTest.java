@@ -222,6 +222,32 @@ public class CurrentlyTypedWordTest
     assertEquals(Collections.emptyList(), published.get(0));
   }
 
+  @Test
+  public void cursor_move_within_word_publishes_empty_context() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    word.started(config_with_initial_text("one ", ""), null);
+    published.clear();
+    word.typed("");
+    assertEquals(Arrays.asList("one"), published.get(0));
+
+    word.typed("two");
+    published.clear();
+    word.selection_updated(7, 6, 6);
+
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
   Config config_with_initial_text(String before, String after) throws Exception
   {
     Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");

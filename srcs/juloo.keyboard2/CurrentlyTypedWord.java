@@ -120,6 +120,8 @@ public final class CurrentlyTypedWord
       _w_cursor += newSelStart - oldSelStart;
       if (_w_cursor < -_w.length() || _w_cursor > 0)
         refresh_current_word();
+      else
+        callback();
     }
   }
 
