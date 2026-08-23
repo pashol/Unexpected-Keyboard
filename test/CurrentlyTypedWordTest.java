@@ -198,6 +198,18 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
+  public void preceding_words_for_next_word_rejects_full_window_starting_in_low_surrogate()
+  {
+    String suffix = " one ";
+    String full = "\udc00" + new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - suffix.length() - 1])
+          .replace('\0', ' ') + suffix;
+
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word(full, true, ""));
+  }
+
+  @Test
   public void selected_text_produces_no_next_word_context()
   {
     final List<List<String>> precedingWords = new ArrayList<>();
