@@ -10,6 +10,8 @@ dependencies {
   implementation("androidx.window:window-java:1.4.0")
   implementation("androidx.core:core:1.16.0") // Version 1.17.0 available with sdk 36
   testImplementation("junit:junit:4.13.2")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
+  androidTestImplementation("androidx.test:runner:1.6.2")
 }
 
 android {
@@ -33,13 +35,19 @@ android {
   sourceSets {
     named("main") {
       manifest.srcFile("AndroidManifest.xml")
-      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict")
+      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict", "vendor/latinime/java")
       res.srcDirs("res", "build/generated-resources")
       assets.srcDirs("assets", "build/generated-assets")
     }
 
     named("test") {
       java.srcDirs("test")
+    }
+
+    named("androidTest") {
+      java.srcDirs("androidTest")
+      res.srcDirs("androidTest/res")
+      assets.srcDirs("test/fixtures")
     }
   }
 
