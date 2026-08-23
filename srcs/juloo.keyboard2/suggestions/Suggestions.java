@@ -1,5 +1,6 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
@@ -37,6 +38,11 @@ public final class Suggestions
   {
     _enabled = _config.editor_config.should_show_candidates_view;
     clear();
+  }
+
+  public void currently_typed_word(String word, boolean sentence_start)
+  {
+    currently_typed_word(word, sentence_start, Collections.<String>emptyList());
   }
 
   public void currently_typed_word(String word, boolean sentence_start,

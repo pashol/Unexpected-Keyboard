@@ -269,6 +269,47 @@ public class CurrentlyTypedWordTest
     assertEquals(Arrays.asList("one"), published.get(0));
   }
 
+  @Test
+  public void legacy_editor_started_at_end_after_whitespace_publishes_preceding_words()
+      throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text("one ", null),
+        input_connection("one ", 4));
+    published.clear();
+    word.refresh_current_word();
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
+  @Test
+  public void two_argument_callback_receives_context_publication()
+  {
+    final int[] calls = { 0 };
+    CurrentlyTypedWord.Callback callback = new CurrentlyTypedWord.Callback()
+    {
+      public void currently_typed_word(String text, boolean sentenceStart)
+      {
+        calls[0]++;
+      }
+    };
+
+    callback.currently_typed_word("word", false, Collections.<String>emptyList());
+
+    assertEquals(1, calls[0]);
+  }
+
   Config config_with_initial_text(String before, String after) throws Exception
   {
     Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
@@ -295,6 +336,8 @@ public class CurrentlyTypedWordTest
           {
             if (method.getName().equals("getTextBeforeCursor"))
               return text.substring(0, cursor);
+            if (method.getName().equals("getTextAfterCursor"))
+              return text.substring(cursor);
             Class<?> type = method.getReturnType();
             if (type == Boolean.TYPE) return false;
             if (type == Integer.TYPE) return 0;

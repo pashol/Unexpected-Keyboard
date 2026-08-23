@@ -86,8 +86,9 @@ public final class CurrentlyTypedWord
       set_current_word(e.initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
-      _cursor_at_text_end = e.initial_text_after_cursor != null
-        && e.initial_text_after_cursor.length() == 0;
+      _cursor_at_text_end = e.initial_text_after_cursor == null
+        ? text_after_cursor_is_empty()
+        : e.initial_text_after_cursor.length() == 0;
       if (e.initial_text_before_cursor != null)
         callback();
     }
@@ -226,7 +227,17 @@ public final class CurrentlyTypedWord
     else if (VERSION.SDK_INT >= 31)
       set_current_word(_ic.getSurroundingText(SENTENCE_CONTEXT_LENGTH, 20, 0));
     else
-      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0));
+      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0),
+          text_after_cursor_is_empty(), true);
+  }
+
+  /** Returns true only when the editor confirms there is no following text. */
+  boolean text_after_cursor_is_empty()
+  {
+    if (_ic == null)
+      return false;
+    CharSequence text = _ic.getTextAfterCursor(1, 0);
+    return text != null && text.length() == 0;
   }
 
   /** Refresh the current word by immediately querying the editor. */
@@ -237,9 +248,15 @@ public final class CurrentlyTypedWord
 
   void set_current_word(CharSequence text_before_cursor, boolean notify)
   {
+    set_current_word(text_before_cursor, false, notify);
+  }
+
+  void set_current_word(CharSequence text_before_cursor, boolean cursor_at_text_end,
+      boolean notify)
+  {
     _w.setLength(0);
     _text_before_cursor = "";
-    _cursor_at_text_end = false;
+    _cursor_at_text_end = cursor_at_text_end;
     if (text_before_cursor == null)
     {
       _context_known = false;
@@ -371,7 +388,14 @@ public final class CurrentlyTypedWord
 
   public static interface Callback
   {
-    public void currently_typed_word(String word, boolean sentence_start,
-        List<String> preceding_words);
+    public default void currently_typed_word(String word, boolean sentence_start)
+    {
+    }
+
+    public default void currently_typed_word(String word, boolean sentence_start,
+        List<String> preceding_words)
+    {
+      currently_typed_word(word, sentence_start);
+    }
   }
 }

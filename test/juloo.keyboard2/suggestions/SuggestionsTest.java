@@ -6,6 +6,12 @@ import static org.junit.Assert.*;
 public class SuggestionsTest
 {
   @Test
+  public void two_argument_currently_typed_word_is_source_compatible()
+  {
+    new Suggestions(null, null).currently_typed_word("word", false);
+  }
+
+  @Test
   public void deduplicates_case_insensitively()
   {
     assertTrue(Suggestions.already_in(

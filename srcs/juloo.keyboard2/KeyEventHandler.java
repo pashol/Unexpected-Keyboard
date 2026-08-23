@@ -178,6 +178,12 @@ public final class KeyEventHandler
   }
 
   @Override
+  public void currently_typed_word(String word, boolean sentence_start)
+  {
+    _suggestions.currently_typed_word(word, sentence_start);
+  }
+
+  @Override
   public void currently_typed_word(String word, boolean sentence_start,
       List<String> preceding_words)
   {
