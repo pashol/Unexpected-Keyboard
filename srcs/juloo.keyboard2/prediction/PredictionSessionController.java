@@ -30,4 +30,9 @@ public final class PredictionSessionController
   {
     replace(null);
   }
+
+  public void finish()
+  {
+    close();
+  }
 }

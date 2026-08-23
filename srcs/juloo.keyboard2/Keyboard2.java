@@ -446,6 +446,9 @@ public class Keyboard2 extends InputMethodService
   public void onFinishInputView(boolean finishingInput)
   {
     super.onFinishInputView(finishingInput);
+    _prediction_session.finish();
+    if (_suggestions != null)
+      _suggestions.set_prediction_controller(null);
     _keyboard_layout_view.reset();
   }
 

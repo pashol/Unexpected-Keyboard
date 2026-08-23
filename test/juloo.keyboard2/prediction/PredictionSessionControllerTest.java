@@ -42,6 +42,20 @@ public class PredictionSessionControllerTest
   }
 
   @Test
+  public void finishing_an_input_view_closes_and_detaches_the_decoder()
+  {
+    RecordingEngine decoder = new RecordingEngine("world");
+    PredictionSessionController session = new PredictionSessionController();
+    session.replace(new PredictionEngineController(true, decoder, new EmptyEngine()));
+
+    session.finish();
+
+    assertNull(session.controller());
+    assertTrue(session.predict(REQUEST).isEmpty());
+    assertEquals(1, decoder.close_calls);
+  }
+
+  @Test
   public void development_fixture_is_limited_to_english_locale_tags()
   {
     assertTrue(DevelopmentPredictionPack.supports_locale("en"));
