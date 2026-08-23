@@ -1,5 +1,9 @@
 package juloo.keyboard2;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -39,7 +43,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
-          public void currently_typed_word(String text, boolean sentenceStart) {}
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> precedingWords) {}
         });
     word._enabled = true;
     word.set_current_word((CharSequence)null);
@@ -87,7 +92,8 @@ public class CurrentlyTypedWordTest
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
-          public void currently_typed_word(String text, boolean sentenceStart) {}
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> precedingWords) {}
         });
     word._enabled = true;
     return word;
@@ -108,5 +114,82 @@ public class CurrentlyTypedWordTest
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello, world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello.world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello world", 5));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_returns_last_three_in_order()
+  {
+    assertEquals(Arrays.asList("two", "three", "four"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two three four ",
+            true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_returns_none_for_empty_text_field()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_trailing_whitespace()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_known_context()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two ", false, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_empty_composing_word()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two ", true, "three"));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_handles_repeated_whitespace()
+  {
+    assertEquals(Arrays.asList("one", "two"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one\t  two\n ", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_treats_punctuation_as_delimiters()
+  {
+    assertEquals(Arrays.asList("one", "two's", "three"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one, two's; three! ",
+            true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_preserves_supplementary_letters()
+  {
+    assertEquals(Arrays.asList("\ud801\udc37bc", "def"),
+        CurrentlyTypedWord.preceding_words_for_next_word("\ud801\udc37bc def ", true, ""));
+  }
+
+  @Test
+  public void selected_text_produces_no_next_word_context()
+  {
+    final List<List<String>> precedingWords = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            precedingWords.add(words);
+          }
+        });
+    word._has_selection = true;
+    word.set_current_word("one two ");
+
+    assertEquals(Collections.emptyList(), precedingWords.get(0));
   }
 }

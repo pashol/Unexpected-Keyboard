@@ -1,5 +1,6 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.Config;
@@ -38,7 +39,8 @@ public final class Suggestions
     clear();
   }
 
-  public void currently_typed_word(String word, boolean sentence_start)
+  public void currently_typed_word(String word, boolean sentence_start,
+      List<String> preceding_words)
   {
     if (!_enabled)
       return;

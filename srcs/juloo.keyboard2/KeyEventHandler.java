@@ -8,7 +8,9 @@ import android.view.KeyEvent;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.suggestions.Suggestions;
@@ -177,16 +179,21 @@ public final class KeyEventHandler
   }
 
   @Override
-  public void currently_typed_word(String word, boolean sentence_start)
+  public void currently_typed_word(String word, boolean sentence_start,
+      List<String> preceding_words)
   {
-    _suggestions.currently_typed_word(word, sentence_start);
+    _suggestions.currently_typed_word(word, sentence_start, preceding_words);
   }
 
   public void ime_subtype_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.
     _suggestions.currently_typed_word(_typedword.get(),
-        _typedword.sentence_start());
+        _typedword.sentence_start(),
+        _typedword.is_selection_not_empty() ? Collections.<String>emptyList()
+          : CurrentlyTypedWord.preceding_words_for_next_word(
+              _typedword._text_before_cursor, _typedword._context_known,
+              _typedword.get()));
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if

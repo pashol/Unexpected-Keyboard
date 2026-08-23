@@ -6,6 +6,8 @@ import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.SurroundingText;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Keep track of the word being typed. This also tracks whether the selection
@@ -152,7 +154,9 @@ public final class CurrentlyTypedWord
   void callback()
   {
     String w = _w.toString();
-    _callback.currently_typed_word(w, _sentence_start);
+    List<String> preceding_words = _has_selection ? Collections.<String>emptyList()
+      : preceding_words_for_next_word(_text_before_cursor, _context_known, w);
+    _callback.currently_typed_word(w, _sentence_start, preceding_words);
   }
 
   /** Estimate the currently typed word after [chars] has been typed. */
@@ -282,6 +286,35 @@ public final class CurrentlyTypedWord
     return Character.isLetterOrDigit(c) || (c == '\'');
   }
 
+  /** Return up to three complete words before an empty composition. */
+  static List<String> preceding_words_for_next_word(String context,
+      boolean contextKnown, String composingWord)
+  {
+    if (!contextKnown || composingWord.length() != 0 || context.length() == 0
+        || !Character.isWhitespace(context.codePointBefore(context.length())))
+      return Collections.emptyList();
+    ArrayList<String> words = new ArrayList<>();
+    int i = context.length();
+    while (i > 0 && words.size() < 3)
+    {
+      while (i > 0 && !is_word_char(context.codePointBefore(i)))
+      {
+        int c = context.codePointBefore(i);
+        i -= Character.charCount(c);
+      }
+      int word_end = i;
+      while (i > 0 && is_word_char(context.codePointBefore(i)))
+      {
+        int c = context.codePointBefore(i);
+        i -= Character.charCount(c);
+      }
+      if (i != word_end)
+        words.add(context.substring(i, word_end));
+    }
+    Collections.reverse(words);
+    return words;
+  }
+
   static boolean sentence_start_from_context(String text, int wordLength)
   {
     if (wordLength == 0 || wordLength > MAX_RELIABLE_WORD_LENGTH ||
@@ -312,6 +345,7 @@ public final class CurrentlyTypedWord
 
   public static interface Callback
   {
-    public void currently_typed_word(String word, boolean sentence_start);
+    public void currently_typed_word(String word, boolean sentence_start,
+        List<String> preceding_words);
   }
 }
