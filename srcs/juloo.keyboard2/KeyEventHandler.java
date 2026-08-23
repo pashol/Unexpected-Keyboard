@@ -8,7 +8,6 @@ import android.view.KeyEvent;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -189,11 +188,7 @@ public final class KeyEventHandler
   {
     // Refresh the suggestions immediately after dictionary changed.
     _suggestions.currently_typed_word(_typedword.get(),
-        _typedword.sentence_start(),
-        _typedword.is_selection_not_empty() ? Collections.<String>emptyList()
-          : CurrentlyTypedWord.preceding_words_for_next_word(
-              _typedword._text_before_cursor, _typedword._context_known,
-              _typedword.get()));
+        _typedword.sentence_start(), _typedword.preceding_words_for_next_word());
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if

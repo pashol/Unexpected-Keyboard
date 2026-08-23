@@ -159,9 +159,7 @@ public final class CurrentlyTypedWord
   void callback()
   {
     String w = _w.toString();
-    List<String> preceding_words = _has_selection || !_cursor_at_text_end
-      ? Collections.<String>emptyList()
-      : preceding_words_for_next_word(_text_before_cursor, _context_known, w);
+    List<String> preceding_words = preceding_words_for_next_word();
     _callback.currently_typed_word(w, _sentence_start, preceding_words);
   }
 
@@ -293,6 +291,15 @@ public final class CurrentlyTypedWord
   public static boolean is_word_char(int c)
   {
     return Character.isLetterOrDigit(c) || (c == '\'');
+  }
+
+  /** Return up to three complete words before an empty composition. */
+  List<String> preceding_words_for_next_word()
+  {
+    if (_has_selection || !_cursor_at_text_end)
+      return Collections.emptyList();
+    return preceding_words_for_next_word(_text_before_cursor, _context_known,
+        _w.toString());
   }
 
   /** Return up to three complete words before an empty composition. */
