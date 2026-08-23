@@ -1,0 +1,6 @@
+dictionary=main,locale=en
+word=hello,f=255
+bigram=there,f=90
+bigram=world,f=100
+word=there,f=180
+word=world,f=200
