@@ -1,8 +1,13 @@
 package juloo.keyboard2;
 
+import android.view.inputmethod.InputConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -194,24 +199,60 @@ public class CurrentlyTypedWordTest
   }
 
   @Test
-  public void cursor_moved_to_repeated_mid_text_whitespace_has_no_next_word_context()
+  public void cursor_moved_to_repeated_mid_text_whitespace_publishes_no_context()
+      throws Exception
   {
+    final List<List<String>> published = new ArrayList<>();
     CurrentlyTypedWord word = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback()
         {
           public void currently_typed_word(String text, boolean sentenceStart,
-              List<String> words) {}
+              List<String> words)
+          {
+            published.add(words);
+          }
         });
-    word._enabled = true;
-    word._context_known = true;
-    word._cursor_at_text_end = true;
-    word._cursor = 8;
-    word._w.append("two");
-    word._w_cursor = 0;
-    word._text_before_cursor = "one  two";
+    Config config = config_with_initial_text("one  two ", "");
+    word.started(config, input_connection("one  two ", 4));
+    published.clear();
 
-    word.selection_updated(8, 5, 5);
+    word.selection_updated(9, 4, 4);
 
-    assertEquals(Collections.emptyList(), word.preceding_words_for_next_word());
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  Config config_with_initial_text(String before, String after) throws Exception
+  {
+    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    Field field = unsafeClass.getDeclaredField("theUnsafe");
+    field.setAccessible(true);
+    Object unsafe = field.get(null);
+    Method allocate = unsafeClass.getMethod("allocateInstance", Class.class);
+    Config config = (Config)allocate.invoke(unsafe, Config.class);
+    config.editor_config = new EditorConfig();
+    config.editor_config.initial_text_before_cursor = before;
+    config.editor_config.initial_text_after_cursor = after;
+    config.editor_config.initial_sel_start = before.length();
+    config.editor_config.initial_sel_end = before.length();
+    return config;
+  }
+
+  InputConnection input_connection(final String text, final int cursor)
+  {
+    return (InputConnection)Proxy.newProxyInstance(
+        InputConnection.class.getClassLoader(), new Class[] { InputConnection.class },
+        new InvocationHandler()
+        {
+          public Object invoke(Object proxy, Method method, Object[] args)
+          {
+            if (method.getName().equals("getTextBeforeCursor"))
+              return text.substring(0, cursor);
+            Class<?> type = method.getReturnType();
+            if (type == Boolean.TYPE) return false;
+            if (type == Integer.TYPE) return 0;
+            return null;
+          }
+        });
   }
 }
