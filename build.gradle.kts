@@ -196,13 +196,19 @@ val copyLatinimeNotice by tasks.registering(Copy::class) {
   into("build/generated-assets/latinime")
 }
 
-val copyLatinimeFixture by tasks.registering(Copy::class) {
-  from("test/fixtures/latinime/minimal_en.dict")
+val copyLatinimeDevelopmentFixture by tasks.registering(Copy::class) {
+  doFirst {
+    destinationDir.resolve("minimal_en.dict").delete()
+    destinationDir.resolve("development_en_fixture.json").delete()
+  }
+  from("test/fixtures/latinime/minimal_en.dict") {
+    rename("minimal_en.dict", "development_en_fixture.dict")
+  }
   into("build/generated-assets/latinime")
 }
 
 tasks.named("preBuild") {
-  dependsOn(copyLatinimeFixture)
+  dependsOn(copyLatinimeDevelopmentFixture)
 }
 
 val verifyReleaseEnvironment by tasks.registering(Exec::class) {

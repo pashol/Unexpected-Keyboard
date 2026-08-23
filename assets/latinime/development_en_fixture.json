@@ -1,0 +1,5 @@
+{
+  "locale": "en",
+  "source": "test/fixtures/latinime/minimal_en.dict",
+  "status": "development_fixture_not_production_language_pack"
+}

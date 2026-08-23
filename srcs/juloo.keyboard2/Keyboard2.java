@@ -38,11 +38,13 @@ import juloo.keyboard2.suggestions.CandidatesView;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 import juloo.keyboard2.prediction.EditorPredictionPolicy;
+import juloo.keyboard2.prediction.DevelopmentPredictionPack;
 import juloo.keyboard2.prediction.LatinimeDictionary;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
 import juloo.keyboard2.prediction.PredictionEngineController;
 import juloo.keyboard2.prediction.PredictionRequest;
+import juloo.keyboard2.prediction.PredictionSessionController;
 
 public class Keyboard2 extends InputMethodService
   implements SharedPreferences.OnSharedPreferenceChangeListener
@@ -53,7 +55,8 @@ public class Keyboard2 extends InputMethodService
   private CandidatesView _candidates_view;
   private Suggestions _suggestions;
   private KeyEventHandler _keyeventhandler;
-  private PredictionEngineController _prediction_controller;
+  private final PredictionSessionController _prediction_session =
+      new PredictionSessionController();
   /** If not 'null', the layout to use instead of [_config.current_layout]. */
   private KeyboardData _currentSpecialLayout;
   /** Layout associated with the currently selected locale. Not 'null'. */
@@ -162,8 +165,7 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
-    if (_prediction_controller != null)
-      _prediction_controller.close();
+    _prediction_session.close();
     super.onDestroy();
 
     _foldStateTracker.close();
@@ -271,12 +273,7 @@ public class Keyboard2 extends InputMethodService
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
-    if (_prediction_controller != null)
-      _prediction_controller.close();
-    _prediction_controller = create_prediction_controller(info);
-    if (_prediction_controller != null)
-      _prediction_controller.reset_session();
-    _suggestions.set_prediction_controller(_prediction_controller);
+    rebuild_prediction_controller(info);
     _keyeventhandler.started(_config);
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
@@ -285,7 +282,10 @@ public class Keyboard2 extends InputMethodService
   private PredictionEngineController create_prediction_controller(EditorInfo info)
   {
     if (!_config.next_word_predictions_enabled
-        || !EditorPredictionPolicy.allow_next_word(info.inputType))
+        || !EditorPredictionPolicy.allow_next_word(info.inputType)
+        || _config.device_locales.default_ == null
+        || !DevelopmentPredictionPack.supports_locale(
+            _config.device_locales.default_.lang_tag))
       return null;
     try
     {
@@ -304,9 +304,10 @@ public class Keyboard2 extends InputMethodService
     File directory = new File(getFilesDir(), "prediction");
     if (!directory.isDirectory() && !directory.mkdirs())
       throw new IOException("Unable to create prediction directory");
-    File destination = new File(directory, "minimal_en.dict");
-    File temporary = new File(directory, "minimal_en.dict.tmp");
-    InputStream input = getAssets().open("latinime/minimal_en.dict", AssetManager.ACCESS_STREAMING);
+    File destination = new File(directory, "development_en_fixture.dict");
+    File temporary = new File(directory, "development_en_fixture.dict.tmp");
+    InputStream input = getAssets().open("latinime/development_en_fixture.dict",
+        AssetManager.ACCESS_STREAMING);
     FileOutputStream output = new FileOutputStream(temporary);
     try
     {
@@ -324,6 +325,15 @@ public class Keyboard2 extends InputMethodService
     if (!temporary.renameTo(destination))
       throw new IOException("Unable to install prediction dictionary");
     return destination;
+  }
+
+  private void rebuild_prediction_controller(EditorInfo info)
+  {
+    _prediction_session.replace(info == null ? null : create_prediction_controller(info));
+    PredictionEngineController controller = _prediction_session.controller();
+    if (controller != null)
+      controller.reset_session();
+    _suggestions.set_prediction_controller(controller);
   }
 
   private static final PredictionEngine EMPTY_PREDICTION_ENGINE = new PredictionEngine()
@@ -419,6 +429,7 @@ public class Keyboard2 extends InputMethodService
     refresh_current_dictionary();
     refresh_candidates_view();
     _keyboard_layout_view.setKeyboard(current_layout());
+    rebuild_prediction_controller(getCurrentInputEditorInfo());
     _keyeventhandler.ime_subtype_changed();
   }
 
@@ -442,6 +453,8 @@ public class Keyboard2 extends InputMethodService
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
     refresh_config();
+    if (_key.equals("next_word_predictions_enabled"))
+      rebuild_prediction_controller(getCurrentInputEditorInfo());
     _keyboard_layout_view.setKeyboard(current_layout());
   }
 
