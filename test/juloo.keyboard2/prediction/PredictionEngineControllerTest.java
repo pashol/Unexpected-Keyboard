@@ -71,18 +71,47 @@ public class PredictionEngineControllerTest
     assertEquals(1, legacy.close_calls);
   }
 
+  @Test
+  public void controller_closes_legacy_when_experimental_close_throws()
+  {
+    RecordingEngine experimental = new RecordingEngine(false, "experimental", true);
+    RecordingEngine legacy = new RecordingEngine(false, "legacy");
+    PredictionEngineController controller = new PredictionEngineController(
+        true, experimental, legacy);
+
+    try
+    {
+      controller.close();
+      fail();
+    }
+    catch (IllegalStateException e)
+    {
+      assertEquals("close failure", e.getMessage());
+    }
+
+    assertEquals(1, experimental.close_calls);
+    assertEquals(1, legacy.close_calls);
+  }
+
   private static final class RecordingEngine implements PredictionEngine
   {
     private final boolean _fails;
     private final String _result;
+    private final boolean _close_fails;
     int predict_calls;
     int reset_calls;
     int close_calls;
 
     RecordingEngine(boolean fails, String result)
     {
+      this(fails, result, false);
+    }
+
+    RecordingEngine(boolean fails, String result, boolean closeFails)
+    {
       _fails = fails;
       _result = result;
+      _close_fails = closeFails;
     }
 
     public List<PredictionCandidate> predict(PredictionRequest request)
@@ -101,6 +130,8 @@ public class PredictionEngineControllerTest
     public void close()
     {
       close_calls++;
+      if (_close_fails)
+        throw new IllegalStateException("close failure");
     }
   }
 }

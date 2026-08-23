@@ -46,8 +46,14 @@ public final class PredictionEngineController implements PredictionEngine
     if (_closed)
       return;
     _closed = true;
-    _experimental.close();
-    if (_legacy != _experimental)
-      _legacy.close();
+    try
+    {
+      _experimental.close();
+    }
+    finally
+    {
+      if (_legacy != _experimental)
+        _legacy.close();
+    }
   }
 }
