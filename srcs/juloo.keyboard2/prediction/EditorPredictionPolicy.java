@@ -11,8 +11,13 @@ public final class EditorPredictionPolicy
     if ((inputType & InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT
         || (inputType & InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0)
       return false;
-    switch (inputType & InputType.TYPE_MASK_VARIATION)
+    int variation = inputType & InputType.TYPE_MASK_VARIATION;
+    switch (variation)
     {
+      case InputType.TYPE_TEXT_VARIATION_FILTER:
+      case InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT:
+      case InputType.TYPE_TEXT_VARIATION_PHONETIC:
+        return true;
       case InputType.TYPE_TEXT_VARIATION_PASSWORD:
       case InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:
       case InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD:
@@ -20,8 +25,7 @@ public final class EditorPredictionPolicy
       case InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS:
       case InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS:
         return false;
-      default:
-        return true;
     }
+    return (variation & InputType.TYPE_TEXT_VARIATION_PASSWORD) == 0;
   }
 }

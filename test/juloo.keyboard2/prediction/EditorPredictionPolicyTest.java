@@ -18,6 +18,9 @@ public class EditorPredictionPolicyTest
     assertFalse(EditorPredictionPolicy.allow_next_word(
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
         | InputType.TYPE_TEXT_VARIATION_PERSON_NAME));
+    assertFalse(EditorPredictionPolicy.allow_next_word(
+        InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+        | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS));
   }
 
   @Test
@@ -29,6 +32,9 @@ public class EditorPredictionPolicyTest
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_FILTER));
     assertTrue(EditorPredictionPolicy.allow_next_word(
         InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PHONETIC));
+    // PASSWORD | FILTER has FILTER's bit pattern, so it is a valid filter field here.
+    assertEquals(InputType.TYPE_TEXT_VARIATION_FILTER,
+        InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_VARIATION_FILTER);
   }
 
   @Test
