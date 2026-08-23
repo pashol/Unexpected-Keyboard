@@ -1,20 +1,95 @@
 import hashlib
+import io
 import json
-import os
 import pathlib
-import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
+from tools.prediction import build_language_pack
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE_DIR = ROOT / "test" / "fixtures" / "latinime"
 BUILDER = ROOT / "tools" / "prediction" / "build_language_pack.py"
-AOSP_COMMIT = "8081a1d8572f78488900438a6eaaec232b882bbf"
 
 
 class BuildLanguagePackTest(unittest.TestCase):
+    def test_builder_rejects_input_output_collision(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = pathlib.Path(temporary_directory) / "input.combined"
+            input_path.write_text("input", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "input and output"):
+                build_language_pack.validate_paths(input_path, input_path, input_path.with_suffix(".json"))
+
+    def test_builder_rejects_input_manifest_collision(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = pathlib.Path(temporary_directory) / "input.combined"
+            input_path.write_text("input", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "input and manifest"):
+                build_language_pack.validate_paths(input_path, input_path.with_suffix(".dict"), input_path)
+
+    def test_builder_rejects_output_manifest_collision(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = pathlib.Path(temporary_directory) / "output.dict"
+
+            with self.assertRaisesRegex(ValueError, "output and manifest"):
+                build_language_pack.validate_paths(output.with_suffix(".combined"), output, output)
+
+    def test_builder_rejects_resolved_path_aliases(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.combined"
+            input_path.write_text("input", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "input and output"):
+                build_language_pack.validate_paths(
+                    input_path, directory / "." / "input.combined", directory / "manifest.json"
+                )
+
+    def test_builder_rejects_collisions_before_creating_output_directories(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.combined"
+            input_path.write_text("input", encoding="utf-8")
+            collision = directory / "generated" / "output.dict"
+            arguments = [
+                str(BUILDER), "--source", str(directory), "--input", str(input_path),
+                "--output", str(collision), "--manifest", str(collision),
+            ]
+
+            with mock.patch.object(sys, "argv", arguments), \
+                    mock.patch.object(pathlib.Path, "mkdir") as mkdir, \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as error:
+                    build_language_pack.main()
+
+            self.assertEqual(error.exception.code, 2)
+            mkdir.assert_not_called()
+
+    def test_builder_requires_an_explicit_source_and_never_clones(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.combined"
+            input_path.write_text("input", encoding="utf-8")
+            arguments = [
+                str(BUILDER), "--input", str(input_path), "--output", str(directory / "output.dict"),
+                "--manifest", str(directory / "output.json"),
+            ]
+
+            with mock.patch.object(sys, "argv", arguments), \
+                    mock.patch.object(build_language_pack, "run") as run, \
+                    mock.patch.object(build_language_pack, "verified_checkout"), \
+                    mock.patch.object(build_language_pack, "build"), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as error:
+                    build_language_pack.main()
+
+            self.assertEqual(error.exception.code, 2)
+            run.assert_not_called()
+
     def test_canonical_combined_input_is_stable(self):
         combined = FIXTURE_DIR / "minimal_en.combined"
 
@@ -52,55 +127,6 @@ class BuildLanguagePackTest(unittest.TestCase):
             json.loads(manifest.read_text(encoding="utf-8"))["output_sha256"],
             output_sha256,
         )
-
-    def test_builder_is_deterministic_against_checked_in_fixture(self):
-        source = os.environ.get("AOSP_LATINIME_SOURCE")
-        if not source:
-            self.skipTest("AOSP_LATINIME_SOURCE must name the verified pinned checkout")
-
-        source = pathlib.Path(source)
-        self.assertEqual(
-            subprocess.run(
-                ["git", "-C", str(source), "rev-parse", "HEAD"],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout.strip(),
-            AOSP_COMMIT,
-        )
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            temporary_directory = pathlib.Path(temporary_directory)
-            outputs = []
-            for name in ("first", "second"):
-                output = temporary_directory / (name + ".dict")
-                manifest = temporary_directory / (name + ".json")
-                subprocess.run(
-                    [
-                        sys.executable,
-                        str(BUILDER),
-                        "--source",
-                        str(source),
-                        "--input",
-                        str(FIXTURE_DIR / "minimal_en.combined"),
-                        "--output",
-                        str(output),
-                        "--manifest",
-                        str(manifest),
-                    ],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                outputs.append((output.read_bytes(), manifest.read_bytes()))
-
-        self.assertEqual(outputs[0], outputs[1])
-        self.assertEqual(outputs[0][0], (FIXTURE_DIR / "minimal_en.dict").read_bytes())
-        self.assertEqual(outputs[0][1], (FIXTURE_DIR / "minimal_en.json").read_bytes())
-        self.assertEqual(
-            hashlib.sha256(outputs[0][0]).hexdigest(),
-            json.loads(outputs[0][1])["output_sha256"],
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

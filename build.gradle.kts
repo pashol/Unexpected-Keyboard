@@ -174,6 +174,13 @@ tasks.withType(Test::class).configureEach {
   dependsOn(genLayoutsList, checkKeyboardLayouts, compileComposeSequences, genMethodXml)
 }
 
+val verifyLanguagePackFixture by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Regenerates and verifies the LatinIME fixture from the pinned AOSP checkout."
+  workingDir = projectDir
+  commandLine("python3", "-m", "unittest", "tools.prediction.integration_test_build_language_pack")
+}
+
 val initDebugKeystore by tasks.registering(Exec::class) {
   doFirst { println("Initializing default debug keystore") }
   isEnabled = !file("debug.keystore").exists()

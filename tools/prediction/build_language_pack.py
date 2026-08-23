@@ -10,7 +10,6 @@ import tempfile
 
 
 AOSP_COMMIT = "8081a1d8572f78488900438a6eaaec232b882bbf"
-AOSP_URL = "https://android.googlesource.com/platform/packages/inputmethods/LatinIME"
 FORMAT_MAGIC = bytes.fromhex("9bc13afe")
 FORMAT_VERSION = 202
 
@@ -111,6 +110,17 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_paths(input_path, output, manifest):
+    paths = {
+        "input": input_path.resolve(),
+        "output": output.resolve(),
+        "manifest": manifest.resolve(),
+    }
+    for first, second in (("input", "output"), ("input", "manifest"), ("output", "manifest")):
+        if paths[first] == paths[second]:
+            raise ValueError(first + " and " + second + " paths must differ")
+
+
 def build(source, input_path, output, manifest):
     with tempfile.TemporaryDirectory(prefix="latinime-classes-") as temporary_directory:
         classes = pathlib.Path(temporary_directory) / "classes"
@@ -134,23 +144,20 @@ def build(source, input_path, output, manifest):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=pathlib.Path)
+    parser.add_argument("--source", required=True, type=pathlib.Path)
     parser.add_argument("--input", required=True, type=pathlib.Path)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     args = parser.parse_args()
     if not args.input.is_file():
         parser.error("--input must name an existing .combined file")
+    try:
+        validate_paths(args.input, args.output, args.manifest)
+    except ValueError as error:
+        parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    if args.source:
-        build(verified_checkout(args.source), args.input, args.output, args.manifest)
-        return
-    with tempfile.TemporaryDirectory(prefix="latinime-source-") as temporary_directory:
-        source = pathlib.Path(temporary_directory) / "LatinIME"
-        run(["git", "clone", "--filter=blob:none", AOSP_URL, str(source)])
-        run(["git", "-C", str(source), "checkout", "--detach", AOSP_COMMIT])
-        build(verified_checkout(source), args.input, args.output, args.manifest)
+    build(verified_checkout(args.source), args.input, args.output, args.manifest)
 
 
 if __name__ == "__main__":
