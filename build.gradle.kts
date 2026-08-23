@@ -35,7 +35,7 @@ android {
       manifest.srcFile("AndroidManifest.xml")
       java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict")
       res.srcDirs("res", "build/generated-resources")
-      assets.srcDirs("assets")
+      assets.srcDirs("assets", "build/generated-assets")
     }
 
     named("test") {
@@ -181,8 +181,21 @@ val verifyLanguagePackFixture by tasks.registering(Exec::class) {
   commandLine("python3", "-m", "unittest", "tools.prediction.integration_test_build_language_pack")
 }
 
+val copyLatinimeNotice by tasks.registering(Copy::class) {
+  from("vendor/latinime/NOTICE")
+  into("build/generated-assets/latinime")
+}
+
+val verifyReleasePackaging by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Checks the LatinIME license asset and native verification script."
+  workingDir = projectDir
+  commandLine("python3", "-m", "unittest", "tools.prediction.test_release_packaging")
+}
+
 tasks.named("check") {
   dependsOn(verifyLanguagePackFixture)
+  dependsOn(verifyReleasePackaging)
 }
 
 val initDebugKeystore by tasks.registering(Exec::class) {
@@ -205,7 +218,7 @@ val copyLayoutDefinitions by tasks.registering(Copy::class) {
 }
 
 tasks.named("preBuild") {
-  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions)
+  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions, copyLatinimeNotice)
   // 'mustRunAfter' defines ordering between tasks (which is required by
   // Gradle) but doesn't create a dependency. These rules update files that are
   // checked in the repository that don't need to be updated during regular

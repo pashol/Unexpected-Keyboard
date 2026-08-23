@@ -38,27 +38,15 @@ Local modifications and build adaptations:
 
 No Java facade or application integration is included in this import.
 
-## Arm64 verification
+## Native verification
 
 Run from the repository root with Android NDK `27.0.12077973` installed below
 `$ANDROID_SDK_ROOT/ndk` (or set `NDK` to its `ndk-build` executable):
 
 ```sh
-NDK="${NDK:-${ANDROID_SDK_ROOT:?}/ndk/27.0.12077973/ndk-build}"
-READELF="$(dirname "$NDK")/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
-OUT=/tmp/latinime-ndk-verify
-LIBS=/tmp/latinime-ndk-libs-verify
-rm -rf "$OUT" "$LIBS"
-"$NDK" NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=vendor/Android.mk \
-  NDK_APPLICATION_MK=vendor/Application.mk APP_ABI=arm64-v8a \
-  NDK_OUT="$OUT" NDK_LIBS_OUT="$LIBS" -j2
-LIB="$LIBS/arm64-v8a/libjni_latinime.so"
-test -f "$LIB"
-"$READELF" -l "$LIB" | grep -E 'LOAD.*0x4000'
-! "$READELF" -n "$LIB" | grep -q 'Build ID'
+tools/verify_latinime_native.sh
 ```
 
-The expected linked output is
-`/tmp/latinime-ndk-libs-verify/arm64-v8a/libjni_latinime.so`. The `LOAD` program
-headers must show `0x4000` alignment (16K pages), and notes must contain no GNU
-`Build ID`. The outputs remain in `/tmp` and must not be committed.
+The script builds `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`, then checks every
+`LOAD` program header in each `libjni_latinime.so` for `0x4000` alignment (16K pages)
+and rejects any GNU `Build ID`. Outputs remain in `/tmp` and must not be committed.
