@@ -2,6 +2,7 @@ package juloo.keyboard2.prediction;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -10,8 +11,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.List;
+import com.android.inputmethod.latin.BinaryDictionary;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -48,6 +51,28 @@ public class LatinimeDictionaryInstrumentationTest
     assert_open_rejected(corrupt);
   }
 
+  @Test public void malformed_format202_fixture_is_closed_after_native_validation() throws Exception
+  {
+    File corrupt = copy_malformed_format202_fixture();
+    long native_dictionary = BinaryDictionary.open(corrupt.getAbsolutePath(), corrupt.length());
+    assertTrue(native_dictionary != 0);
+    BinaryDictionary.close(native_dictionary);
+    final int[] close_calls = { 0 };
+    LatinimeDictionary.set_close_observer(new LatinimeDictionary.CloseObserver()
+    {
+      public void dictionary_closed() { close_calls[0]++; }
+    });
+    try
+    {
+      assert_open_rejected(corrupt);
+      assertEquals(1, close_calls[0]);
+    }
+    finally
+    {
+      LatinimeDictionary.set_close_observer(null);
+    }
+  }
+
   @Test public void repeated_open_and_close_of_the_fixture_succeeds() throws Exception
   {
     File dictionary_file = copy_fixture();
@@ -74,7 +99,24 @@ public class LatinimeDictionaryInstrumentationTest
 
   private File copy_fixture() throws Exception
   {
-    File target = new File(cache_directory(), "minimal_en.dict");
+    return copy_fixture("minimal_en.dict");
+  }
+
+  private File copy_malformed_format202_fixture() throws Exception
+  {
+    File target = copy_fixture("malformed_format202.dict");
+    RandomAccessFile file = new RandomAccessFile(target, "rw");
+    file.seek(8);
+    int header_size = file.readInt();
+    file.seek(header_size);
+    file.writeByte(0xff);
+    file.close();
+    return target;
+  }
+
+  private File copy_fixture(String name) throws Exception
+  {
+    File target = new File(cache_directory(), name);
     InputStream input = InstrumentationRegistry.getInstrumentation().getContext().getAssets()
         .open("latinime/minimal_en.dict");
     FileOutputStream output = new FileOutputStream(target);

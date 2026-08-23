@@ -12,6 +12,8 @@ public final class LatinimeDictionary implements PredictionEngine
   private static final int FORMAT_VERSION = 202;
   private static final int MAX_WORD_LENGTH = 48;
   private static final int NATIVE_MAX_RESULTS = 18;
+  private static final int[] VALIDATION_WORD = { 'a' };
+  private static CloseObserver _close_observer;
 
   private final NativeDecoderLifecycle _lifecycle = new NativeDecoderLifecycle();
   private final long _dictionary;
@@ -33,10 +35,44 @@ public final class LatinimeDictionary implements PredictionEngine
     if (BinaryDictionary.format_version(dictionary) != FORMAT_VERSION
         || BinaryDictionary.is_corrupted(dictionary))
     {
-      BinaryDictionary.close(dictionary);
+      close_dictionary(dictionary);
+      throw new IOException("Dictionary is not a valid format-202 dictionary");
+    }
+    DicTraverseSession session = new DicTraverseSession("en", dictionary, file.length());
+    try
+    {
+      // Traverse a fixed context so the native decoder marks malformed trie buffers.
+      BinaryDictionary.get_suggestions(dictionary, session.native_session(),
+          new int[][] { VALIDATION_WORD }, 1, new int[1],
+          new int[NATIVE_MAX_RESULTS * MAX_WORD_LENGTH], new int[NATIVE_MAX_RESULTS]);
+    }
+    finally
+    {
+      session.close();
+    }
+    if (BinaryDictionary.is_corrupted(dictionary))
+    {
+      close_dictionary(dictionary);
       throw new IOException("Dictionary is not a valid format-202 dictionary");
     }
     return new LatinimeDictionary(file, dictionary);
+  }
+
+  interface CloseObserver
+  {
+    void dictionary_closed();
+  }
+
+  static void set_close_observer(CloseObserver observer)
+  {
+    _close_observer = observer;
+  }
+
+  private static void close_dictionary(long dictionary)
+  {
+    BinaryDictionary.close(dictionary);
+    if (_close_observer != null)
+      _close_observer.dictionary_closed();
   }
 
   public List<PredictionCandidate> next_words(List<String> preceding_words, int max_candidates)
@@ -80,7 +116,7 @@ public final class LatinimeDictionary implements PredictionEngine
     {
       _lifecycle.close();
       _session.close();
-      BinaryDictionary.close(_dictionary);
+      close_dictionary(_dictionary);
     }
   }
 
