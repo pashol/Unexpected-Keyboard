@@ -35,6 +35,11 @@ Local modifications and build adaptations:
   `-Wl,-z,max-page-size=16384` and `-Wl,--build-id=none`.
 - `../Application.mk` sets `APP_PLATFORM := android-21` and
   `APP_STL := c++_static`.
+- `jni/src/dictionary/structure/v2/ver2_pt_node_array_reader.cpp` returns
+  `NOT_A_DICT_POS` before checking a forward-link position. Format-202
+  dictionaries have no forward links, so an end-of-array absent-word traversal
+  must not be reported as corruption. The same reader rejects node-array counts
+  that exceed the remaining buffer, preserving malformed-dictionary detection.
 
 No Java facade or application integration is included in this import.
 

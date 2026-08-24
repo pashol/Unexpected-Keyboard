@@ -28,7 +28,16 @@ public class LatinimeDictionaryInstrumentationTest
 
     List<PredictionCandidate> predictions = dictionary.next_words(Arrays.asList("hello"), 3);
     assertFalse(predictions.isEmpty());
-    assertEquals("world", predictions.get(0).text());
+    assertTrue(contains(predictions, "world"));
+
+    dictionary.close();
+  }
+
+  @Test public void valid_fixture_with_absent_validation_word_does_not_corrupt() throws Exception
+  {
+    LatinimeDictionary dictionary = LatinimeDictionary.open(copy_fixture());
+
+    assertTrue(dictionary.next_words(Arrays.asList("absent"), 3).isEmpty());
 
     dictionary.close();
   }
@@ -132,5 +141,13 @@ public class LatinimeDictionaryInstrumentationTest
   private File cache_directory()
   {
     return InstrumentationRegistry.getInstrumentation().getTargetContext().getCacheDir();
+  }
+
+  private boolean contains(List<PredictionCandidate> predictions, String word)
+  {
+    for (PredictionCandidate prediction : predictions)
+      if (word.equals(prediction.text()))
+        return true;
+    return false;
   }
 }

@@ -32,6 +32,10 @@ bool Ver2PtNodeArrayReader::readPtNodeArrayInfoAndReturnIfValid(const int ptNode
     int readingPos = ptNodeArrayPos;
     const int ptNodeCountInArray = PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
             mBuffer.data(), &readingPos);
+    if (ptNodeCountInArray > static_cast<int>(mBuffer.size()) - readingPos) {
+        AKLOGE("Invalid PtNode count in an array: %d.", ptNodeCountInArray);
+        return false;
+    }
     *outPtNodeCount = ptNodeCountInArray;
     *outFirstPtNodePos = readingPos;
     return true;
@@ -39,14 +43,7 @@ bool Ver2PtNodeArrayReader::readPtNodeArrayInfoAndReturnIfValid(const int ptNode
 
 bool Ver2PtNodeArrayReader::readForwardLinkAndReturnIfValid(const int forwordLinkPos,
         int *const outNextPtNodeArrayPos) const {
-    if (forwordLinkPos < 0 || forwordLinkPos >=  static_cast<int>(mBuffer.size())) {
-        // Reading invalid position because of bug or broken dictionary.
-        AKLOGE("Reading forward link from invalid dictionary position: %d, dict size: %zd",
-                forwordLinkPos, mBuffer.size());
-        ASSERT(false);
-        return false;
-    }
-    // Ver2 dicts don't have forward links.
+    // Ver2 dictionaries have no forward links, including at the end of an array.
     *outNextPtNodeArrayPos = NOT_A_DICT_POS;
     return true;
 }
