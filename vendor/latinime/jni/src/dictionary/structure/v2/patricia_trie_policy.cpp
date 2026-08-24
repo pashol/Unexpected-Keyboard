@@ -43,8 +43,13 @@ void PatriciaTriePolicy::createAndGetAllChildDicNodes(const DicNode *const dicNo
         ASSERT(false);
         return;
     }
-    const int childCount = PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
-            mBuffer.data(), &nextPos);
+    int childCount = 0;
+    if (!PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
+            mBuffer, &nextPos, &childCount)) {
+        AKLOGE("Truncated child PtNode count. pos: %d, dict size: %zd", nextPos, mBuffer.size());
+        mIsCorrupted = true;
+        return;
+    }
     for (int i = 0; i < childCount; i++) {
         if (!isValidPos(nextPos)) {
             AKLOGE("Child PtNode position is invalid. pos: %d, dict size: %zd, childCount: %d / %d",
@@ -106,8 +111,14 @@ int PatriciaTriePolicy::getCodePointsAndProbabilityAndReturnCodePointCount(
             ASSERT(false);
             return 0;
         }
-        for (int ptNodeCount = PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
-                mBuffer.data(), &pos); ptNodeCount > 0; --ptNodeCount) {
+        int ptNodeCount = 0;
+        if (!PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
+                mBuffer, &pos, &ptNodeCount)) {
+            AKLOGE("Truncated PtNode count. pos: %d, dict size: %zd", pos, mBuffer.size());
+            mIsCorrupted = true;
+            return 0;
+        }
+        for (; ptNodeCount > 0; --ptNodeCount) {
             const int startPos = pos;
             if (!isValidPos(pos)) {
                 AKLOGE("PtNode position is invalid. pos: %d, dict size: %zd", pos, mBuffer.size());

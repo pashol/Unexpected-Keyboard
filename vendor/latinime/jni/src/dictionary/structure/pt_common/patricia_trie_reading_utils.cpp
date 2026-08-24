@@ -55,6 +55,16 @@ const PtReadingUtils::NodeFlags PtReadingUtils::FLAG_IS_POSSIBLY_OFFENSIVE = 0x0
     }
 }
 
+/* static */ bool PtReadingUtils::getPtNodeArraySizeAndAdvancePosition(
+        const ReadOnlyByteArrayView buffer, int *const pos, int *const outPtNodeCount) {
+    if (*pos < 0 || *pos >= static_cast<int>(buffer.size())
+            || (buffer.data()[*pos] >= 0x80 && *pos + 1 >= static_cast<int>(buffer.size()))) {
+        return false;
+    }
+    *outPtNodeCount = getPtNodeArraySizeAndAdvancePosition(buffer.data(), pos);
+    return true;
+}
+
 /* static */ PtReadingUtils::NodeFlags PtReadingUtils::getFlagsAndAdvancePosition(
         const uint8_t *const buffer, int *const pos) {
     return ByteArrayUtils::readUint8AndAdvancePosition(buffer, pos);

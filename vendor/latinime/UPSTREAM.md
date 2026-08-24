@@ -26,7 +26,7 @@ Copied upstream paths:
 Local modifications and build adaptations:
 
 - Upstream paths are relocated under `vendor/latinime/jni/`; source contents are
-  otherwise unmodified except for the local reader patch below.
+  otherwise unmodified except for the local v202 safety patch below.
 - `native-sources.mk` replaces the upstream Soong `LATIN_IME_CORE_SRC_FILES`
   filegroup with an explicit `ndk-build` list of the five JNI entrypoints and 82
   runtime C++ sources. It does not use recursive globs.
@@ -35,9 +35,9 @@ Local modifications and build adaptations:
   `-Wl,-z,max-page-size=16384` and `-Wl,--build-id=none`.
 - `../Application.mk` sets `APP_PLATFORM := android-21` and
   `APP_STL := c++_static`.
-- Local source patch: `jni/src/dictionary/structure/v2/ver2_pt_node_array_reader.cpp`
-  preflights the one- or two-byte node-array count before decoding it, then returns
-  `NOT_A_DICT_POS` without validating a forward-link position. Format-202
+- Local source patch: `jni/src/dictionary/structure/pt_common/patricia_trie_reading_utils.*`
+  safely decodes one- or two-byte node-array counts for the v202 reader and policy.
+  The reader returns `NOT_A_DICT_POS` without validating a forward-link position. Format-202
   dictionaries have no forward links, so an end-of-array absent-word traversal
   must not be reported as corruption while truncated and oversized counts remain
   rejected.

@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "defines.h"
+#include "utils/byte_array_view.h"
 
 namespace latinime {
 
@@ -31,6 +32,9 @@ class PatriciaTrieReadingUtils {
     typedef uint8_t NodeFlags;
 
     static int getPtNodeArraySizeAndAdvancePosition(const uint8_t *const buffer, int *const pos);
+
+    static bool getPtNodeArraySizeAndAdvancePosition(const ReadOnlyByteArrayView buffer,
+            int *const pos, int *const outPtNodeCount);
 
     static NodeFlags getFlagsAndAdvancePosition(const uint8_t *const buffer, int *const pos);
 
