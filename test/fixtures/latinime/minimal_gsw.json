@@ -4,10 +4,11 @@
     "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
     "builder": {
       "path": "build_language_pack.py",
-      "sha256": "23eb09299ca42a03b67f4405be850e5fa7f0ca124c9406b2d5254cc54237f467"
+      "sha256": "cd66f660c35cd7ed84d4623f9ab0a8446b96e262ae024893af189e83798abcae"
     },
     "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
     "jdk": {
+      "java_version": "17.0.19",
       "javac_version": "javac 17.0.19"
     }
   },

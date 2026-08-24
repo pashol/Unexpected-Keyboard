@@ -21,9 +21,10 @@ SOURCE_DATE_EPOCH=0 python3 tools/prediction/build_language_pack.py \
 The manifest records source licenses/provenance and hashes, output hash, format,
 locale, pinned AOSP compiler revision and source hash, plus the timestamp derived
 from `SOURCE_DATE_EPOCH`. Each provenance source hash must match a declared source
-TSV. The compiler requires exactly `javac 17.0.19`; this verified compiler identity
-is recorded in the fixture hash. Input rows and rendered combined source are Unicode
-NFC normalized and sorted deterministically. The `gsw` normalizer deliberately
+TSV. The compiler requires exactly JDK `17.0.19`: `java` must be the sibling runtime
+of the resolved `javac`, and both executable versions are verified and recorded in
+the fixture hash. Input rows and rendered combined source are Unicode NFC normalized
+and sorted deterministically. The `gsw` normalizer deliberately
 preserves dialect variants such as `nöd`, `nid`, and `ned`, umlauts, apostrophes, and
 casing.
 

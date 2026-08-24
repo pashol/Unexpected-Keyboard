@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import pathlib
+import re
+import shutil
 import subprocess
 import tempfile
 import unicodedata
@@ -18,6 +20,7 @@ FORMAT_VERSION = 202
 SHA256_HEX_LENGTH = 64
 GENERATED_SOURCE_NAMES = {"ngram_tsv", "word_frequency_tsv"}
 PINNED_JAVAC_VERSION = "javac 17.0.19"
+PINNED_JAVA_VERSION = "17.0.19"
 
 
 def run(command, **kwargs):
@@ -113,14 +116,39 @@ def compiler_inputs(source, compatibility):
 
 
 def jdk_identity():
-    completed = subprocess.run(["javac", "-version"], check=True, capture_output=True, text=True)
-    return {"javac_version": (completed.stdout + completed.stderr).strip()}
+    javac = shutil.which("javac")
+    java = shutil.which("java")
+    if not javac or not java:
+        raise ValueError("dicttool requires java and javac on PATH")
+    javac = pathlib.Path(javac).resolve()
+    java = pathlib.Path(java).resolve()
+    if java != javac.with_name("java"):
+        raise ValueError("java and javac must come from the same JDK")
+    javac_version = subprocess.run(
+        [str(javac), "-version"], check=True, capture_output=True, text=True
+    )
+    java_version = subprocess.run(
+        [str(java), "-version"], check=True, capture_output=True, text=True
+    )
+    match = re.search(r'(?:openjdk|java) version "([^"]+)"', java_version.stdout + java_version.stderr)
+    if not match:
+        raise ValueError("java did not report a version")
+    return {
+        "java_path": str(java),
+        "java_version": match.group(1),
+        "javac_path": str(javac),
+        "javac_version": (javac_version.stdout + javac_version.stderr).strip(),
+    }
 
 
 def verified_jdk_identity():
     identity = jdk_identity()
     if identity["javac_version"] != PINNED_JAVAC_VERSION:
         raise ValueError("dicttool requires pinned JDK " + PINNED_JAVAC_VERSION)
+    if identity["java_version"] != PINNED_JAVA_VERSION:
+        raise ValueError("dicttool requires pinned Java " + PINNED_JAVA_VERSION)
+    if pathlib.Path(identity["java_path"]) != pathlib.Path(identity["javac_path"]).with_name("java"):
+        raise ValueError("java and javac must come from the same JDK")
     return identity
 
 
@@ -130,11 +158,15 @@ def compiler_identity(inputs):
         digest.update(name.encode("utf-8") + b"\0")
         digest.update(path.read_bytes())
     builder = pathlib.Path(__file__).resolve()
+    jdk = verified_jdk_identity()
     return {
         "aosp_revision": AOSP_COMMIT,
         "builder": {"path": builder.name, "sha256": sha256(builder)},
         "input_sha256": digest.hexdigest(),
-        "jdk": verified_jdk_identity(),
+        "jdk": {
+            "java_version": jdk["java_version"],
+            "javac_version": jdk["javac_version"],
+        },
     }
 
 
@@ -142,12 +174,13 @@ def build_dicttool(source, classes):
     with tempfile.TemporaryDirectory(prefix="latinime-dicttool-") as temporary_directory:
         compatibility = write_compatibility_sources(pathlib.Path(temporary_directory))
         identity = compiler_identity(compiler_inputs(source, pathlib.Path(temporary_directory)))
+        jdk = verified_jdk_identity()
         run([
-            "javac", "-encoding", "UTF-8", "-d", str(classes),
+            jdk["javac_path"], "-encoding", "UTF-8", "-d", str(classes),
             *(str(path) for path in source_files(source)),
             *(str(path) for path in compatibility),
         ])
-    return identity
+    return identity, jdk["java_path"]
 
 
 def sha256(path):
@@ -296,9 +329,9 @@ def build(source, input_path, output, manifest, metadata):
     with tempfile.TemporaryDirectory(prefix="latinime-classes-") as temporary_directory:
         classes = pathlib.Path(temporary_directory) / "classes"
         classes.mkdir()
-        compiler = build_dicttool(source, classes)
+        compiler, java = build_dicttool(source, classes)
         run([
-            "java", "-cp", str(classes), "com.android.inputmethod.latin.dicttool.Dicttool",
+            java, "-cp", str(classes), "com.android.inputmethod.latin.dicttool.Dicttool",
             "makedict", "-s", str(input_path), "-d", str(output),
         ])
     header = output.read_bytes()[:6]

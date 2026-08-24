@@ -139,6 +139,30 @@ class BuildLanguagePackTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "pinned JDK"):
                 build_language_pack.verified_jdk_identity()
 
+    def test_compiler_rejects_java_from_a_different_jdk_than_javac(self):
+        with mock.patch.object(
+            build_language_pack, "jdk_identity", return_value={
+                "java_path": "/other-jdk/bin/java",
+                "java_version": "17.0.19",
+                "javac_path": "/pinned-jdk/bin/javac",
+                "javac_version": "javac 17.0.19",
+            }
+        ):
+            with self.assertRaisesRegex(ValueError, "same JDK"):
+                build_language_pack.verified_jdk_identity()
+
+    def test_compiler_requires_the_pinned_java_runtime_version(self):
+        with mock.patch.object(
+            build_language_pack, "jdk_identity", return_value={
+                "java_path": "/pinned-jdk/bin/java",
+                "java_version": "21.0.0",
+                "javac_path": "/pinned-jdk/bin/javac",
+                "javac_version": "javac 17.0.19",
+            }
+        ):
+            with self.assertRaisesRegex(ValueError, "pinned Java"):
+                build_language_pack.verified_jdk_identity()
+
     def test_provenance_cannot_replace_generated_input_hashes(self):
         for reserved_name in ("ngram_tsv", "word_frequency_tsv"):
             with self.assertRaisesRegex(ValueError, "reserved"):
@@ -157,7 +181,12 @@ class BuildLanguagePackTest(unittest.TestCase):
             generated.write_text("class CommandList {}\n", encoding="utf-8")
 
             with mock.patch.object(
-                build_language_pack, "jdk_identity", return_value={"javac_version": "javac 17.0.19"}
+                build_language_pack, "jdk_identity", return_value={
+                    "java_path": "/pinned-jdk/bin/java",
+                    "java_version": "17.0.19",
+                    "javac_path": "/pinned-jdk/bin/javac",
+                    "javac_version": "javac 17.0.19",
+                }
             ):
                 identity = build_language_pack.compiler_identity(
                     [("aosp/Dicttool.java", aosp), ("generated/CommandList.java", generated)]
@@ -169,7 +198,9 @@ class BuildLanguagePackTest(unittest.TestCase):
 
         self.assertEqual(build_language_pack.AOSP_COMMIT, identity["aosp_revision"])
         self.assertIn("builder", identity)
-        self.assertEqual({"javac_version": "javac 17.0.19"}, identity["jdk"])
+        self.assertEqual(
+            {"java_version": "17.0.19", "javac_version": "javac 17.0.19"}, identity["jdk"]
+        )
         self.assertNotEqual(identity["input_sha256"], changed_identity["input_sha256"])
 
     def test_builder_rejects_input_output_collision(self):
@@ -299,6 +330,8 @@ class BuildLanguagePackTest(unittest.TestCase):
         self.assertEqual(202, data["format_version"])
         self.assertEqual("1970-01-01T00:00:00Z", data["timestamp"])
         self.assertEqual(build_language_pack.AOSP_COMMIT, data["compiler"]["aosp_revision"])
+        self.assertEqual("17.0.19", data["compiler"]["jdk"]["java_version"])
+        self.assertEqual("javac 17.0.19", data["compiler"]["jdk"]["javac_version"])
         self.assertEqual(output_sha256, data["output_sha256"])
         self.assertEqual("CC0-1.0", data["sources"]["fixture"]["license"])
 
