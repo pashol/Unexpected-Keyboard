@@ -77,6 +77,11 @@ public final class CurrentlyTypedWord
 
   public void started(Config conf, InputConnection ic)
   {
+    started(conf, ic, VERSION.SDK_INT);
+  }
+
+  void started(Config conf, InputConnection ic, int sdk)
+  {
     _ic = ic;
     _enabled = true;
     EditorConfig e = conf.editor_config;
@@ -86,9 +91,21 @@ public final class CurrentlyTypedWord
     if (!_has_selection)
     {
       CharSequence initial_text_before_cursor = e.initial_text_before_cursor;
-      if (should_query_initial_context(VERSION.SDK_INT, initial_text_before_cursor)
+      if (should_query_initial_context(sdk, initial_text_before_cursor)
           && ic != null)
+      {
+        if (sdk >= 31)
+        {
+          SurroundingText surrounding = ic.getSurroundingText(
+              SENTENCE_CONTEXT_LENGTH, 20, 0);
+          if (surrounding != null)
+          {
+            set_current_word(surrounding);
+            return;
+          }
+        }
         initial_text_before_cursor = ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0);
+      }
       set_current_word(initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
@@ -102,7 +119,7 @@ public final class CurrentlyTypedWord
 
   static boolean should_query_initial_context(int sdk, CharSequence context)
   {
-    return context == null && sdk < 31;
+    return context == null;
   }
 
   public void typed(String s)

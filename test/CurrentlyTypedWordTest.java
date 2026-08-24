@@ -416,7 +416,31 @@ public class CurrentlyTypedWordTest
   public void initial_context_fallback_includes_api_30()
   {
     assertTrue(CurrentlyTypedWord.should_query_initial_context(30, null));
-    assertFalse(CurrentlyTypedWord.should_query_initial_context(31, null));
+    assertTrue(CurrentlyTypedWord.should_query_initial_context(31, null));
+  }
+
+  @Test
+  public void api_31_null_initial_context_refreshes_preceding_words() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    Config config = config_with_initial_text(null, null);
+    config.editor_config.initial_sel_start = 6;
+    config.editor_config.initial_sel_end = 6;
+
+    word.started(config, input_connection("hello ", 6), 31);
+
+    assertEquals(Arrays.asList("hello"), published.get(0));
   }
 
   @Test
