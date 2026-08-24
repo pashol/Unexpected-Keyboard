@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 AOSP_COMMIT = "8081a1d8572f78488900438a6eaaec232b882bbf"
 FORMAT_MAGIC = bytes.fromhex("9bc13afe")
 FORMAT_VERSION = 202
+SHA256_HEX_LENGTH = 64
+GENERATED_SOURCE_NAMES = {"ngram_tsv", "word_frequency_tsv"}
 
 
 def run(command, **kwargs):
@@ -99,14 +101,48 @@ def write_compatibility_sources(directory):
     return sorted(directory.rglob("*.java"))
 
 
+def compiler_inputs(source, compatibility):
+    return [
+        ("aosp/" + str(path.relative_to(source)), path)
+        for path in source_files(source)
+    ] + [
+        ("generated/" + str(path.relative_to(compatibility)), path)
+        for path in sorted(compatibility.rglob("*.java"))
+    ]
+
+
+def jdk_identity():
+    def version(command):
+        completed = subprocess.run(command, check=True, capture_output=True, text=True)
+        return (completed.stdout + completed.stderr).strip()
+
+    return {"java_version": version(["java", "-version"]), "javac_version": version(["javac", "-version"])}
+
+
+def compiler_identity(inputs):
+    digest = hashlib.sha256()
+    for name, path in inputs:
+        digest.update(name.encode("utf-8") + b"\0")
+        digest.update(path.read_bytes())
+    builder = pathlib.Path(__file__).resolve()
+    return {
+        "aosp_revision": AOSP_COMMIT,
+        "builder": {"path": builder.name, "sha256": sha256(builder)},
+        "input_sha256": digest.hexdigest(),
+        "jdk": jdk_identity(),
+    }
+
+
 def build_dicttool(source, classes):
     with tempfile.TemporaryDirectory(prefix="latinime-dicttool-") as temporary_directory:
         compatibility = write_compatibility_sources(pathlib.Path(temporary_directory))
+        identity = compiler_identity(compiler_inputs(source, pathlib.Path(temporary_directory)))
         run([
             "javac", "-encoding", "UTF-8", "-d", str(classes),
             *(str(path) for path in source_files(source)),
             *(str(path) for path in compatibility),
         ])
+    return identity
 
 
 def sha256(path):
@@ -154,29 +190,42 @@ def combined_source(locale, word_frequency_tsv, ngram_tsv):
     return "\n".join(lines) + "\n"
 
 
-def compiler_sha256(source):
-    digest = hashlib.sha256()
-    for path in source_files(source):
-        digest.update(str(path.relative_to(source)).encode("utf-8") + b"\0")
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
-
-
 def source_hash(path):
     return {"path": path.name, "sha256": sha256(path)}
 
 
-def manifest_data(locale, word_frequency_tsv, ngram_tsv, combined, output, provenance, epoch, compiler_hash):
+def validate_provenance(provenance):
+    if not isinstance(provenance, dict) or not provenance:
+        raise ValueError("provenance must be a nonempty object")
+    if GENERATED_SOURCE_NAMES.intersection(provenance):
+        raise ValueError("provenance must not use reserved generated source names")
+    for name, source in provenance.items():
+        if not isinstance(name, str) or not isinstance(source, dict):
+            raise ValueError("provenance sources must be objects")
+        license_name = source.get("license")
+        source_sha256 = source.get("source_sha256")
+        if not isinstance(license_name, str) or not license_name:
+            raise ValueError("provenance sources must include a license")
+        if not isinstance(source_sha256, str) or len(source_sha256) != SHA256_HEX_LENGTH:
+            raise ValueError("provenance sources must include a SHA-256 source hash")
+        try:
+            int(source_sha256, 16)
+        except ValueError as error:
+            raise ValueError("provenance sources must include a SHA-256 source hash") from error
+    return provenance
+
+
+def manifest_data(locale, word_frequency_tsv, ngram_tsv, combined, output, provenance, epoch, compiler):
     return {
-        "compiler": {"aosp_revision": AOSP_COMMIT, "sha256": compiler_hash},
+        "compiler": compiler,
         "combined_source_sha256": sha256(combined),
         "format_version": FORMAT_VERSION,
         "locale": locale,
         "output_sha256": sha256(output),
         "sources": {
+            **provenance,
             "ngram_tsv": source_hash(ngram_tsv),
             "word_frequency_tsv": source_hash(word_frequency_tsv),
-            **provenance,
         },
         "timestamp": datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
@@ -201,7 +250,7 @@ def build(source, input_path, output, manifest, metadata):
     with tempfile.TemporaryDirectory(prefix="latinime-classes-") as temporary_directory:
         classes = pathlib.Path(temporary_directory) / "classes"
         classes.mkdir()
-        build_dicttool(source, classes)
+        compiler = build_dicttool(source, classes)
         run([
             "java", "-cp", str(classes), "com.android.inputmethod.latin.dicttool.Dicttool",
             "makedict", "-s", str(input_path), "-d", str(output),
@@ -209,7 +258,7 @@ def build(source, input_path, output, manifest, metadata):
     header = output.read_bytes()[:6]
     if header[:4] != FORMAT_MAGIC or int.from_bytes(header[4:6], "big") != FORMAT_VERSION:
         raise ValueError("dicttool did not produce a format-202 dictionary")
-    manifest.write_text(json.dumps(metadata(compiler_sha256(source)), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest.write_text(json.dumps(metadata(compiler), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def main():
@@ -226,7 +275,7 @@ def main():
     if not args.word_frequency_tsv.is_file() or not args.ngram_tsv.is_file() or not args.provenance.is_file():
         parser.error("TSV inputs and provenance must name existing files")
     try:
-        provenance = json.loads(args.provenance.read_text(encoding="utf-8"))
+        provenance = validate_provenance(json.loads(args.provenance.read_text(encoding="utf-8")))
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
         parser.error("provenance must be JSON and SOURCE_DATE_EPOCH must be an integer: " + str(error))

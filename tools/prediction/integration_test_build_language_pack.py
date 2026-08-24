@@ -62,10 +62,16 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
                 self.assertEqual(outputs[0], outputs[1])
                 self.assertEqual(outputs[0][0], (FIXTURE_DIR / ("minimal_" + locale + ".combined")).read_bytes())
                 self.assertEqual(outputs[0][1], (FIXTURE_DIR / ("minimal_" + locale + ".dict")).read_bytes())
-                self.assertEqual(outputs[0][2], (FIXTURE_DIR / ("minimal_" + locale + ".json")).read_bytes())
+                manifest = json.loads(outputs[0][2])
+                expected_manifest = json.loads((FIXTURE_DIR / ("minimal_" + locale + ".json")).read_bytes())
+                self.assertTrue(manifest["compiler"]["jdk"]["java_version"])
+                self.assertTrue(manifest["compiler"]["jdk"]["javac_version"])
+                del manifest["compiler"]["jdk"]
+                del expected_manifest["compiler"]["jdk"]
+                self.assertEqual(manifest, expected_manifest)
                 self.assertEqual(
                     hashlib.sha256(outputs[0][1]).hexdigest(),
-                    json.loads(outputs[0][2])["output_sha256"],
+                    manifest["output_sha256"],
                 )
 
 

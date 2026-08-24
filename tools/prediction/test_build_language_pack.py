@@ -64,7 +64,13 @@ class BuildLanguagePackTest(unittest.TestCase):
             output.write_bytes(b"dictionary")
 
             manifest = build_language_pack.manifest_data(
-                "en", words, ngrams, words, output, {"corpus": {"license": "CC0-1.0"}}, 42, "compiler-hash"
+                "en", words, ngrams, words, output,
+                {"corpus": {"license": "CC0-1.0", "source_sha256": "a" * 64}},
+                42, {
+                    "aosp_revision": build_language_pack.AOSP_COMMIT,
+                    "input_sha256": "compiler-hash",
+                    "jdk": {"javac_version": "javac test"},
+                },
             )
             words_hash = hashlib.sha256(words.read_bytes()).hexdigest()
             ngrams_hash = hashlib.sha256(ngrams.read_bytes()).hexdigest()
@@ -78,7 +84,60 @@ class BuildLanguagePackTest(unittest.TestCase):
         self.assertEqual(ngrams_hash, manifest["sources"]["ngram_tsv"]["sha256"])
         self.assertEqual(output_hash, manifest["output_sha256"])
         self.assertEqual(build_language_pack.AOSP_COMMIT, manifest["compiler"]["aosp_revision"])
-        self.assertEqual("compiler-hash", manifest["compiler"]["sha256"])
+        self.assertEqual("compiler-hash", manifest["compiler"]["input_sha256"])
+        self.assertEqual("javac test", manifest["compiler"]["jdk"]["javac_version"])
+
+    def test_provenance_requires_nonempty_licensed_sources_with_hashes(self):
+        for provenance in (
+            {},
+            {"corpus": {}},
+            {"corpus": {"license": "CC0-1.0"}},
+            {"corpus": {"source_sha256": "a" * 64}},
+            {"corpus": {"license": "", "source_sha256": "a" * 64}},
+            {"corpus": {"license": "CC0-1.0", "source_sha256": "not-a-hash"}},
+        ):
+            with self.assertRaisesRegex(ValueError, "provenance"):
+                build_language_pack.validate_provenance(provenance)
+
+        self.assertEqual(
+            {"corpus": {"license": "CC0-1.0", "source_sha256": "a" * 64}},
+            build_language_pack.validate_provenance(
+                {"corpus": {"license": "CC0-1.0", "source_sha256": "a" * 64}}
+            ),
+        )
+
+    def test_provenance_cannot_replace_generated_input_hashes(self):
+        for reserved_name in ("ngram_tsv", "word_frequency_tsv"):
+            with self.assertRaisesRegex(ValueError, "reserved"):
+                build_language_pack.validate_provenance({
+                    reserved_name: {"license": "CC0-1.0", "source_sha256": "a" * 64}
+                })
+
+    def test_compiler_identity_hashes_aosp_and_generated_java_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            aosp = directory / "aosp" / "Dicttool.java"
+            generated = directory / "generated" / "CommandList.java"
+            aosp.parent.mkdir()
+            generated.parent.mkdir()
+            aosp.write_text("class Dicttool {}\n", encoding="utf-8")
+            generated.write_text("class CommandList {}\n", encoding="utf-8")
+
+            with mock.patch.object(
+                build_language_pack, "jdk_identity", return_value={"javac_version": "javac test"}
+            ):
+                identity = build_language_pack.compiler_identity(
+                    [("aosp/Dicttool.java", aosp), ("generated/CommandList.java", generated)]
+                )
+                generated.write_text("class CommandList { int changed; }\n", encoding="utf-8")
+                changed_identity = build_language_pack.compiler_identity(
+                    [("aosp/Dicttool.java", aosp), ("generated/CommandList.java", generated)]
+                )
+
+        self.assertEqual(build_language_pack.AOSP_COMMIT, identity["aosp_revision"])
+        self.assertIn("builder", identity)
+        self.assertEqual({"javac_version": "javac test"}, identity["jdk"])
+        self.assertNotEqual(identity["input_sha256"], changed_identity["input_sha256"])
 
     def test_builder_rejects_input_output_collision(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
