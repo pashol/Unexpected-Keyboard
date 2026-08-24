@@ -21,6 +21,7 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
             self.fail("AOSP_LATINIME_SOURCE must name the pinned AOSP LatinIME checkout")
 
         source = pathlib.Path(source)
+        registry = FIXTURE_DIR / "language_packs.json"
         self.assertEqual(
             subprocess.run(
                 ["git", "-C", str(source), "rev-parse", "HEAD"],
@@ -32,7 +33,8 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_directory = pathlib.Path(temporary_directory)
-            for locale in ("en", "gsw"):
+            for pack in json.loads(registry.read_text(encoding="utf-8"))["packs"]:
+                locale = pack["locale"]
                 outputs = []
                 for name in ("first", "second"):
                     output = temporary_directory / (locale + "-" + name + ".dict")
@@ -45,6 +47,7 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
                             sys.executable,
                             str(BUILDER),
                             "--source", str(source),
+                            "--registry", str(registry),
                             "--locale", locale,
                             "--word-frequency-tsv", str(sources / (locale + ".words.tsv")),
                             "--ngram-tsv", str(sources / (locale + ".ngrams.tsv")),
@@ -64,10 +67,7 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
                 self.assertEqual(outputs[0][1], (FIXTURE_DIR / ("minimal_" + locale + ".dict")).read_bytes())
                 manifest = json.loads(outputs[0][2])
                 expected_manifest = json.loads((FIXTURE_DIR / ("minimal_" + locale + ".json")).read_bytes())
-                self.assertTrue(manifest["compiler"]["jdk"]["java_version"])
                 self.assertTrue(manifest["compiler"]["jdk"]["javac_version"])
-                del manifest["compiler"]["jdk"]
-                del expected_manifest["compiler"]["jdk"]
                 self.assertEqual(manifest, expected_manifest)
                 self.assertEqual(
                     hashlib.sha256(outputs[0][1]).hexdigest(),

@@ -17,6 +17,7 @@ FORMAT_MAGIC = bytes.fromhex("9bc13afe")
 FORMAT_VERSION = 202
 SHA256_HEX_LENGTH = 64
 GENERATED_SOURCE_NAMES = {"ngram_tsv", "word_frequency_tsv"}
+PINNED_JAVAC_VERSION = "javac 17.0.19"
 
 
 def run(command, **kwargs):
@@ -112,11 +113,15 @@ def compiler_inputs(source, compatibility):
 
 
 def jdk_identity():
-    def version(command):
-        completed = subprocess.run(command, check=True, capture_output=True, text=True)
-        return (completed.stdout + completed.stderr).strip()
+    completed = subprocess.run(["javac", "-version"], check=True, capture_output=True, text=True)
+    return {"javac_version": (completed.stdout + completed.stderr).strip()}
 
-    return {"java_version": version(["java", "-version"]), "javac_version": version(["javac", "-version"])}
+
+def verified_jdk_identity():
+    identity = jdk_identity()
+    if identity["javac_version"] != PINNED_JAVAC_VERSION:
+        raise ValueError("dicttool requires pinned JDK " + PINNED_JAVAC_VERSION)
+    return identity
 
 
 def compiler_identity(inputs):
@@ -129,7 +134,7 @@ def compiler_identity(inputs):
         "aosp_revision": AOSP_COMMIT,
         "builder": {"path": builder.name, "sha256": sha256(builder)},
         "input_sha256": digest.hexdigest(),
-        "jdk": jdk_identity(),
+        "jdk": verified_jdk_identity(),
     }
 
 
@@ -194,7 +199,7 @@ def source_hash(path):
     return {"path": path.name, "sha256": sha256(path)}
 
 
-def validate_provenance(provenance):
+def validate_provenance(provenance, provenance_directory=None, declared_inputs=None):
     if not isinstance(provenance, dict) or not provenance:
         raise ValueError("provenance must be a nonempty object")
     if GENERATED_SOURCE_NAMES.intersection(provenance):
@@ -212,7 +217,48 @@ def validate_provenance(provenance):
             int(source_sha256, 16)
         except ValueError as error:
             raise ValueError("provenance sources must include a SHA-256 source hash") from error
+        if provenance_directory is not None:
+            source_path = source.get("source_path")
+            if not isinstance(source_path, str) or not source_path:
+                raise ValueError("provenance sources must declare a source_path")
+            path = (provenance_directory / source_path).resolve()
+            if path not in {declared.resolve() for declared in declared_inputs}:
+                raise ValueError("provenance source_path must name a declared input file")
+            if not path.is_file() or sha256(path) != source_sha256:
+                raise ValueError("provenance source hash does not match its declared input file")
     return provenance
+
+
+def load_language_packs(registry_path, development_only=False):
+    registry_path = registry_path.resolve()
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("language pack registry must be JSON") from error
+    if registry.get("format_version") != FORMAT_VERSION or not isinstance(registry.get("packs"), list):
+        raise ValueError("language pack registry has an invalid format")
+    packs = []
+    for pack in registry["packs"]:
+        if not isinstance(pack, dict) or not isinstance(pack.get("development_supported"), bool):
+            raise ValueError("language pack registry entries must declare development_supported")
+        required = ("dictionary", "locale", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv")
+        if any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
+            raise ValueError("language pack registry entries are incomplete")
+        dictionary = registry_path.parent / pack.get("dictionary", "")
+        manifest_path = registry_path.parent / pack.get("manifest", "")
+        if not dictionary.is_file() or not manifest_path.is_file():
+            raise ValueError("language pack registry entry files must exist")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError("language pack manifest must be JSON") from error
+        if manifest.get("locale") != pack.get("locale") or manifest.get("output_sha256") != pack.get("output_sha256"):
+            raise ValueError("language pack registry entry does not match its manifest")
+        if sha256(dictionary) != pack.get("output_sha256"):
+            raise ValueError("language pack registry output hash does not match its dictionary")
+        if not development_only or pack["development_supported"]:
+            packs.append(pack)
+    return packs
 
 
 def manifest_data(locale, word_frequency_tsv, ngram_tsv, combined, output, provenance, epoch, compiler):
@@ -268,6 +314,7 @@ def main():
     parser.add_argument("--word-frequency-tsv", required=True, type=pathlib.Path)
     parser.add_argument("--ngram-tsv", required=True, type=pathlib.Path)
     parser.add_argument("--provenance", required=True, type=pathlib.Path)
+    parser.add_argument("--registry", required=True, type=pathlib.Path)
     parser.add_argument("--combined-output", type=pathlib.Path)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
@@ -275,7 +322,29 @@ def main():
     if not args.word_frequency_tsv.is_file() or not args.ngram_tsv.is_file() or not args.provenance.is_file():
         parser.error("TSV inputs and provenance must name existing files")
     try:
-        provenance = validate_provenance(json.loads(args.provenance.read_text(encoding="utf-8")))
+        registry = load_language_packs(args.registry)
+        matches = [pack for pack in registry if pack["locale"] == args.locale]
+        if len(matches) != 1:
+            raise ValueError("language pack registry must declare the requested locale exactly once")
+        pack = matches[0]
+        registry_directory = args.registry.resolve().parent
+        expected_inputs = {
+            "word_frequency_tsv": registry_directory / pack["word_frequency_tsv"],
+            "ngram_tsv": registry_directory / pack["ngram_tsv"],
+            "provenance": registry_directory / pack["provenance"],
+        }
+        actual_inputs = {
+            "word_frequency_tsv": args.word_frequency_tsv.resolve(),
+            "ngram_tsv": args.ngram_tsv.resolve(),
+            "provenance": args.provenance.resolve(),
+        }
+        if actual_inputs != {name: path.resolve() for name, path in expected_inputs.items()}:
+            raise ValueError("builder inputs must match the language pack registry")
+        provenance = validate_provenance(
+            json.loads(args.provenance.read_text(encoding="utf-8")),
+            args.provenance.parent,
+            [args.word_frequency_tsv, args.ngram_tsv],
+        )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
         parser.error("provenance must be JSON and SOURCE_DATE_EPOCH must be an integer: " + str(error))

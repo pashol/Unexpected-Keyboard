@@ -196,15 +196,16 @@ val copyLatinimeNotice by tasks.registering(Copy::class) {
   into("build/generated-assets/latinime")
 }
 
-val copyLatinimeDevelopmentFixture by tasks.registering(Copy::class) {
-  doFirst {
-    destinationDir.resolve("minimal_en.dict").delete()
-    destinationDir.resolve("development_en_fixture.json").delete()
-  }
-  from("test/fixtures/latinime/minimal_en.dict") {
-    rename("minimal_en.dict", "development_en_fixture.dict")
-  }
-  into("build/generated-assets/latinime")
+val copyLatinimeDevelopmentFixture by tasks.registering(Exec::class) {
+  inputs.file("test/fixtures/latinime/language_packs.json")
+  inputs.dir("test/fixtures/latinime")
+  outputs.dir("build/generated-assets/latinime")
+  workingDir = projectDir
+  commandLine(
+      "python3", "tools/prediction/copy_development_language_packs.py",
+      "--registry", "test/fixtures/latinime/language_packs.json",
+      "--output", "build/generated-assets/latinime",
+  )
 }
 
 tasks.named("preBuild") {

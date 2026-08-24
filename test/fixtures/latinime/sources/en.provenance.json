@@ -2,6 +2,7 @@
   "fixture": {
     "license": "CC0-1.0",
     "purpose": "minimal deterministic test data",
-    "source_sha256": "1eef46e0e80f357d6196b184f3067ed6c1881ae7dfcc6693d8009353fc712c5b"
+    "source_path": "en.words.tsv",
+    "source_sha256": "468c9346c2964f0c3471f3849c5a8e2078481ca15da68651b2ae197a5569e2fc"
   }
 }

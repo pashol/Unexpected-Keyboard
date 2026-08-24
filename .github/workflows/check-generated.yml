@@ -48,7 +48,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: '17'
+        java-version: '17.0.19'
     - name: Checkout pinned AOSP LatinIME
       run: |
         git clone https://android.googlesource.com/platform/packages/inputmethods/LatinIME.git "$RUNNER_TEMP/LatinIME"

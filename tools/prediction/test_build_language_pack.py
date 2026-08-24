@@ -106,6 +106,39 @@ class BuildLanguagePackTest(unittest.TestCase):
             ),
         )
 
+    def test_provenance_hash_must_match_a_declared_input_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            words.write_text("hello\t1\n", encoding="utf-8")
+            ngrams.write_text("", encoding="utf-8")
+            provenance = {
+                "fixture": {
+                    "license": "CC0-1.0",
+                    "source_path": "words.tsv",
+                    "source_sha256": hashlib.sha256(words.read_bytes()).hexdigest(),
+                }
+            }
+
+            self.assertEqual(
+                provenance,
+                build_language_pack.validate_provenance(provenance, directory, [words, ngrams]),
+            )
+            provenance["fixture"]["source_sha256"] = "a" * 64
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                build_language_pack.validate_provenance(provenance, directory, [words, ngrams])
+
+    def test_compiler_requires_the_pinned_jdk_identity(self):
+        with mock.patch.object(
+            build_language_pack, "jdk_identity", return_value={
+                "java_version": "openjdk 21.0.0",
+                "javac_version": "javac 21.0.0",
+            }
+        ):
+            with self.assertRaisesRegex(ValueError, "pinned JDK"):
+                build_language_pack.verified_jdk_identity()
+
     def test_provenance_cannot_replace_generated_input_hashes(self):
         for reserved_name in ("ngram_tsv", "word_frequency_tsv"):
             with self.assertRaisesRegex(ValueError, "reserved"):
@@ -124,7 +157,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             generated.write_text("class CommandList {}\n", encoding="utf-8")
 
             with mock.patch.object(
-                build_language_pack, "jdk_identity", return_value={"javac_version": "javac test"}
+                build_language_pack, "jdk_identity", return_value={"javac_version": "javac 17.0.19"}
             ):
                 identity = build_language_pack.compiler_identity(
                     [("aosp/Dicttool.java", aosp), ("generated/CommandList.java", generated)]
@@ -136,7 +169,7 @@ class BuildLanguagePackTest(unittest.TestCase):
 
         self.assertEqual(build_language_pack.AOSP_COMMIT, identity["aosp_revision"])
         self.assertIn("builder", identity)
-        self.assertEqual({"javac_version": "javac test"}, identity["jdk"])
+        self.assertEqual({"javac_version": "javac 17.0.19"}, identity["jdk"])
         self.assertNotEqual(identity["input_sha256"], changed_identity["input_sha256"])
 
     def test_builder_rejects_input_output_collision(self):
@@ -268,6 +301,26 @@ class BuildLanguagePackTest(unittest.TestCase):
         self.assertEqual(build_language_pack.AOSP_COMMIT, data["compiler"]["aosp_revision"])
         self.assertEqual(output_sha256, data["output_sha256"])
         self.assertEqual("CC0-1.0", data["sources"]["fixture"]["license"])
+
+    def test_registry_accepts_only_supported_development_pack_with_matching_manifest_and_hash(self):
+        registry = build_language_pack.load_language_packs(
+            FIXTURE_DIR / "language_packs.json", development_only=True
+        )
+
+        self.assertEqual(["en"], [pack["locale"] for pack in registry])
+        self.assertEqual("minimal_en.dict", registry[0]["dictionary"])
+
+    def test_registry_rejects_an_entry_with_a_stale_output_hash(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
+            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
+            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["output_sha256"] = "0" * 64
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "does not match its manifest"):
+                build_language_pack.load_language_packs(registry_path)
 
 if __name__ == "__main__":
     unittest.main()
