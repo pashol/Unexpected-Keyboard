@@ -5,6 +5,8 @@ import com.android.inputmethod.latin.DicTraverseSession;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public final class LatinimeDictionary implements PredictionEngine
@@ -97,6 +99,13 @@ public final class LatinimeDictionary implements PredictionEngine
       if (length > 0)
         results.add(new PredictionCandidate(new String(code_points, start, length), scores[i]));
     }
+    Collections.sort(results, new Comparator<PredictionCandidate>()
+    {
+      public int compare(PredictionCandidate left, PredictionCandidate right)
+      {
+        return Float.compare(right.score(), left.score());
+      }
+    });
     return results;
   }
 

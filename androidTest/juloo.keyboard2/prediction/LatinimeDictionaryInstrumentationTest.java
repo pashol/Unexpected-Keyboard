@@ -28,7 +28,7 @@ public class LatinimeDictionaryInstrumentationTest
 
     List<PredictionCandidate> predictions = dictionary.next_words(Arrays.asList("hello"), 3);
     assertFalse(predictions.isEmpty());
-    assertTrue(contains(predictions, "world"));
+    assertEquals("world", predictions.get(0).text());
 
     dictionary.close();
   }
@@ -82,6 +82,11 @@ public class LatinimeDictionaryInstrumentationTest
     }
   }
 
+  @Test public void truncated_format202_count_field_is_rejected() throws Exception
+  {
+    assert_open_rejected(copy_truncated_format202_count_fixture());
+  }
+
   @Test public void repeated_open_and_close_of_the_fixture_succeeds() throws Exception
   {
     File dictionary_file = copy_fixture();
@@ -123,6 +128,19 @@ public class LatinimeDictionaryInstrumentationTest
     return target;
   }
 
+  private File copy_truncated_format202_count_fixture() throws Exception
+  {
+    File target = copy_fixture("truncated_format202_count.dict");
+    RandomAccessFile file = new RandomAccessFile(target, "rw");
+    file.seek(8);
+    int header_size = file.readInt();
+    file.setLength(header_size + 1);
+    file.seek(header_size);
+    file.writeByte(0xff);
+    file.close();
+    return target;
+  }
+
   private File copy_fixture(String name) throws Exception
   {
     File target = new File(cache_directory(), name);
@@ -143,11 +161,4 @@ public class LatinimeDictionaryInstrumentationTest
     return InstrumentationRegistry.getInstrumentation().getTargetContext().getCacheDir();
   }
 
-  private boolean contains(List<PredictionCandidate> predictions, String word)
-  {
-    for (PredictionCandidate prediction : predictions)
-      if (word.equals(prediction.text()))
-        return true;
-    return false;
-  }
 }

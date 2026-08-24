@@ -30,6 +30,11 @@ bool Ver2PtNodeArrayReader::readPtNodeArrayInfoAndReturnIfValid(const int ptNode
         return false;
     }
     int readingPos = ptNodeArrayPos;
+    const int remainingSize = static_cast<int>(mBuffer.size()) - readingPos;
+    if (remainingSize < 1 || (mBuffer.data()[readingPos] >= 0x80 && remainingSize < 2)) {
+        AKLOGE("Truncated PtNode count in an array at dictionary position: %d", ptNodeArrayPos);
+        return false;
+    }
     const int ptNodeCountInArray = PatriciaTrieReadingUtils::getPtNodeArraySizeAndAdvancePosition(
             mBuffer.data(), &readingPos);
     if (ptNodeCountInArray > static_cast<int>(mBuffer.size()) - readingPos) {
