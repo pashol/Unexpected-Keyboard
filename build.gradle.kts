@@ -47,7 +47,7 @@ android {
     }
 
     named("androidTest") {
-      java.srcDirs("androidTest")
+      java.srcDirs("androidTest", "src/androidTest/java")
       res.srcDirs("androidTest/res")
       assets.srcDirs("test/fixtures")
     }
