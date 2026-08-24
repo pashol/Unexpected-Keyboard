@@ -1,0 +1,9 @@
+dictionary=main,locale=gsw
+word=Chäs,f=200
+word=d'Frau,f=180
+bigram=Chäs,f=100
+word=ned,f=160
+word=nid,f=170
+word=nöd,f=255
+bigram=ned,f=90
+bigram=nid,f=80

@@ -1,0 +1,17 @@
+{
+  "format_version": 202,
+  "packs": [
+    {
+      "dictionary": "minimal_en.dict",
+      "locale": "en",
+      "manifest": "minimal_en.json",
+      "output_sha256": "5e645ef5c29b9169b55b6566467cdd7a5ad9da76eba6ccd3e437ddb20b081d4d"
+    },
+    {
+      "dictionary": "minimal_gsw.dict",
+      "locale": "gsw",
+      "manifest": "minimal_gsw.json",
+      "output_sha256": "6fca4b75977dccca4fd107a4da9878432f7705db683531f1c7d45c7a98d503aa"
+    }
+  ]
+}

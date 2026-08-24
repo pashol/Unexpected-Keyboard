@@ -1,7 +1,25 @@
 {
-  "aosp_commit": "8081a1d8572f78488900438a6eaaec232b882bbf",
+  "combined_source_sha256": "1eef46e0e80f357d6196b184f3067ed6c1881ae7dfcc6693d8009353fc712c5b",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "sha256": "4bd33c8670941339cc0f89ae333329a70e8283bcb2d7834ac29f778b14349cac"
+  },
   "format_version": 202,
-  "input_sha256": "1eef46e0e80f357d6196b184f3067ed6c1881ae7dfcc6693d8009353fc712c5b",
   "locale": "en",
-  "output_sha256": "5e645ef5c29b9169b55b6566467cdd7a5ad9da76eba6ccd3e437ddb20b081d4d"
+  "output_sha256": "5e645ef5c29b9169b55b6566467cdd7a5ad9da76eba6ccd3e437ddb20b081d4d",
+  "sources": {
+    "fixture": {
+      "license": "CC0-1.0",
+      "purpose": "minimal deterministic test data"
+    },
+    "ngram_tsv": {
+      "path": "en.ngrams.tsv",
+      "sha256": "ddcf7aefe6f8102873472418eaf5cab270033dd4441f56c3feccebf6b3e2af51"
+    },
+    "word_frequency_tsv": {
+      "path": "en.words.tsv",
+      "sha256": "468c9346c2964f0c3471f3849c5a8e2078481ca15da68651b2ae197a5569e2fc"
+    }
+  },
+  "timestamp": "1970-01-01T00:00:00Z"
 }

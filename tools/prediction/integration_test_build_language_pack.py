@@ -32,36 +32,41 @@ class BuildLanguagePackIntegrationTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_directory = pathlib.Path(temporary_directory)
-            outputs = []
-            for name in ("first", "second"):
-                output = temporary_directory / (name + ".dict")
-                manifest = temporary_directory / (name + ".json")
-                subprocess.run(
-                    [
-                        sys.executable,
-                        str(BUILDER),
-                        "--source",
-                        str(source),
-                        "--input",
-                        str(FIXTURE_DIR / "minimal_en.combined"),
-                        "--output",
-                        str(output),
-                        "--manifest",
-                        str(manifest),
-                    ],
-                    check=True,
-                    capture_output=True,
-                    text=True,
+            for locale in ("en", "gsw"):
+                outputs = []
+                for name in ("first", "second"):
+                    output = temporary_directory / (locale + "-" + name + ".dict")
+                    manifest = temporary_directory / (locale + "-" + name + ".json")
+                    combined = temporary_directory / (locale + "-" + name + ".combined")
+                    environment = os.environ | {"SOURCE_DATE_EPOCH": "0"}
+                    sources = FIXTURE_DIR / "sources"
+                    subprocess.run(
+                        [
+                            sys.executable,
+                            str(BUILDER),
+                            "--source", str(source),
+                            "--locale", locale,
+                            "--word-frequency-tsv", str(sources / (locale + ".words.tsv")),
+                            "--ngram-tsv", str(sources / (locale + ".ngrams.tsv")),
+                            "--provenance", str(sources / (locale + ".provenance.json")),
+                            "--combined-output", str(combined),
+                            "--output", str(output),
+                            "--manifest", str(manifest),
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        env=environment,
+                    )
+                    outputs.append((combined.read_bytes(), output.read_bytes(), manifest.read_bytes()))
+                self.assertEqual(outputs[0], outputs[1])
+                self.assertEqual(outputs[0][0], (FIXTURE_DIR / ("minimal_" + locale + ".combined")).read_bytes())
+                self.assertEqual(outputs[0][1], (FIXTURE_DIR / ("minimal_" + locale + ".dict")).read_bytes())
+                self.assertEqual(outputs[0][2], (FIXTURE_DIR / ("minimal_" + locale + ".json")).read_bytes())
+                self.assertEqual(
+                    hashlib.sha256(outputs[0][1]).hexdigest(),
+                    json.loads(outputs[0][2])["output_sha256"],
                 )
-                outputs.append((output.read_bytes(), manifest.read_bytes()))
-
-        self.assertEqual(outputs[0], outputs[1])
-        self.assertEqual(outputs[0][0], (FIXTURE_DIR / "minimal_en.dict").read_bytes())
-        self.assertEqual(outputs[0][1], (FIXTURE_DIR / "minimal_en.json").read_bytes())
-        self.assertEqual(
-            hashlib.sha256(outputs[0][0]).hexdigest(),
-            json.loads(outputs[0][1])["output_sha256"],
-        )
 
 
 if __name__ == "__main__":

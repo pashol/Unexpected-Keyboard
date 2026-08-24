@@ -4,9 +4,12 @@
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
+import unicodedata
+from datetime import datetime, timezone
 
 
 AOSP_COMMIT = "8081a1d8572f78488900438a6eaaec232b882bbf"
@@ -110,6 +113,75 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def normalize_word(locale, word):
+    # Swiss German is intentionally only Unicode-normalized, never dialect-normalized.
+    return unicodedata.normalize("NFC", word)
+
+
+def tsv_rows(path, columns):
+    rows = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        fields = line.split("\t")
+        if len(fields) != columns:
+            raise ValueError(str(path) + ":" + str(line_number) + " has wrong column count")
+        try:
+            frequency = int(fields[-1])
+        except ValueError as error:
+            raise ValueError(str(path) + ":" + str(line_number) + " has invalid frequency") from error
+        if not 1 <= frequency <= 255:
+            raise ValueError(str(path) + ":" + str(line_number) + " frequency must be 1..255")
+        rows.append((fields[:-1], frequency))
+    return rows
+
+
+def combined_source(locale, word_frequency_tsv, ngram_tsv):
+    words = {}
+    for fields, frequency in tsv_rows(word_frequency_tsv, 2):
+        word = normalize_word(locale, fields[0])
+        words[word] = max(words.get(word, 0), frequency)
+    bigrams = {}
+    for fields, frequency in tsv_rows(ngram_tsv, 3):
+        context, target = (normalize_word(locale, word) for word in fields)
+        if context not in words or target not in words:
+            raise ValueError("every n-gram word must appear in the word-frequency TSV")
+        bigrams[(context, target)] = max(bigrams.get((context, target), 0), frequency)
+    lines = ["dictionary=main,locale=" + locale]
+    for word in sorted(words):
+        lines.append("word=" + word + ",f=" + str(words[word]))
+        for (context, target), frequency in sorted(bigrams.items()):
+            if context == word:
+                lines.append("bigram=" + target + ",f=" + str(frequency))
+    return "\n".join(lines) + "\n"
+
+
+def compiler_sha256(source):
+    digest = hashlib.sha256()
+    for path in source_files(source):
+        digest.update(str(path.relative_to(source)).encode("utf-8") + b"\0")
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def source_hash(path):
+    return {"path": path.name, "sha256": sha256(path)}
+
+
+def manifest_data(locale, word_frequency_tsv, ngram_tsv, combined, output, provenance, epoch, compiler_hash):
+    return {
+        "compiler": {"aosp_revision": AOSP_COMMIT, "sha256": compiler_hash},
+        "combined_source_sha256": sha256(combined),
+        "format_version": FORMAT_VERSION,
+        "locale": locale,
+        "output_sha256": sha256(output),
+        "sources": {
+            "ngram_tsv": source_hash(ngram_tsv),
+            "word_frequency_tsv": source_hash(word_frequency_tsv),
+            **provenance,
+        },
+        "timestamp": datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+
 def validate_paths(input_path, output, manifest):
     paths = {
         "input": input_path.resolve(),
@@ -125,7 +197,7 @@ def validate_paths(input_path, output, manifest):
             raise ValueError(first + " and " + second + " paths must differ")
 
 
-def build(source, input_path, output, manifest):
+def build(source, input_path, output, manifest, metadata):
     with tempfile.TemporaryDirectory(prefix="latinime-classes-") as temporary_directory:
         classes = pathlib.Path(temporary_directory) / "classes"
         classes.mkdir()
@@ -137,31 +209,40 @@ def build(source, input_path, output, manifest):
     header = output.read_bytes()[:6]
     if header[:4] != FORMAT_MAGIC or int.from_bytes(header[4:6], "big") != FORMAT_VERSION:
         raise ValueError("dicttool did not produce a format-202 dictionary")
-    manifest.write_text(json.dumps({
-        "aosp_commit": AOSP_COMMIT,
-        "format_version": FORMAT_VERSION,
-        "input_sha256": sha256(input_path),
-        "locale": "en",
-        "output_sha256": sha256(output),
-    }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest.write_text(json.dumps(metadata(compiler_sha256(source)), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, type=pathlib.Path)
-    parser.add_argument("--input", required=True, type=pathlib.Path)
+    parser.add_argument("--locale", required=True)
+    parser.add_argument("--word-frequency-tsv", required=True, type=pathlib.Path)
+    parser.add_argument("--ngram-tsv", required=True, type=pathlib.Path)
+    parser.add_argument("--provenance", required=True, type=pathlib.Path)
+    parser.add_argument("--combined-output", type=pathlib.Path)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     args = parser.parse_args()
-    if not args.input.is_file():
-        parser.error("--input must name an existing .combined file")
+    if not args.word_frequency_tsv.is_file() or not args.ngram_tsv.is_file() or not args.provenance.is_file():
+        parser.error("TSV inputs and provenance must name existing files")
     try:
-        validate_paths(args.input, args.output, args.manifest)
+        provenance = json.loads(args.provenance.read_text(encoding="utf-8"))
+        epoch = int(os.environ["SOURCE_DATE_EPOCH"])
+    except (json.JSONDecodeError, KeyError, ValueError) as error:
+        parser.error("provenance must be JSON and SOURCE_DATE_EPOCH must be an integer: " + str(error))
+    input_path = args.combined_output or args.output.with_suffix(".combined")
+    metadata = lambda compiler_hash: manifest_data(
+        args.locale, args.word_frequency_tsv, args.ngram_tsv, input_path, args.output, provenance, epoch, compiler_hash
+    )
+    try:
+        validate_paths(input_path, args.output, args.manifest)
     except ValueError as error:
         parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    build(verified_checkout(args.source), args.input, args.output, args.manifest)
+    input_path.parent.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(combined_source(args.locale, args.word_frequency_tsv, args.ngram_tsv), encoding="utf-8")
+    build(verified_checkout(args.source), input_path, args.output, args.manifest, metadata)
 
 
 if __name__ == "__main__":

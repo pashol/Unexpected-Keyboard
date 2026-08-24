@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -15,6 +16,70 @@ BUILDER = ROOT / "tools" / "prediction" / "build_language_pack.py"
 
 
 class BuildLanguagePackTest(unittest.TestCase):
+    def test_gsw_normalization_preserves_dialect_unicode_apostrophes_and_casing(self):
+        self.assertEqual("nöd", build_language_pack.normalize_word("gsw", "nöd"))
+        self.assertEqual("nid", build_language_pack.normalize_word("gsw", "nid"))
+        self.assertEqual("ned", build_language_pack.normalize_word("gsw", "ned"))
+        self.assertEqual("Chäs", build_language_pack.normalize_word("gsw", "Chäs"))
+        self.assertEqual("d'Frau", build_language_pack.normalize_word("gsw", "d'Frau"))
+        self.assertEqual("MÄR", build_language_pack.normalize_word("gsw", "MÄR"))
+
+    def test_tsv_inputs_are_normalized_sorted_and_rendered_as_combined_source(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            words.write_text("z'Morge\t7\nChäs\t10\n", encoding="utf-8")
+            ngrams.write_text("z'Morge\tChäs\t9\n", encoding="utf-8")
+
+            self.assertEqual(
+                "dictionary=main,locale=gsw\n"
+                "word=Chäs,f=10\n"
+                "word=z'Morge,f=7\n"
+                "bigram=Chäs,f=9\n",
+                build_language_pack.combined_source("gsw", words, ngrams),
+            )
+
+    def test_duplicate_tsv_rows_use_the_highest_frequency_independent_of_order(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            words.write_text("there\t20\nhello\t30\nhello\t10\n", encoding="utf-8")
+            ngrams.write_text("hello\tthere\t9\nhello\tthere\t7\n", encoding="utf-8")
+
+            combined = build_language_pack.combined_source("en", words, ngrams)
+
+        self.assertIn("word=hello,f=30", combined)
+        self.assertIn("bigram=there,f=9", combined)
+
+    def test_manifest_records_provenance_hashes_compiler_and_epoch_timestamp(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            output = directory / "pack.dict"
+            words.write_text("hello\t10\n", encoding="utf-8")
+            ngrams.write_text("hello\tworld\t9\n", encoding="utf-8")
+            output.write_bytes(b"dictionary")
+
+            manifest = build_language_pack.manifest_data(
+                "en", words, ngrams, words, output, {"corpus": {"license": "CC0-1.0"}}, 42, "compiler-hash"
+            )
+            words_hash = hashlib.sha256(words.read_bytes()).hexdigest()
+            ngrams_hash = hashlib.sha256(ngrams.read_bytes()).hexdigest()
+            output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+
+        self.assertEqual("en", manifest["locale"])
+        self.assertEqual(202, manifest["format_version"])
+        self.assertEqual("1970-01-01T00:00:42Z", manifest["timestamp"])
+        self.assertEqual("CC0-1.0", manifest["sources"]["corpus"]["license"])
+        self.assertEqual(words_hash, manifest["sources"]["word_frequency_tsv"]["sha256"])
+        self.assertEqual(ngrams_hash, manifest["sources"]["ngram_tsv"]["sha256"])
+        self.assertEqual(output_hash, manifest["output_sha256"])
+        self.assertEqual(build_language_pack.AOSP_COMMIT, manifest["compiler"]["aosp_revision"])
+        self.assertEqual("compiler-hash", manifest["compiler"]["sha256"])
+
     def test_builder_rejects_input_output_collision(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             input_path = pathlib.Path(temporary_directory) / "input.combined"
@@ -63,16 +128,23 @@ class BuildLanguagePackTest(unittest.TestCase):
     def test_builder_rejects_collisions_before_creating_output_directories(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)
-            input_path = directory / "input.combined"
-            input_path.write_text("input", encoding="utf-8")
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            provenance = directory / "provenance.json"
+            words.write_text("hello\t1\n", encoding="utf-8")
+            ngrams.write_text("", encoding="utf-8")
+            provenance.write_text("{}", encoding="utf-8")
             collision = directory / "generated" / "output.dict"
             arguments = [
-                str(BUILDER), "--source", str(directory), "--input", str(input_path),
+                str(BUILDER), "--source", str(directory), "--locale", "en",
+                "--word-frequency-tsv", str(words), "--ngram-tsv", str(ngrams),
+                "--provenance", str(provenance),
                 "--output", str(collision), "--manifest", str(collision),
             ]
 
             with mock.patch.object(sys, "argv", arguments), \
                     mock.patch.object(pathlib.Path, "mkdir") as mkdir, \
+                    mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "0"}), \
                     mock.patch("sys.stderr", new_callable=io.StringIO):
                 with self.assertRaises(SystemExit) as error:
                     build_language_pack.main()
@@ -83,10 +155,16 @@ class BuildLanguagePackTest(unittest.TestCase):
     def test_builder_requires_an_explicit_source_and_never_clones(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)
-            input_path = directory / "input.combined"
-            input_path.write_text("input", encoding="utf-8")
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            provenance = directory / "provenance.json"
+            words.write_text("hello\t1\n", encoding="utf-8")
+            ngrams.write_text("", encoding="utf-8")
+            provenance.write_text("{}", encoding="utf-8")
             arguments = [
-                str(BUILDER), "--input", str(input_path), "--output", str(directory / "output.dict"),
+                str(BUILDER), "--locale", "en", "--word-frequency-tsv", str(words),
+                "--ngram-tsv", str(ngrams), "--provenance", str(provenance),
+                "--output", str(directory / "output.dict"),
                 "--manifest", str(directory / "output.json"),
             ]
 
@@ -124,20 +202,13 @@ class BuildLanguagePackTest(unittest.TestCase):
 
         self.assertEqual(output.read_bytes()[:6], b"\x9b\xc1\x3a\xfe\x00\xca")
         output_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
-        self.assertEqual(
-            json.loads(manifest.read_text(encoding="utf-8")),
-            {
-                "aosp_commit": "8081a1d8572f78488900438a6eaaec232b882bbf",
-                "format_version": 202,
-                "input_sha256": "1eef46e0e80f357d6196b184f3067ed6c1881ae7dfcc6693d8009353fc712c5b",
-                "locale": "en",
-                "output_sha256": "5e645ef5c29b9169b55b6566467cdd7a5ad9da76eba6ccd3e437ddb20b081d4d",
-            },
-        )
-        self.assertEqual(
-            json.loads(manifest.read_text(encoding="utf-8"))["output_sha256"],
-            output_sha256,
-        )
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        self.assertEqual("en", data["locale"])
+        self.assertEqual(202, data["format_version"])
+        self.assertEqual("1970-01-01T00:00:00Z", data["timestamp"])
+        self.assertEqual(build_language_pack.AOSP_COMMIT, data["compiler"]["aosp_revision"])
+        self.assertEqual(output_sha256, data["output_sha256"])
+        self.assertEqual("CC0-1.0", data["sources"]["fixture"]["license"])
 
 if __name__ == "__main__":
     unittest.main()
