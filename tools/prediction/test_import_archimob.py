@@ -86,6 +86,18 @@ class ImportArchiMobTest(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(report.read_bytes()).hexdigest(), pointer["report"]["sha256"]
             )
+            self.assertTrue(report_path.is_file())
+            receipt = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, receipt["format_version"])
+            self.assertEqual(
+                hashlib.sha256(
+                    importer.import_google_books_ngrams.current_manifest_path(
+                        words_path, ngrams_path
+                    ).read_bytes()
+                ).hexdigest(),
+                receipt["active_generation"]["current_manifest_sha256"],
+            )
+            self.assertEqual(pointer["report"]["sha256"], receipt["active_generation"]["report_sha256"])
 
     def test_main_rejects_a_source_hash_mismatch_before_writing_outputs(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -296,6 +308,18 @@ class ImportArchiMobTest(unittest.TestCase):
         importer._preflight_zip(
             archive, maximum_members=importer.MAX_OUTER_ARCHIVE_MEMBERS,
             description="outer archive",
+        )
+
+    def test_archive_sequences_collects_body_utterances_nested_in_divisions(self):
+        archive = self._nested_archive([(
+            "1007.xml",
+            "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"><teiHeader><u><w>header</w></u></teiHeader>"
+            "<text><body><div><u><w normalised=\"Standard\">Mär</w><w>gönd</w></u></div>"
+            "<u><w>nöd</w><w>hei</w></u></body></text></TEI>",
+        )])
+
+        self.assertEqual(
+            [["Mär", "gönd"], ["nöd", "hei"]], importer.archive_sequences(archive)
         )
 
     def _minimal_eocd(self, entry_count):

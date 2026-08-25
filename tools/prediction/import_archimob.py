@@ -171,7 +171,7 @@ def archive_sequences(source):
                         if root.tag != TEI_NAMESPACE + "TEI":
                             raise ValueError("transcript must use the TEI namespace")
                         for utterance in root.findall(
-                            "./" + TEI_NAMESPACE + "text/" + TEI_NAMESPACE + "body/" + TEI_NAMESPACE + "u"
+                            "./" + TEI_NAMESPACE + "text/" + TEI_NAMESPACE + "body//" + TEI_NAMESPACE + "u"
                         ):
                             tokens = []
                             for word in utterance.iter(TEI_NAMESPACE + "w"):
@@ -357,6 +357,7 @@ def main():
         words, ngrams, arguments.words_output, arguments.ngrams_output,
         arguments.report_output.name,
         (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
+        arguments.report_output,
     )
 
 
@@ -370,7 +371,8 @@ def _validate_report_output_path(report_output, words_output, ngrams_output):
         raise ValueError("report output must not overlap active publication paths")
 
 
-def _publish_generation(words, ngrams, words_output, ngrams_output, report_name, report_contents):
+def _publish_generation(
+        words, ngrams, words_output, ngrams_output, report_name, report_contents, report_output):
     connection = sqlite3.connect(":memory:")
     try:
         connection.executescript(
@@ -385,7 +387,7 @@ def _publish_generation(words, ngrams, words_output, ngrams_output, report_name,
             [(context, target, score) for context, target, score in ngrams],
         )
         import_google_books_ngrams._publish_generation(
-            connection, words_output, ngrams_output, (report_name, report_contents)
+            connection, words_output, ngrams_output, (report_name, report_contents), report_output
         )
     finally:
         connection.close()

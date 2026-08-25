@@ -174,7 +174,7 @@ def load_current_generation(words_output, ngrams_output):
     return tuple(files)
 
 
-def _publish_generation(connection, words_output, ngrams_output, report=None):
+def _publish_generation(connection, words_output, ngrams_output, report=None, report_receipt_output=None):
     generation_root = generation_root_path(words_output, ngrams_output)
     generation_root.mkdir(exist_ok=True)
     generation = pathlib.Path(tempfile.mkdtemp(prefix="generation-", dir=generation_root))
@@ -182,6 +182,7 @@ def _publish_generation(connection, words_output, ngrams_output, report=None):
     ngrams_path = generation / ngrams_output.name
     report_path = None
     pointer_temporary = None
+    receipt_temporary = None
     try:
         word_maximum = connection.execute("SELECT MAX(count) FROM word_counts").fetchone()[0]
         with words_path.open("w", encoding="utf-8", newline="\n") as output:
@@ -223,20 +224,49 @@ def _publish_generation(connection, words_output, ngrams_output, report=None):
                 "path": str(report_path.relative_to(pointer.parent)),
                 "sha256": _sha256(report_path),
             }
+        manifest_contents = json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n"
+        if report_receipt_output is not None:
+            if report_path is None:
+                raise ValueError("a report receipt requires a report")
+            receipt_output = pathlib.Path(report_receipt_output)
+            receipt_output.parent.mkdir(parents=True, exist_ok=True)
+            receipt = {
+                "active_generation": {
+                    "current_manifest_sha256": hashlib.sha256(
+                        manifest_contents.encode("utf-8")
+                    ).hexdigest(),
+                    "report_sha256": manifest["report"]["sha256"],
+                },
+                "format_version": 1,
+            }
+            descriptor, temporary = tempfile.mkstemp(
+                dir=receipt_output.parent, prefix=f".{receipt_output.name}.", suffix=".tmp", text=True
+            )
+            receipt_temporary = pathlib.Path(temporary)
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as output:
+                json.dump(receipt, output, sort_keys=True, separators=(",", ":"))
+                output.write("\n")
+                output.flush()
+                os.fsync(output.fileno())
         descriptor, temporary = tempfile.mkstemp(
             dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".tmp", text=True
         )
         pointer_temporary = pathlib.Path(temporary)
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as output:
-            json.dump(manifest, output, sort_keys=True, separators=(",", ":"))
-            output.write("\n")
+            output.write(manifest_contents)
             output.flush()
             os.fsync(output.fileno())
+        if receipt_temporary is not None:
+            os.replace(receipt_temporary, receipt_output)
+            receipt_temporary = None
+            _sync_directory(receipt_output.parent)
         os.replace(pointer_temporary, pointer)
         _sync_directory(pointer.parent)
     finally:
         if pointer_temporary is not None:
             pointer_temporary.unlink(missing_ok=True)
+        if receipt_temporary is not None:
+            receipt_temporary.unlink(missing_ok=True)
 
 
 def _ngram_maximum(connection):

@@ -59,6 +59,14 @@ python3 -m tools.prediction.import_archimob \
   --top-targets 8
 ```
 
-The report records accepted and rejected line counts plus the verified source
-hash. Intermediate TSVs, reports, transcript exports, and all corpus data are
-build inputs and must not be committed to Git.
+The immutable report in the active generation records accepted and rejected
+line counts plus the verified source hash. The requested `--report-output`
+path is atomically replaced with a format-1 JSON receipt, not a mutable copy
+of that report. Its `active_generation.current_manifest_sha256` must equal the
+SHA-256 of the active TSV generation pointer, and its
+`active_generation.report_sha256` must equal that pointer's immutable report
+hash. The receipt is staged before the active pointer is replaced, so a report
+publication failure cannot advance the active generation.
+
+Intermediate TSVs, receipts, transcript exports, and all corpus data are build
+inputs and must not be committed to Git.
