@@ -29,7 +29,7 @@ class ParseCombinedTest(unittest.TestCase):
         words, bigrams, skipped = importer.parse_combined(PARSE_INPUT)
         self.assertEqual({"Straße": 222, "Haus": 200}, words)
         self.assertEqual({("Straße", "Fuß"): 3, ("Straße", "Haus"): 1}, bigrams)
-        self.assertEqual({"skipped_lines": 2, "dropped_entries": 0}, skipped)
+        self.assertEqual({"skipped_lines": 2, "dropped_entries": 0, "dropped_not_a_word": 0}, skipped)
 
     def test_rejects_missing_header(self):
         with self.assertRaisesRegex(ValueError, "header"):
@@ -45,7 +45,7 @@ class ParseCombinedTest(unittest.TestCase):
         )
         self.assertEqual({"y": 2}, words)
         self.assertEqual({}, bigrams)
-        self.assertEqual({"skipped_lines": 0, "dropped_entries": 2}, dropped)
+        self.assertEqual({"skipped_lines": 0, "dropped_entries": 2, "dropped_not_a_word": 0}, dropped)
 
     def test_bigram_after_dropped_word_is_counted_as_dropped(self):
         words, bigrams, stats = importer.parse_combined(
@@ -59,11 +59,44 @@ class ParseCombinedTest(unittest.TestCase):
         )
         self.assertEqual({"a": 5}, words)
         self.assertEqual({("a", "T"): 2}, bigrams)
-        self.assertEqual({"skipped_lines": 0, "dropped_entries": 2}, stats)
+        self.assertEqual({"skipped_lines": 0, "dropped_entries": 2, "dropped_not_a_word": 0}, stats)
 
     def test_rejects_bigram_before_any_word(self):
         with self.assertRaisesRegex(ValueError, "precedes"):
             importer.parse_combined(["dictionary=main:x", "  bigram=T,f=1"])
+
+    def test_keeps_words_and_bigrams_with_ignorable_attributes(self):
+        words, bigrams, stats = importer.parse_combined(
+            [
+                "dictionary=main:x",
+                " word=sex,f=135,possibly_offensive=true",
+                "  bigram=y,f=3,whatever=1",
+                " word=der,f=216,flags=,originalFreq=216",
+            ]
+        )
+        self.assertEqual({"sex": 135, "der": 216}, words)
+        self.assertEqual({("sex", "y"): 3}, bigrams)
+        self.assertEqual(
+            {"skipped_lines": 0, "dropped_entries": 0, "dropped_not_a_word": 0}, stats)
+
+    def test_drops_not_a_word_words_and_their_bigrams(self):
+        words, bigrams, stats = importer.parse_combined(
+            [
+                "dictionary=main:x",
+                " word=keep,f=10",
+                "  bigram=z,f=1",
+                " word=heres,f=55,not_a_word=true",
+                "  bigram=x,f=2",
+            ]
+        )
+        self.assertEqual({"keep": 10}, words)
+        self.assertEqual({("keep", "z"): 1}, bigrams)
+        self.assertEqual(
+            {"skipped_lines": 0, "dropped_entries": 1, "dropped_not_a_word": 1}, stats)
+
+    def test_rejects_malformed_attribute_token(self):
+        with self.assertRaisesRegex(ValueError, "malformed combined attribute"):
+            importer.parse_combined(["dictionary=main:x", " word=x,f=1,badtoken"])
 
     def test_rejects_empty_input_without_header(self):
         with self.assertRaisesRegex(ValueError, "header"):

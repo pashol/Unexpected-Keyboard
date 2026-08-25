@@ -26,6 +26,7 @@ def parse_combined(lines):
     bigrams = {}
     skipped = 0
     dropped = 0
+    dropped_not_a_word = 0
     context = None
     context_retained = False
     for raw_line in lines:
@@ -41,10 +42,13 @@ def parse_combined(lines):
             skipped += 1
             continue
         if stripped.startswith(WORD_PREFIX):
-            word, frequency = _parse_entry(stripped, WORD_PREFIX)
+            word, frequency, attributes = _parse_entry(stripped, WORD_PREFIX)
             context = word
-            if frequency <= 0:
-                dropped += 1
+            if frequency <= 0 or attributes.get("not_a_word") == "true":
+                if frequency > 0:
+                    dropped_not_a_word += 1
+                else:
+                    dropped += 1
                 context_retained = False
                 continue
             words[word] = max(words.get(word, 0), frequency)
@@ -52,7 +56,7 @@ def parse_combined(lines):
         elif stripped.startswith(BIGRAM_PREFIX):
             if context is None:
                 raise ValueError("bigram entry precedes its context word")
-            target, frequency = _parse_entry(stripped, BIGRAM_PREFIX)
+            target, frequency, _ = _parse_entry(stripped, BIGRAM_PREFIX)
             if frequency <= 0 or not context_retained:
                 dropped += 1
                 continue
@@ -61,18 +65,30 @@ def parse_combined(lines):
             skipped += 1
     if not header_seen:
         raise ValueError("combined input lacks a dictionary header")
-    return words, bigrams, {"skipped_lines": skipped, "dropped_entries": dropped}
+    return words, bigrams, {
+        "skipped_lines": skipped,
+        "dropped_entries": dropped,
+        "dropped_not_a_word": dropped_not_a_word,
+    }
 
 
 def _parse_entry(entry, prefix):
     body = entry[len(prefix):]
-    name, separator, frequency_text = body.rpartition(",f=")
+    name, separator, remainder = body.partition(",f=")
     if not separator or not name:
         raise ValueError("malformed combined entry: " + prefix)
+    tokens = remainder.split(",")
     try:
-        return name, int(frequency_text)
+        frequency = int(tokens[0])
     except ValueError as error:
         raise ValueError("malformed combined frequency: " + body) from error
+    attributes = {}
+    for token in tokens[1:]:
+        key, assigner, value = token.partition("=")
+        if not assigner or not key:
+            raise ValueError("malformed combined attribute: " + token)
+        attributes[key] = value
+    return name, frequency, attributes
 
 
 def apply_word_maps(words, bigrams, maps):
