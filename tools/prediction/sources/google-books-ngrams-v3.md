@@ -44,6 +44,24 @@ Unicode control characters are rejected. Commas and equals signs are also
 rejected because they are unescaped delimiters in the generated LatinIME combined
 source format.
 
+## Publication contract
+
+`--words-output` and `--ngrams-output` must be in the same directory. Their
+filenames define the two members of an immutable generation under a hidden
+sibling `.WORDS.NGRAMS.generations/` directory; they are not mutable TSV files
+at the supplied paths. After both generation files are written and hashed, the
+importer atomically replaces
+`.WORDS.NGRAMS.current.json` in that directory with a manifest containing both
+relative paths and SHA-256 values. A failed import can leave an unselected
+generation, but cannot select a mixed pair. Generation files, the manifest, and
+their directories are synced before publication so a crash cannot make the
+pointer durable ahead of either selected TSV.
+
+Consumers must resolve the current manifest, open both files named by it, and
+verify their SHA-256 values before accepting the pair. Python consumers can use
+`load_current_generation(words_output, ngrams_output)` to perform that
+validation and obtain the selected paths.
+
 ## Command template
 
 ```sh

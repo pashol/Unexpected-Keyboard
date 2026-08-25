@@ -96,12 +96,65 @@ class ImportGoogleBooksNgramsTest(unittest.TestCase):
 
             self.assertEqual(
                 "alpha\t255\nbeta\t128\ndelta\t255\nzeta\t128\n",
-                words_path.read_text(encoding="utf-8"),
+                self._published(words_path, ngrams_path)[0].read_text(encoding="utf-8"),
             )
             self.assertEqual(
                 "alpha\tdelta\t255\nzeta\tbeta\t128\n",
-                ngrams_path.read_text(encoding="utf-8"),
+                self._published(words_path, ngrams_path)[1].read_text(encoding="utf-8"),
             )
+
+    def test_main_keeps_prior_generation_selected_when_pointer_publication_fails(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.tsv"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("old target\t2000\t2\t1\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path)
+            original_words, original_ngrams = self._published(words_path, ngrams_path)
+            original = (original_words.read_bytes(), original_ngrams.read_bytes())
+            input_path.write_text("new target\t2000\t2\t1\n", encoding="utf-8")
+            pointer = importer.current_manifest_path(words_path, ngrams_path)
+            replace = importer.os.replace
+
+            def fail_pointer_publication(source, destination):
+                if pathlib.Path(destination) == pointer:
+                    raise OSError("simulated pointer publication failure")
+                replace(source, destination)
+
+            with mock.patch.object(importer.os, "replace", side_effect=fail_pointer_publication):
+                with self.assertRaisesRegex(OSError, "simulated pointer"):
+                    self._run_main(input_path, words_path, ngrams_path)
+
+            words, ngrams = self._published(words_path, ngrams_path)
+            self.assertEqual(original, (words.read_bytes(), ngrams.read_bytes()))
+
+    def test_current_generation_rejects_a_file_that_does_not_match_its_manifest_hash(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.tsv"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path)
+            words, _ = self._published(words_path, ngrams_path)
+            words.write_text("tampered\t1\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "hash"):
+                self._published(words_path, ngrams_path)
+
+    def test_publication_syncs_generation_files_before_replacing_the_pointer(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.tsv"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+
+            with mock.patch.object(importer.os, "fsync", wraps=importer.os.fsync) as fsync:
+                self._run_main(input_path, words_path, ngrams_path)
+
+            self.assertGreaterEqual(fsync.call_count, 3)
 
     def test_main_rejects_empty_retained_result(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -149,42 +202,21 @@ class ImportGoogleBooksNgramsTest(unittest.TestCase):
             input_path = directory / "input.tsv"
             words_path = directory / "words.tsv"
             ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("old target\t2000\t2\t1\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path)
+            original_words, original_ngrams = self._published(words_path, ngrams_path)
+            original = (original_words.read_bytes(), original_ngrams.read_bytes())
             input_path.write_text(
                 "hello world\t2000\t2\t1\nhello bad\x00target\t2000\t2\t1\n",
                 encoding="utf-8",
             )
-            words_path.write_text("old-word\t7\n", encoding="utf-8")
-            ngrams_path.write_text("old\ttarget\t7\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "unsafe token"):
                 self._run_main(input_path, words_path, ngrams_path)
 
-            self.assertEqual("old-word\t7\n", words_path.read_text(encoding="utf-8"))
-            self.assertEqual("old\ttarget\t7\n", ngrams_path.read_text(encoding="utf-8"))
+            words, ngrams = self._published(words_path, ngrams_path)
+            self.assertEqual(original, (words.read_bytes(), ngrams.read_bytes()))
             self.assertEqual([], list(directory.glob(".*.tmp")))
-
-    def test_main_restores_outputs_when_replacing_the_second_output_fails(self):
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            directory = pathlib.Path(temporary_directory)
-            input_path = directory / "input.tsv"
-            words_path = directory / "words.tsv"
-            ngrams_path = directory / "ngrams.tsv"
-            input_path.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
-            words_path.write_text("old-word\t7\n", encoding="utf-8")
-            ngrams_path.write_text("old\ttarget\t7\n", encoding="utf-8")
-            replace = importer.os.replace
-
-            def fail_second_output(source, destination):
-                if pathlib.Path(destination) == ngrams_path and str(source).endswith(".tmp"):
-                    raise OSError("simulated replacement failure")
-                replace(source, destination)
-
-            with mock.patch.object(importer.os, "replace", side_effect=fail_second_output):
-                with self.assertRaisesRegex(OSError, "simulated"):
-                    self._run_main(input_path, words_path, ngrams_path)
-
-            self.assertEqual("old-word\t7\n", words_path.read_text(encoding="utf-8"))
-            self.assertEqual("old\ttarget\t7\n", ngrams_path.read_text(encoding="utf-8"))
 
     def _run_main(self, input_path, words_path, ngrams_path):
         arguments = [
@@ -194,6 +226,9 @@ class ImportGoogleBooksNgramsTest(unittest.TestCase):
         ]
         with mock.patch.object(sys, "argv", arguments):
             importer.main()
+
+    def _published(self, words_path, ngrams_path):
+        return importer.load_current_generation(words_path, ngrams_path)
 
 
 if __name__ == "__main__":

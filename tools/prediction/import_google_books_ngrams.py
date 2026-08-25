@@ -1,6 +1,8 @@
 """Transform a local Google Books v3 2-gram shard into dictionary TSV inputs."""
 
 import argparse
+import hashlib
+import json
 import os
 import pathlib
 import sqlite3
@@ -60,7 +62,7 @@ def main():
         try:
             if not _ngram_maximum(connection):
                 raise ValueError("no retained n-grams; lower --minimum-count or use another input")
-            _write_outputs(connection, words_output, ngrams_output)
+            _publish_generation(connection, words_output, ngrams_output)
         finally:
             connection.close()
 
@@ -74,6 +76,8 @@ def validate_paths(input_path, words_output, ngrams_output):
         for second in paths[index + 1:]:
             if first.exists() and second.exists() and os.path.samefile(first, second):
                 raise ValueError("input and output paths must differ")
+    if words_output.resolve().parent != ngrams_output.resolve().parent:
+        raise ValueError("output paths must have the same parent directory")
 
 
 def _aggregate_to_database(rows, database_path, minimum_count, top_targets):
@@ -135,58 +139,100 @@ def _parse_row(row, line_number):
     return context, target, int(match_count)
 
 
-def _write_outputs(connection, words_output, ngrams_output):
-    temporary_paths = []
-    backups = []
-    replaced = []
+def current_manifest_path(words_output, ngrams_output):
+    words_output = pathlib.Path(words_output)
+    ngrams_output = pathlib.Path(ngrams_output)
+    return words_output.parent / f".{words_output.name}.{ngrams_output.name}.current.json"
+
+
+def load_current_generation(words_output, ngrams_output):
+    pointer = current_manifest_path(words_output, ngrams_output)
+    data = json.loads(pointer.read_text(encoding="utf-8"))
+    if data.get("format_version") != 1:
+        raise ValueError("invalid current generation manifest")
+    files = []
+    for kind in ("words", "ngrams"):
+        entry = data.get(kind)
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            raise ValueError("invalid current generation manifest")
+        path = (pointer.parent / entry["path"]).resolve()
+        if pointer.parent.resolve() not in path.parents:
+            raise ValueError("current generation path is outside the output directory")
+        if _sha256(path) != entry.get("sha256"):
+            raise ValueError("current generation hash does not match")
+        files.append(path)
+    return tuple(files)
+
+
+def _publish_generation(connection, words_output, ngrams_output):
+    generation_root = words_output.parent / f".{words_output.name}.{ngrams_output.name}.generations"
+    generation_root.mkdir(exist_ok=True)
+    generation = pathlib.Path(tempfile.mkdtemp(prefix="generation-", dir=generation_root))
+    words_path = generation / words_output.name
+    ngrams_path = generation / ngrams_output.name
+    pointer_temporary = None
     try:
-        for output in (words_output, ngrams_output):
-            descriptor, temporary_path = tempfile.mkstemp(
-                dir=output.parent, prefix=f".{output.name}.", suffix=".tmp", text=True
-            )
-            os.close(descriptor)
-            temporary_paths.append(pathlib.Path(temporary_path))
         word_maximum = connection.execute("SELECT MAX(count) FROM word_counts").fetchone()[0]
-        with temporary_paths[0].open("w", encoding="utf-8", newline="\n") as output:
+        with words_path.open("w", encoding="utf-8", newline="\n") as output:
             for word, count in connection.execute("SELECT word, count FROM word_counts ORDER BY word"):
                 output.write(f"{word}\t{score(count, word_maximum)}\n")
+            output.flush()
+            os.fsync(output.fileno())
         ngram_maximum = _ngram_maximum(connection)
-        with temporary_paths[1].open("w", encoding="utf-8", newline="\n") as output:
+        with ngrams_path.open("w", encoding="utf-8", newline="\n") as output:
             for context, target, count in connection.execute(
                 "SELECT context, target, count FROM selected ORDER BY context, target"
             ):
                 output.write(f"{context}\t{target}\t{score(count, ngram_maximum)}\n")
-        for output in (words_output, ngrams_output):
-            if output.exists():
-                descriptor, backup = tempfile.mkstemp(
-                    dir=output.parent, prefix=f".{output.name}.", suffix=".bak", text=True
-                )
-                os.close(descriptor)
-                backup_path = pathlib.Path(backup)
-                os.replace(output, backup_path)
-            else:
-                backup_path = None
-            backups.append((output, backup_path))
-        for temporary_path, output in zip(temporary_paths, (words_output, ngrams_output)):
-            os.replace(temporary_path, output)
-            replaced.append(output)
-    except Exception:
-        for output in replaced:
-            output.unlink(missing_ok=True)
-        for output, backup_path in backups:
-            if backup_path is not None and backup_path.exists():
-                os.replace(backup_path, output)
-        raise
+            output.flush()
+            os.fsync(output.fileno())
+        _sync_directory(generation)
+        pointer = current_manifest_path(words_output, ngrams_output)
+        manifest = {
+            "format_version": 1,
+            "words": {
+                "path": str(words_path.relative_to(pointer.parent)),
+                "sha256": _sha256(words_path),
+            },
+            "ngrams": {
+                "path": str(ngrams_path.relative_to(pointer.parent)),
+                "sha256": _sha256(ngrams_path),
+            },
+        }
+        descriptor, temporary = tempfile.mkstemp(
+            dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".tmp", text=True
+        )
+        pointer_temporary = pathlib.Path(temporary)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as output:
+            json.dump(manifest, output, sort_keys=True, separators=(",", ":"))
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(pointer_temporary, pointer)
+        _sync_directory(pointer.parent)
     finally:
-        for temporary_path in temporary_paths:
-            temporary_path.unlink(missing_ok=True)
-        for _, backup_path in backups:
-            if backup_path is not None:
-                backup_path.unlink(missing_ok=True)
+        if pointer_temporary is not None:
+            pointer_temporary.unlink(missing_ok=True)
 
 
 def _ngram_maximum(connection):
     return connection.execute("SELECT MAX(count) FROM selected").fetchone()[0]
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sync_directory(directory):
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _positive_integer(value):
