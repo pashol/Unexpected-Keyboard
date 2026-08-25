@@ -174,6 +174,66 @@ class ImportArchiMobTest(unittest.TestCase):
 
             self.assertEqual(original_pointer, pointer.read_bytes())
 
+    def test_active_manifest_failure_keeps_the_prior_report_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "archimob.txt"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            report_path = directory / "report.json"
+            input_path.write_text("Mär gönd nöd hei.\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path, report_path)
+            pointer = importer.import_google_books_ngrams.current_manifest_path(words_path, ngrams_path)
+            original = (pointer.read_bytes(), report_path.read_bytes())
+            input_path.write_text("Mär gönd gärn hei.\n", encoding="utf-8")
+            replace = importer.import_google_books_ngrams.os.replace
+
+            def fail_manifest_replace(source, destination):
+                if pathlib.Path(destination) == pointer:
+                    raise OSError("simulated active manifest failure")
+                replace(source, destination)
+
+            with mock.patch.object(
+                importer.import_google_books_ngrams.os, "replace", side_effect=fail_manifest_replace
+            ):
+                with self.assertRaisesRegex(OSError, "active manifest"):
+                    self._run_main(input_path, words_path, ngrams_path, report_path)
+
+            self.assertEqual(original, (pointer.read_bytes(), report_path.read_bytes()))
+
+    def test_receipt_failure_rolls_back_the_active_generation(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "archimob.txt"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            report_path = directory / "report.json"
+            input_path.write_text("Mär gönd nöd hei.\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path, report_path)
+            pointer = importer.import_google_books_ngrams.current_manifest_path(words_path, ngrams_path)
+            original = (pointer.read_bytes(), report_path.read_bytes())
+            input_path.write_text("Mär gönd gärn hei.\n", encoding="utf-8")
+            replace = importer.import_google_books_ngrams.os.replace
+            active_manifest_replaced = False
+
+            def fail_receipt_after_manifest_replace(source, destination):
+                nonlocal active_manifest_replaced
+                if pathlib.Path(destination) == pointer:
+                    active_manifest_replaced = True
+                if pathlib.Path(destination) == report_path and active_manifest_replaced:
+                    raise OSError("simulated receipt failure")
+                replace(source, destination)
+
+            with mock.patch.object(
+                importer.import_google_books_ngrams.os,
+                "replace",
+                side_effect=fail_receipt_after_manifest_replace,
+            ):
+                with self.assertRaisesRegex(OSError, "receipt failure"):
+                    self._run_main(input_path, words_path, ngrams_path, report_path)
+
+            self.assertEqual(original, (pointer.read_bytes(), report_path.read_bytes()))
+
     def test_main_parses_the_same_descriptor_that_it_hashes(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)

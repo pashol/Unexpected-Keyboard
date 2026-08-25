@@ -183,6 +183,10 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
     report_path = None
     pointer_temporary = None
     receipt_temporary = None
+    rollback_temporary = None
+    receipt_rollback_temporary = None
+    receipt_output = None
+    receipt_published = False
     try:
         word_maximum = connection.execute("SELECT MAX(count) FROM word_counts").fetchone()[0]
         with words_path.open("w", encoding="utf-8", newline="\n") as output:
@@ -248,6 +252,16 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
                 output.write("\n")
                 output.flush()
                 os.fsync(output.fileno())
+            if receipt_output.is_file():
+                descriptor, temporary = tempfile.mkstemp(
+                    dir=receipt_output.parent, prefix=f".{receipt_output.name}.", suffix=".rollback", text=False
+                )
+                receipt_rollback_temporary = pathlib.Path(temporary)
+                with os.fdopen(descriptor, "wb") as output:
+                    output.write(receipt_output.read_bytes())
+                    output.flush()
+                    os.fsync(output.fileno())
+            _sync_directory(receipt_output.parent)
         descriptor, temporary = tempfile.mkstemp(
             dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".tmp", text=True
         )
@@ -256,17 +270,52 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
             output.write(manifest_contents)
             output.flush()
             os.fsync(output.fileno())
-        if receipt_temporary is not None:
-            os.replace(receipt_temporary, receipt_output)
-            receipt_temporary = None
-            _sync_directory(receipt_output.parent)
+        if receipt_temporary is not None and pointer.is_file():
+            descriptor, temporary = tempfile.mkstemp(
+                dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".rollback", text=False
+            )
+            rollback_temporary = pathlib.Path(temporary)
+            with os.fdopen(descriptor, "wb") as output:
+                output.write(pointer.read_bytes())
+                output.flush()
+                os.fsync(output.fileno())
+            _sync_directory(pointer.parent)
         os.replace(pointer_temporary, pointer)
+        pointer_temporary = None
         _sync_directory(pointer.parent)
+        if receipt_temporary is not None:
+            try:
+                os.replace(receipt_temporary, receipt_output)
+                receipt_temporary = None
+                receipt_published = True
+                _sync_directory(receipt_output.parent)
+            except Exception:
+                try:
+                    if receipt_published:
+                        if receipt_rollback_temporary is None:
+                            receipt_output.unlink(missing_ok=True)
+                        else:
+                            os.replace(receipt_rollback_temporary, receipt_output)
+                            receipt_rollback_temporary = None
+                        _sync_directory(receipt_output.parent)
+                    if rollback_temporary is None:
+                        pointer.unlink(missing_ok=True)
+                    else:
+                        os.replace(rollback_temporary, pointer)
+                        rollback_temporary = None
+                    _sync_directory(pointer.parent)
+                except Exception as rollback_error:
+                    raise RuntimeError("receipt publication failed and active manifest rollback failed") from rollback_error
+                raise
     finally:
         if pointer_temporary is not None:
             pointer_temporary.unlink(missing_ok=True)
         if receipt_temporary is not None:
             receipt_temporary.unlink(missing_ok=True)
+        if rollback_temporary is not None:
+            rollback_temporary.unlink(missing_ok=True)
+        if receipt_rollback_temporary is not None:
+            receipt_rollback_temporary.unlink(missing_ok=True)
 
 
 def _ngram_maximum(connection):

@@ -65,8 +65,14 @@ path is atomically replaced with a format-1 JSON receipt, not a mutable copy
 of that report. Its `active_generation.current_manifest_sha256` must equal the
 SHA-256 of the active TSV generation pointer, and its
 `active_generation.report_sha256` must equal that pointer's immutable report
-hash. The receipt is staged before the active pointer is replaced, so a report
-publication failure cannot advance the active generation.
+hash. Its temporary receipt is staged before the active pointer is replaced,
+but the requested path is not made visible until after that replacement
+succeeds. If active-pointer replacement fails, both its prior value and the
+prior receipt remain visible. If receipt replacement fails after the active
+pointer changes, the importer atomically restores the prior receipt (if it was
+made visible) and prior active pointer; if either restoration itself fails,
+the command fails with an explicit rollback error and neither publication can
+be considered current.
 
 Intermediate TSVs, receipts, transcript exports, and all corpus data are build
 inputs and must not be committed to Git.
