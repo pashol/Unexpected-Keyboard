@@ -236,13 +236,15 @@ class BuildLanguagePackTest(unittest.TestCase):
             directory = pathlib.Path(temporary_directory)
             words = directory / "words.tsv"
             words.write_text("hello\t1\n", encoding="utf-8")
-            lock_hash = "a" * 64
-            lock_url = "https://example.invalid/corpus"
-            lock_version = "v3"
+            lock = {
+                "state": "locked", "url": "https://example.invalid/corpus", "version": "v3",
+                "shards": [{"name": "2-00000-of-00001.gz", "sha256": "a" * 64}],
+            }
+            lock_hash = build_language_pack.acquisition_lock_sha256(lock)
             provenance = {
                 "corpus": {
                     "type": "external_corpus", "license": "CC BY 3.0",
-                    "source_sha256": lock_hash, "url": lock_url, "version": lock_version,
+                    "source_sha256": lock_hash, "url": lock["url"], "version": lock["version"],
                 },
                 "generated_words": {
                     "license": "CC BY 3.0", "source_path": "words.tsv",
@@ -253,42 +255,36 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertEqual(
                 provenance,
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 ),
             )
             provenance["corpus"]["url"] = "https://example.invalid/other"
             with self.assertRaisesRegex(ValueError, "source URL"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 )
-            provenance["corpus"]["url"] = lock_url
+            provenance["corpus"]["url"] = lock["url"]
             provenance["corpus"]["version"] = "v2"
             with self.assertRaisesRegex(ValueError, "source version"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 )
-            provenance["corpus"]["version"] = lock_version
+            provenance["corpus"]["version"] = lock["version"]
             provenance["corpus"]["source_path"] = "words.tsv"
             with self.assertRaisesRegex(ValueError, "must not declare source_path"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 )
             provenance["corpus"].pop("source_path")
             provenance["corpus"]["source_sha256"] = "b" * 64
             with self.assertRaisesRegex(ValueError, "acquisition lock"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 )
             provenance.pop("corpus")
             with self.assertRaisesRegex(ValueError, "exactly one external corpus"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash,
-                    external_source_url=lock_url, external_source_version=lock_version,
+                    provenance, directory, [words], acquisition_lock=lock,
                 )
 
     def test_ready_gsw_promotion_requires_locked_external_provenance_and_nc_sa_attribution(self):
@@ -942,6 +938,100 @@ class BuildLanguagePackTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "does not match its manifest"):
                 build_language_pack.load_language_packs(registry_path)
+
+class MultiShardProvenanceTest(unittest.TestCase):
+    LOCK = {
+        "state": "locked",
+        "url": "https://example.test/src",
+        "version": "v1",
+        "shards": [
+            {"name": "a.combined", "sha256": "a" * 64},
+            {"name": "b.combined", "sha256": "b" * 64},
+        ],
+    }
+
+    @staticmethod
+    def _corpus(name, sha, shard=None):
+        source = {
+            "type": "external_corpus",
+            "license": "Test License",
+            "source_sha256": sha,
+            "url": "https://example.test/" + name,
+            "version": "v1",
+        }
+        if shard is not None:
+            source["shard"] = shard
+        return source
+
+    def test_multi_shard_accepts_one_corpus_per_shard(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "a" * 64, "a.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "b.combined"),
+        }
+        self.assertEqual(
+            provenance,
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK),
+        )
+
+    def test_multi_shard_rejects_duplicate_shard_name(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "a" * 64, "a.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "a.combined"),
+        }
+        with self.assertRaisesRegex(ValueError, "unique acquisition shard"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_multi_shard_rejects_unknown_shard_name(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "a" * 64, "missing.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "b.combined"),
+        }
+        with self.assertRaisesRegex(ValueError, "unique acquisition shard"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_multi_shard_rejects_incomplete_coverage(self):
+        provenance = {"s1": self._corpus("a.combined", "a" * 64, "a.combined")}
+        with self.assertRaisesRegex(ValueError, "cover every acquisition shard"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_multi_shard_rejects_shard_hash_mismatch(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "c" * 64, "a.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "b.combined"),
+        }
+        with self.assertRaisesRegex(ValueError, "must match its acquisition shard"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_single_shard_keeps_canonical_lock_hash_semantics(self):
+        single = {
+            "state": "locked",
+            "url": "https://example.test/src",
+            "version": "v1",
+            "shards": [{"name": "one.zip", "sha256": "1" * 64}],
+        }
+        provenance = {
+            "only": self._corpus(
+                "one.zip",
+                build_language_pack.acquisition_lock_sha256(single),
+            )
+        }
+        provenance["only"]["url"] = single["url"]
+        self.assertEqual(
+            provenance,
+            build_language_pack.validate_provenance(provenance, acquisition_lock=single),
+        )
+
+    def test_single_shard_still_rejects_foreign_hash(self):
+        single = {
+            "state": "locked",
+            "url": "https://example.test/src",
+            "version": "v1",
+            "shards": [{"name": "one.zip", "sha256": "1" * 64}],
+        }
+        provenance = {"only": self._corpus("one.zip", "2" * 64)}
+        with self.assertRaisesRegex(ValueError, "must match the acquisition lock"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=single)
+
 
 if __name__ == "__main__":
     unittest.main()

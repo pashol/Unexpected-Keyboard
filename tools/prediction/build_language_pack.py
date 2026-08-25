@@ -285,8 +285,7 @@ def acquisition_lock_sha256(lock):
 
 
 def validate_provenance(
-        provenance, provenance_directory=None, declared_inputs=None, external_source_sha256=None,
-        external_source_url=None, external_source_version=None):
+        provenance, provenance_directory=None, declared_inputs=None, acquisition_lock=None):
     if not isinstance(provenance, dict) or not provenance:
         raise ValueError("provenance must be a nonempty object")
     if GENERATED_SOURCE_NAMES.intersection(provenance):
@@ -333,15 +332,33 @@ def validate_provenance(
                 raise ValueError("provenance source_path must name a declared input file")
             if not path.is_file() or sha256(path) != source_sha256:
                 raise ValueError("provenance source hash does not match its declared input file")
-    if external_source_sha256 is not None:
-        if len(external_corpora) != 1:
-            raise ValueError("ready pack provenance must contain exactly one external corpus")
-        if external_corpora[0]["source_sha256"] != external_source_sha256:
-            raise ValueError("external corpus hash must match the acquisition lock")
-        if external_corpora[0]["url"] != external_source_url:
-            raise ValueError("external corpus source URL must match the acquisition lock")
-        if external_corpora[0]["version"] != external_source_version:
-            raise ValueError("external corpus source version must match the acquisition lock")
+    if acquisition_lock is not None:
+        shards = acquisition_lock["shards"]
+        if len(shards) == 1:
+            if len(external_corpora) != 1:
+                raise ValueError("ready pack provenance must contain exactly one external corpus")
+            corpus = external_corpora[0]
+            if corpus["source_sha256"] != acquisition_lock_sha256(acquisition_lock):
+                raise ValueError("external corpus hash must match the acquisition lock")
+            if corpus["url"] != acquisition_lock["url"]:
+                raise ValueError("external corpus source URL must match the acquisition lock")
+            if corpus["version"] != acquisition_lock["version"]:
+                raise ValueError("external corpus source version must match the acquisition lock")
+            return provenance
+        matched = {}
+        for corpus in external_corpora:
+            shard_name = corpus.get("shard")
+            if not isinstance(shard_name, str) or shard_name in matched or not any(
+                    shard["name"] == shard_name for shard in shards):
+                raise ValueError(
+                    "multi-shard provenance corpora must declare unique acquisition shard names"
+                )
+            matched[shard_name] = corpus
+        if len(matched) != len(shards):
+            raise ValueError("multi-shard provenance must cover every acquisition shard")
+        for shard in shards:
+            if matched[shard["name"]]["source_sha256"] != shard["sha256"]:
+                raise ValueError("provenance corpus hash must match its acquisition shard")
     return provenance
 
 
@@ -384,15 +401,12 @@ def validate_registry_entry(pack, fixture_only=False):
 
 
 def validate_ready_pack_assets(pack, manifest, attribution):
-    lock = pack["acquisition_lock"]
     sources = manifest.get("sources")
     if not isinstance(sources, dict):
         raise ValueError("ready pack manifest must declare provenance sources")
     validate_provenance(
         {name: source for name, source in sources.items() if name not in GENERATED_SOURCE_NAMES},
-        external_source_sha256=pack["source_sha256"],
-        external_source_url=lock["url"],
-        external_source_version=lock["version"],
+        acquisition_lock=pack["acquisition_lock"],
     )
     if pack["locale"] == "gsw":
         required_notice = (
@@ -666,9 +680,7 @@ def main():
                     args.word_frequency_tsv: word_frequency_tsv,
                     args.ngram_tsv: ngram_tsv,
                 },
-                external_source_sha256=pack.get("source_sha256"),
-                external_source_url=lock.get("url") if isinstance(lock, dict) else None,
-                external_source_version=lock.get("version") if isinstance(lock, dict) else None,
+                acquisition_lock=lock if isinstance(lock, dict) else None,
         )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
