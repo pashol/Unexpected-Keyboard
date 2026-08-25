@@ -61,13 +61,14 @@ public class PredictionSessionControllerTest
   {
     String registry = "{\"format_version\":202,\"packs\":["
       + "{\"dictionary\":\"de.dict\",\"locale\":\"de\",\"manifest\":\"de.json\",\"state\":\"ready\"},"
+      + "{\"dictionary\":\"de-CH.dict\",\"locale\":\"de-CH\",\"manifest\":\"de-CH.json\",\"state\":\"ready\"},"
       + "{\"dictionary\":\"gsw.dict\",\"locale\":\"gsw\",\"manifest\":\"gsw.json\",\"state\":\"ready\"},"
       + "{\"dictionary\":\"gsw-CH.dict\",\"locale\":\"gsw-CH\",\"manifest\":\"gsw-CH.json\",\"state\":\"ready\"}]}";
 
     assertEquals("gsw-CH.dict", ProductionPredictionPack.select(registry, "gsw-CH").dictionary_asset());
     assertEquals("gsw.dict", ProductionPredictionPack.select(registry, "gsw").dictionary_asset());
     assertEquals("gsw.dict", ProductionPredictionPack.select(registry, "gsw-LI").dictionary_asset());
-    assertEquals("de.dict", ProductionPredictionPack.select(registry, "de-CH").dictionary_asset());
+    assertEquals("de-CH.dict", ProductionPredictionPack.select(registry, "de-CH").dictionary_asset());
     assertNull(ProductionPredictionPack.select(registry, "fr-FR"));
   }
 

@@ -27,8 +27,8 @@
     }
   },
   "importer_reports": {
-    "generation_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "generation_report_sha256": "8a0444f6d3436648ac6bb71e638782fa40b66951112a9802ac57f896c8331f69"
+    "generation_manifest_sha256": "71550efed8c8c08caf28f2d9bf94bb9039c75e7bf0bda1d76391809172447baf",
+    "generation_report_sha256": "90829c8b0943d9d9beb37a2f7d0d2308c218dc8fe3a77a8dddf4aab600982268"
   },
   "locale": "de-CH",
   "source_provenance": {

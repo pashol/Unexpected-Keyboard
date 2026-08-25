@@ -79,6 +79,32 @@ class ImportEcdcTmTest(unittest.TestCase):
 
         self.assertEqual([["Stay", "safe"]], sequences["en"])
 
+    def test_archive_rejects_unsafe_or_ambiguous_members(self):
+        for names in (("../ECDC-TM.tmx",), ("one.tmx", "two.tmx")):
+            data = io.BytesIO()
+            with zipfile.ZipFile(data, "w") as archive:
+                for name in names:
+                    archive.writestr(name, "<tmx><body/></tmx>")
+            with self.subTest(names=names), self.assertRaisesRegex(ValueError, "unsafe|exactly one"):
+                importer.archive_sequences(io.BytesIO(data.getvalue()))
+
+    def test_archive_rejects_entities_and_malformed_zip(self):
+        for contents in (b"not a zip", self._archive_bytes("<!DOCTYPE tmx [<!ENTITY x 'x'>]><tmx><body/></tmx>")):
+            with self.subTest(contents=contents[:8]), self.assertRaisesRegex(ValueError, "malformed|DTD"):
+                importer.archive_sequences(io.BytesIO(contents))
+
+    def test_archive_rejects_excess_members_and_compression_ratio(self):
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("ECDC-TM.tmx", "x" * 1000)
+            archive.writestr("extra", "x")
+        with mock.patch.object(importer, "MAX_ARCHIVE_MEMBERS", 1):
+            with self.assertRaisesRegex(ValueError, "entry count"):
+                importer.archive_sequences(io.BytesIO(data.getvalue()))
+        with mock.patch.object(importer, "MAX_COMPRESSION_RATIO", 1):
+            with self.assertRaisesRegex(ValueError, "TMX XML"):
+                importer.archive_sequences(io.BytesIO(data.getvalue()))
+
     def _archive(self, contents):
         return io.BytesIO(self._archive_bytes(contents))
 

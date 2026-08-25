@@ -5,7 +5,7 @@
       "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.en.md",
       "attestation": "en.attestation.json",
-      "attestation_sha256": "d250ad47f3c4c1bf9a98a7df4f3855097383b0316ded2dd6ba2a9a6e638aee96",
+      "attestation_sha256": "405919a0e6100bfbcfe357b9d5f8de5004d3e674d89341d790c0df7ce122658b",
       "acquisition_lock": {
         "shards": [
           {
@@ -32,7 +32,7 @@
       "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.de.md",
       "attestation": "de.attestation.json",
-      "attestation_sha256": "22020d44c28c851d67c089c5c14d7b2becbd891a7424867da4e0f1164e15cdcf",
+      "attestation_sha256": "951c05f8d4b6efe2a2786e5e9eaba066008540c7452e761c620fdd432859bc9f",
       "acquisition_lock": {
         "shards": [
           {
@@ -59,7 +59,7 @@
       "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.de.md",
       "attestation": "de-CH.attestation.json",
-      "attestation_sha256": "28feeb4ab5389b83b3cad9784cd3215cc1f48e4a14c821713dc69654705d6409",
+      "attestation_sha256": "aed9845c31b09f616771adb89784498fbe0f97483f66bad1175ebbdabdb8a6bb",
       "acquisition_lock": {
         "shards": [
           {

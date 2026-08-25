@@ -25,3 +25,9 @@ The corpus comprises professionally translated ECDC public-health material. Its
 vocabulary and next-word distributions are public-health biased, so these compact
 packs are not general-purpose language models. Never commit the archive, TMX,
 generated TSVs, combined source, or generation reports.
+
+Promotion uses `SOURCE_DATE_EPOCH=0`, the pinned AOSP checkout, and JDK
+`17.0.19`. Record the active `*.current.json` SHA-256 and its generation report
+SHA-256 in each attestation, alongside the generated TSV and source archive
+hashes. `verify_production_language_packs.py` validates the committed
+registry-to-attestation-to-manifest chain without retaining the external inputs.
