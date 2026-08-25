@@ -111,6 +111,7 @@ def main():
         arguments.input.resolve(), arguments.words_output.resolve(), arguments.ngrams_output.resolve(),
     }:
         raise ValueError("input, output, and report paths must differ")
+    _validate_report_output_path(arguments.report_output, arguments.words_output, arguments.ngrams_output)
     actual_hash = _sha256(arguments.input)
     if actual_hash != arguments.source_sha256:
         raise ValueError("source SHA-256 does not match --source-sha256")
@@ -121,6 +122,14 @@ def main():
     _publish_generation(words, ngrams, arguments.words_output, arguments.ngrams_output)
     report["source_sha256"] = actual_hash
     _publish_report(report, arguments.report_output)
+
+
+def _validate_report_output_path(report_output, words_output, ngrams_output):
+    report_output = report_output.resolve()
+    pointer = import_google_books_ngrams.current_manifest_path(words_output, ngrams_output).resolve()
+    generation_root = import_google_books_ngrams.generation_root_path(words_output, ngrams_output).resolve()
+    if report_output == pointer or report_output == generation_root or generation_root in report_output.parents:
+        raise ValueError("report output must not overlap active publication paths")
 
 
 def _publish_generation(words, ngrams, words_output, ngrams_output):

@@ -1,25 +1,37 @@
 # ArchiMob transcript source
 
 The Swiss German (`gsw`) importer accepts only an explicitly acquired UTF-8
-**text transcript export** from the ArchiMob study. It never downloads a
-corpus. The catalogue record is [ArchiMob on SwissuBase](https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview).
-Use only a transcript version whose text rights are explicitly stated as
-CC BY-NC-SA 4.0. Do not use ArchiMob audio or annotations with separate terms.
+**text transcript export** from ArchiMob. It never downloads a corpus. Its
+source scope excludes ArchiMob audio and annotations with separate terms. The
+concrete source record is SwissuBase study `20154`, catalogue record `19410`:
+<https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview>. Use
+only a transcript export whose text rights are explicitly stated as CC
+BY-NC-SA 4.0.
 
 ArchiMob transcript-derived TSVs and any resulting `gsw` binary are licensed
 under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
-Releases must attribute ArchiMob and the transcript version, state that this
-project filtered and transformed the transcript into frequency data, preserve
-the ShareAlike requirement, and remain non-commercial. A commercial or
-otherwise incompatible `gsw` distribution is not permitted.
+Every generated asset must carry this attribution statement:
+
+> Source: ArchiMob text transcripts (SwissuBase study 20154, catalogue record
+> 19410), https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview,
+> CC BY-NC-SA 4.0, https://creativecommons.org/licenses/by-nc-sa/4.0/.
+> Modified by Unexpected Keyboard: filtered and transformed into word and
+> bigram frequency data.
+
+Release notices must preserve the ShareAlike requirement and remain
+non-commercial. A commercial or otherwise incompatible `gsw` distribution is
+not permitted.
 
 ## Acquisition lock
 
-Before running the importer, record the catalogue URL, exact transcript
-version/export identity, retrieval date, and SHA-256 of the acquired export in
-the source review record. The source hash is an acquisition lock: pass that
-exact value as `--source-sha256`, and the importer rejects a different input
-before it decodes or processes transcript text.
+Before running the importer, the release record must contain the export
+version, export date, exporter or source-file identity, and SHA-256 of the
+acquired export, as well as the catalogue URL. The source hash is an
+acquisition lock: pass that exact value as `--source-sha256`, and the importer
+rejects a different input before it decodes or processes transcript text.
+This document intentionally does not invent an export version, date, source
+file identity, or hash. No `gsw` pack can be promoted to `ready` until the
+actual values are locked in its registry entry and provenance record.
 
 ```bash
 python3 -m tools.prediction.import_archimob \

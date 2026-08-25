@@ -91,6 +91,26 @@ class ImportArchiMobTest(unittest.TestCase):
             self.assertFalse(ngrams_path.exists())
             self.assertFalse(report_path.exists())
 
+    def test_main_rejects_report_output_at_active_publication_paths(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "archimob.txt"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("Mär gönd nöd hei.\n", encoding="utf-8")
+            publication_paths = (
+                importer.import_google_books_ngrams.current_manifest_path(words_path, ngrams_path),
+                importer.import_google_books_ngrams.generation_root_path(words_path, ngrams_path),
+            )
+
+            for report_path in publication_paths:
+                with self.subTest(report_path=report_path):
+                    with self.assertRaisesRegex(ValueError, "publication paths"):
+                        self._run_main(input_path, words_path, ngrams_path, report_path)
+                    self.assertFalse(words_path.exists())
+                    self.assertFalse(ngrams_path.exists())
+                    self.assertFalse(report_path.exists())
+
     def _run_main(self, input_path, words_path, ngrams_path, report_path, source_sha256=None):
         arguments = [
             "import_archimob.py", "--input", str(input_path),
