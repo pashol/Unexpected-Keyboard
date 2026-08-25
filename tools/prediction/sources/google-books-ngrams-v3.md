@@ -66,6 +66,12 @@ validation and obtain the selected paths. That resolver also rejects a manifest
 unless both paths are under the deterministic generation root and retain the
 supplied word and n-gram output filenames.
 
+`build_language_pack.py` accepts these normal output paths. In provenance,
+`source_path` continues to name the stable supplied output path; its
+`source_sha256` is checked against the corresponding hash-verified selected
+generation file. Plain TSV inputs without a current manifest continue to use
+their supplied path for both identity and hashing.
+
 ## Command template
 
 ```sh

@@ -62,6 +62,56 @@ class BuildLanguagePackTest(unittest.TestCase):
                 build_language_pack.combined_source("en", words, ngrams),
             )
 
+    def test_main_validates_provenance_stable_paths_against_imported_generation_content(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            source = directory / "input.tsv"
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            provenance_path = directory / "provenance.json"
+            registry_path = directory / "language_packs.json"
+            source.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+            registry_path.write_text("{}", encoding="utf-8")
+            import_arguments = [
+                "import_google_books_ngrams.py", "--input", str(source), "--locale", "en",
+                "--words-output", str(words), "--ngrams-output", str(ngrams),
+                "--minimum-count", "1", "--top-targets", "1",
+            ]
+            with mock.patch.object(sys, "argv", import_arguments):
+                import_google_books_ngrams.main()
+            selected_words, selected_ngrams = import_google_books_ngrams.load_current_generation(
+                words, ngrams
+            )
+            provenance_path.write_text(json.dumps({
+                "ngrams": {
+                    "license": "CC0-1.0", "source_path": "ngrams.tsv",
+                    "source_sha256": hashlib.sha256(selected_ngrams.read_bytes()).hexdigest(),
+                },
+                "words": {
+                    "license": "CC0-1.0", "source_path": "words.tsv",
+                    "source_sha256": hashlib.sha256(selected_words.read_bytes()).hexdigest(),
+                },
+            }), encoding="utf-8")
+            pack = {
+                "locale": "en", "word_frequency_tsv": "words.tsv", "ngram_tsv": "ngrams.tsv",
+                "provenance": "provenance.json",
+            }
+            arguments = [
+                "build_language_pack.py", "--source", str(directory / "aosp"), "--locale", "en",
+                "--word-frequency-tsv", str(words), "--ngram-tsv", str(ngrams),
+                "--provenance", str(provenance_path), "--registry", str(registry_path),
+                "--output", str(directory / "en.dict"), "--manifest", str(directory / "en.json"),
+            ]
+
+            with mock.patch.object(sys, "argv", arguments), \
+                    mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "0"}), \
+                    mock.patch.object(build_language_pack, "load_language_packs", return_value=[pack]), \
+                    mock.patch.object(build_language_pack, "verified_checkout", return_value=directory), \
+                    mock.patch.object(build_language_pack, "build") as build:
+                build_language_pack.main()
+
+            self.assertTrue(build.called)
+
     def test_duplicate_tsv_rows_use_the_highest_frequency_independent_of_order(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)

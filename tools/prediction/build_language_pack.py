@@ -265,8 +265,16 @@ def validate_provenance(provenance, provenance_directory=None, declared_inputs=N
             source_path = source.get("source_path")
             if not isinstance(source_path, str) or not source_path:
                 raise ValueError("provenance sources must declare a source_path")
-            path = (provenance_directory / source_path).resolve()
-            if path not in {declared.resolve() for declared in declared_inputs}:
+            stable_path = (provenance_directory / source_path).resolve()
+            if isinstance(declared_inputs, dict):
+                declared = {
+                    pathlib.Path(stable).resolve(): pathlib.Path(resolved).resolve()
+                    for stable, resolved in declared_inputs.items()
+                }
+            else:
+                declared = {path.resolve(): path.resolve() for path in declared_inputs}
+            path = declared.get(stable_path)
+            if path is None:
                 raise ValueError("provenance source_path must name a declared input file")
             if not path.is_file() or sha256(path) != source_sha256:
                 raise ValueError("provenance source hash does not match its declared input file")
@@ -488,7 +496,10 @@ def main():
         provenance = validate_provenance(
             json.loads(args.provenance.read_text(encoding="utf-8")),
             args.provenance.parent,
-            [word_frequency_tsv, ngram_tsv],
+            {
+                args.word_frequency_tsv: word_frequency_tsv,
+                args.ngram_tsv: ngram_tsv,
+            },
         )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
