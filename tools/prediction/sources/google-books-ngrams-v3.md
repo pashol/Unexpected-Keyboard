@@ -34,6 +34,15 @@ token token<TAB>year<TAB>match_count<TAB>volume_count
 ```
 
 The importer aggregates `match_count` across years, not `volume_count`.
+It uses a temporary SQLite database on local disk while aggregating and ranking
+shards, so provide temporary-disk capacity for the input's distinct bigrams and
+derived word counts. The temporary database is removed after the import.
+
+Tokens may contain normal lexical punctuation, including apostrophes and
+hyphens, such as `don't`, `night's`, `d'Frau`, and `well-known`. Whitespace and
+Unicode control characters are rejected. Commas and equals signs are also
+rejected because they are unescaped delimiters in the generated LatinIME combined
+source format.
 
 ## Command template
 
