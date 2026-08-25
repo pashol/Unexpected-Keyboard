@@ -234,6 +234,46 @@ class ImportArchiMobTest(unittest.TestCase):
 
             self.assertEqual(original, (pointer.read_bytes(), report_path.read_bytes()))
 
+    def test_pointer_parent_sync_failure_rolls_back_the_active_generation(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "archimob.txt"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            report_path = directory / "report.json"
+            input_path.write_text("Mär gönd nöd hei.\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path, report_path)
+            pointer = importer.import_google_books_ngrams.current_manifest_path(words_path, ngrams_path)
+            original = (pointer.read_bytes(), report_path.read_bytes())
+            input_path.write_text("Mär gönd gärn hei.\n", encoding="utf-8")
+            replace = importer.import_google_books_ngrams.os.replace
+            sync_directory = importer.import_google_books_ngrams._sync_directory
+            pointer_replaced = False
+            fail_once = True
+
+            def track_pointer_replace(source, destination):
+                nonlocal pointer_replaced
+                if pathlib.Path(destination) == pointer:
+                    pointer_replaced = True
+                replace(source, destination)
+
+            def fail_pointer_parent_sync(sync_path):
+                nonlocal fail_once
+                if pointer_replaced and fail_once and pathlib.Path(sync_path) == pointer.parent:
+                    fail_once = False
+                    raise OSError("simulated pointer parent sync failure")
+                sync_directory(sync_path)
+
+            with mock.patch.object(
+                importer.import_google_books_ngrams.os, "replace", side_effect=track_pointer_replace
+            ), mock.patch.object(
+                importer.import_google_books_ngrams, "_sync_directory", side_effect=fail_pointer_parent_sync
+            ):
+                with self.assertRaisesRegex(OSError, "pointer parent sync"):
+                    self._run_main(input_path, words_path, ngrams_path, report_path)
+
+            self.assertEqual(original, (pointer.read_bytes(), report_path.read_bytes()))
+
     def test_main_parses_the_same_descriptor_that_it_hashes(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)

@@ -67,12 +67,13 @@ SHA-256 of the active TSV generation pointer, and its
 `active_generation.report_sha256` must equal that pointer's immutable report
 hash. Its temporary receipt is staged before the active pointer is replaced,
 but the requested path is not made visible until after that replacement
-succeeds. If active-pointer replacement fails, both its prior value and the
-prior receipt remain visible. If receipt replacement fails after the active
-pointer changes, the importer atomically restores the prior receipt (if it was
-made visible) and prior active pointer; if either restoration itself fails,
-the command fails with an explicit rollback error and neither publication can
-be considered current.
+succeeds. Active-pointer replacement and its parent-directory fsync are one
+rollback-protected transaction; if either fails, the prior pointer and receipt
+remain visible. If receipt replacement fails after the active pointer changes,
+the importer atomically restores the prior receipt (if it was made visible) and
+prior active pointer; if either restoration itself fails, the command fails
+with an explicit rollback error and neither publication can be considered
+current.
 
 Intermediate TSVs, receipts, transcript exports, and all corpus data are build
 inputs and must not be committed to Git.

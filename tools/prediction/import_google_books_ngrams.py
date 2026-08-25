@@ -270,7 +270,7 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
             output.write(manifest_contents)
             output.flush()
             os.fsync(output.fileno())
-        if receipt_temporary is not None and pointer.is_file():
+        if pointer.is_file():
             descriptor, temporary = tempfile.mkstemp(
                 dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".rollback", text=False
             )
@@ -280,9 +280,19 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
                 output.flush()
                 os.fsync(output.fileno())
             _sync_directory(pointer.parent)
-        os.replace(pointer_temporary, pointer)
-        pointer_temporary = None
-        _sync_directory(pointer.parent)
+        pointer_replaced = False
+        try:
+            os.replace(pointer_temporary, pointer)
+            pointer_temporary = None
+            pointer_replaced = True
+            _sync_directory(pointer.parent)
+        except Exception:
+            if pointer_replaced:
+                try:
+                    rollback_temporary = _restore_pointer(pointer, rollback_temporary)
+                except Exception as rollback_error:
+                    raise RuntimeError("active manifest sync failed and rollback failed") from rollback_error
+            raise
         if receipt_temporary is not None:
             try:
                 os.replace(receipt_temporary, receipt_output)
@@ -298,12 +308,7 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
                             os.replace(receipt_rollback_temporary, receipt_output)
                             receipt_rollback_temporary = None
                         _sync_directory(receipt_output.parent)
-                    if rollback_temporary is None:
-                        pointer.unlink(missing_ok=True)
-                    else:
-                        os.replace(rollback_temporary, pointer)
-                        rollback_temporary = None
-                    _sync_directory(pointer.parent)
+                    rollback_temporary = _restore_pointer(pointer, rollback_temporary)
                 except Exception as rollback_error:
                     raise RuntimeError("receipt publication failed and active manifest rollback failed") from rollback_error
                 raise
@@ -316,6 +321,16 @@ def _publish_generation(connection, words_output, ngrams_output, report=None, re
             rollback_temporary.unlink(missing_ok=True)
         if receipt_rollback_temporary is not None:
             receipt_rollback_temporary.unlink(missing_ok=True)
+
+
+def _restore_pointer(pointer, rollback_temporary):
+    if rollback_temporary is None:
+        pointer.unlink(missing_ok=True)
+    else:
+        os.replace(rollback_temporary, pointer)
+        rollback_temporary = None
+    _sync_directory(pointer.parent)
+    return rollback_temporary
 
 
 def _ngram_maximum(connection):
