@@ -377,12 +377,48 @@ class BuildLanguagePackTest(unittest.TestCase):
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
         self.assertEqual([], build_language_pack.load_language_packs(registry_path))
-        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["source_pending"]])
-        for pack in registry["source_pending"]:
+        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["packs"]])
+        for pack in registry["packs"]:
+            self.assertEqual("source_pending", pack["state"])
             self.assertIsInstance(pack["asset_license"], str)
             self.assertTrue(pack["asset_license"])
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
+            self.assertIsInstance(pack["source_id"], str)
+            self.assertTrue(pack["source_id"])
+            self.assertIsInstance(pack["source_location"], str)
+            self.assertTrue(pack["source_location"])
             self.assertFalse({"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
+
+    def test_registry_rejects_source_pending_pack_without_a_source_identifier(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry_path.write_text(json.dumps({
+                "format_version": 202,
+                "packs": [{
+                    "asset_license": "CC BY 3.0",
+                    "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "locale": "en",
+                    "source_location": "outside-version-control/example",
+                    "state": "source_pending",
+                }],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "source_id"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_registry_rejects_an_unknown_pack_state(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
+            registry["packs"] = [registry["packs"][0]]
+            registry["packs"][0]["attribution"] = str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve())
+            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
+            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["state"] = "unknown"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "state"):
+                build_language_pack.load_language_packs(registry_path)
 
     def test_gsw_attribution_names_generated_asset_license_obligations(self):
         attribution = (ROOT / "assets" / "latinime" / "packs" / "ATTRIBUTION.gsw.md").read_text(encoding="utf-8")

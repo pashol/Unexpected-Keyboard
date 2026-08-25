@@ -1,26 +1,37 @@
 {
   "format_version": 202,
-  "packs": [],
-  "source_pending": [
+  "packs": [
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.en.md",
-      "locale": "en"
+      "locale": "en",
+      "source_id": "google-books-ngrams-v3",
+      "source_location": "outside-version-control/google-books-ngrams-v3/english-2grams",
+      "state": "source_pending"
     },
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.de.md",
-      "locale": "de"
+      "locale": "de",
+      "source_id": "google-books-ngrams-v3",
+      "source_location": "outside-version-control/google-books-ngrams-v3/german-2grams",
+      "state": "source_pending"
     },
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.de.md",
-      "locale": "de-CH"
+      "locale": "de-CH",
+      "source_id": "google-books-ngrams-v3",
+      "source_location": "outside-version-control/google-books-ngrams-v3/german-2grams",
+      "state": "source_pending"
     },
     {
       "asset_license": "CC BY-NC-SA 4.0",
       "attribution": "ATTRIBUTION.gsw.md",
-      "locale": "gsw"
+      "locale": "gsw",
+      "source_id": "archimob-text-transcripts",
+      "source_location": "outside-version-control/archimob/text-transcripts",
+      "state": "source_pending"
     }
   ]
 }

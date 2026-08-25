@@ -274,6 +274,18 @@ def validate_registry_entry(pack):
     return pack
 
 
+def validate_source_pending_registry_entry(pack):
+    required = ("asset_license", "attribution", "locale", "source_id", "source_location", "state")
+    if not isinstance(pack, dict) or any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
+        raise ValueError("source-pending language pack registry entries must declare asset_license, attribution, locale, source_id, source_location, and state")
+    if pack["state"] != "source_pending":
+        raise ValueError("source-pending language pack registry entries must declare state source_pending")
+    artifact_fields = {"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}
+    if artifact_fields.intersection(pack):
+        raise ValueError("source-pending language pack registry entries must not declare artifacts")
+    return pack
+
+
 def load_language_packs(registry_path, development_only=False):
     registry_path = registry_path.resolve()
     try:
@@ -284,6 +296,15 @@ def load_language_packs(registry_path, development_only=False):
         raise ValueError("language pack registry has an invalid format")
     packs = []
     for pack in registry["packs"]:
+        state = pack.get("state", "ready")
+        if state == "source_pending":
+            validate_source_pending_registry_entry(pack)
+            attribution = registry_path.parent / pack["attribution"]
+            if not attribution.is_file():
+                raise ValueError("language pack registry attribution file must exist")
+            continue
+        if state != "ready":
+            raise ValueError("language pack registry entry has an invalid state")
         validate_registry_entry(pack)
         attribution = registry_path.parent / pack["attribution"]
         if not attribution.is_file():
