@@ -7,7 +7,8 @@ whose manifest and output hash verify.
 Production source archives and intermediate TSV files are outside version control.
 Until a source pack is processed into a release, its `source_pending` entry
 declares its locale, license, attribution, source identifier, and source
-location without references to nonexistent artifacts. Dictionary binaries and
-manifests are checked-in, reviewable release artifacts when they are available.
-Pending entries declare the planned relative dictionary and manifest paths, but
-their files and output hash are not required until the entry becomes ready.
+location, plus planned relative dictionary and manifest paths. Those paths
+describe future assets; they do not assert that binaries or manifests exist.
+Dictionary binaries and manifests are checked-in, reviewable release artifacts
+when they are available. Pending entries do not require the planned files or an
+output hash until the entry becomes ready.
