@@ -82,11 +82,15 @@ class BuildLanguagePackTest(unittest.TestCase):
             selected_words, selected_ngrams = import_google_books_ngrams.load_current_generation(
                 words, ngrams
             )
-            lock_hash = "a" * 64
+            lock = {
+                "url": "https://example.invalid/corpus", "version": "v3",
+                "shards": [{"name": "2-00000-of-00001.gz", "sha256": "a" * 64}],
+            }
+            lock_hash = build_language_pack.acquisition_lock_sha256(lock)
             provenance_path.write_text(json.dumps({
                 "corpus": {
                     "type": "external_corpus", "license": "CC BY 3.0",
-                    "source_sha256": lock_hash, "url": "https://example.invalid/corpus",
+                    "source_sha256": lock_hash, "url": lock["url"], "version": lock["version"],
                 },
                 "ngrams": {
                     "license": "CC0-1.0", "source_path": "ngrams.tsv",
@@ -100,6 +104,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             pack = {
                 "locale": "en", "word_frequency_tsv": "words.tsv", "ngram_tsv": "ngrams.tsv",
                 "provenance": "provenance.json", "source_sha256": lock_hash,
+                "acquisition_lock": lock,
             }
             arguments = [
                 "build_language_pack.py", "--source", str(directory / "aosp"), "--locale", "en",
@@ -212,10 +217,12 @@ class BuildLanguagePackTest(unittest.TestCase):
             words = directory / "words.tsv"
             words.write_text("hello\t1\n", encoding="utf-8")
             lock_hash = "a" * 64
+            lock_url = "https://example.invalid/corpus"
+            lock_version = "v3"
             provenance = {
                 "corpus": {
                     "type": "external_corpus", "license": "CC BY 3.0",
-                    "source_sha256": lock_hash, "url": "https://example.invalid/corpus",
+                    "source_sha256": lock_hash, "url": lock_url, "version": lock_version,
                 },
                 "generated_words": {
                     "license": "CC BY 3.0", "source_path": "words.tsv",
@@ -226,25 +233,95 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertEqual(
                 provenance,
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
                 ),
             )
+            provenance["corpus"]["url"] = "https://example.invalid/other"
+            with self.assertRaisesRegex(ValueError, "source URL"):
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
+                )
+            provenance["corpus"]["url"] = lock_url
+            provenance["corpus"]["version"] = "v2"
+            with self.assertRaisesRegex(ValueError, "source version"):
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
+                )
+            provenance["corpus"]["version"] = lock_version
             provenance["corpus"]["source_path"] = "words.tsv"
             with self.assertRaisesRegex(ValueError, "must not declare source_path"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
                 )
             provenance["corpus"].pop("source_path")
             provenance["corpus"]["source_sha256"] = "b" * 64
             with self.assertRaisesRegex(ValueError, "acquisition lock"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
                 )
             provenance.pop("corpus")
             with self.assertRaisesRegex(ValueError, "exactly one external corpus"):
                 build_language_pack.validate_provenance(
-                    provenance, directory, [words], external_source_sha256=lock_hash
+                    provenance, directory, [words], external_source_sha256=lock_hash,
+                    external_source_url=lock_url, external_source_version=lock_version,
                 )
+
+    def test_ready_registry_lock_requires_canonical_shards_and_matching_aggregate_hash(self):
+        lock = {
+            "url": "https://example.invalid/exports", "version": "v3",
+            "shards": [
+                {"name": "2-b.gz", "sha256": "b" * 64},
+                {"name": "2-a.gz", "sha256": "a" * 64},
+            ],
+        }
+        aggregate = build_language_pack.acquisition_lock_sha256(lock)
+        reversed_lock = {**lock, "shards": list(reversed(lock["shards"]))}
+        self.assertEqual(aggregate, build_language_pack.acquisition_lock_sha256(reversed_lock))
+        pack = {
+            "acquisition_lock": lock, "asset_license": "CC BY 3.0",
+            "attribution": "ATTRIBUTION.en.md", "development_supported": False,
+            "dictionary": "en.dict", "locale": "en", "manifest": "en.json",
+            "ngram_tsv": "sources/en.ngrams.tsv", "output_sha256": "0" * 64,
+            "provenance": "sources/en.provenance.json", "source_sha256": aggregate,
+            "word_frequency_tsv": "sources/en.words.tsv",
+        }
+
+        self.assertEqual(pack, build_language_pack.validate_registry_entry(pack))
+        pack["source_sha256"] = "f" * 64
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            build_language_pack.validate_registry_entry(pack)
+        pack["source_sha256"] = aggregate
+        pack["acquisition_lock"] = {"url": lock["url"], "version": "v3", "shards": []}
+        with self.assertRaisesRegex(ValueError, "shards"):
+            build_language_pack.validate_registry_entry(pack)
+        for malformed_lock in (
+            None,
+            {"url": lock["url"], "shards": lock["shards"]},
+            {"url": lock["url"], "version": "v3", "shards": [{"name": "../escape", "sha256": "a" * 64}]},
+        ):
+            pack["acquisition_lock"] = malformed_lock
+            with self.subTest(lock=malformed_lock), self.assertRaisesRegex(ValueError, "acquisition_lock"):
+                build_language_pack.validate_registry_entry(pack)
+
+    def test_source_pending_lock_keeps_known_metadata_without_shard_hashes(self):
+        pack = {
+            "acquisition_lock": {
+                "state": "unlocked", "url": "https://example.invalid/exports",
+                "version": "v3", "shards": [],
+            },
+            "asset_license": "CC BY 3.0", "attribution": "ATTRIBUTION.en.md",
+            "dictionary": "en.dict", "locale": "en", "manifest": "en.json",
+            "source_metadata": "sources/en.acquisition.json", "source_revision": None,
+            "source_sha256": None, "source_url": "https://example.invalid/exports",
+            "source_version": "v3", "state": "source_pending",
+        }
+
+        self.assertEqual(pack, build_language_pack.validate_source_pending_registry_entry(pack))
 
     def test_compiler_requires_the_pinned_jdk_identity(self):
         with mock.patch.object(
@@ -509,7 +586,10 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertEqual(source_version, pack["source_version"])
             self.assertIsNone(pack["source_revision"])
             self.assertIsNone(pack["source_sha256"])
-            self.assertEqual("unlocked", pack["acquisition_lock"])
+            self.assertEqual("unlocked", pack["acquisition_lock"]["state"])
+            self.assertEqual([], pack["acquisition_lock"]["shards"])
+            self.assertEqual(source_url, pack["acquisition_lock"]["url"])
+            self.assertEqual(source_version, pack["acquisition_lock"]["version"])
             self.assertFalse(pathlib.PurePath(pack["source_metadata"]).is_absolute())
             self.assertEqual(pack["locale"] + ".dict", pack["dictionary"])
             self.assertEqual(pack["locale"] + ".json", pack["manifest"])

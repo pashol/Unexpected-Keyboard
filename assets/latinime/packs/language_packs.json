@@ -4,7 +4,12 @@
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.en.md",
-      "acquisition_lock": "unlocked",
+      "acquisition_lock": {
+        "shards": [],
+        "state": "unlocked",
+        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+        "version": "v3"
+      },
       "dictionary": "en.dict",
       "locale": "en",
       "manifest": "en.json",
@@ -18,7 +23,12 @@
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.de.md",
-      "acquisition_lock": "unlocked",
+      "acquisition_lock": {
+        "shards": [],
+        "state": "unlocked",
+        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+        "version": "v3"
+      },
       "dictionary": "de.dict",
       "locale": "de",
       "manifest": "de.json",
@@ -32,7 +42,12 @@
     {
       "asset_license": "CC BY 3.0",
       "attribution": "ATTRIBUTION.de.md",
-      "acquisition_lock": "unlocked",
+      "acquisition_lock": {
+        "shards": [],
+        "state": "unlocked",
+        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+        "version": "v3"
+      },
       "dictionary": "de-CH.dict",
       "locale": "de-CH",
       "manifest": "de-CH.json",
@@ -46,7 +61,12 @@
     {
       "asset_license": "CC BY-NC-SA 4.0",
       "attribution": "ATTRIBUTION.gsw.md",
-      "acquisition_lock": "unlocked",
+      "acquisition_lock": {
+        "shards": [],
+        "state": "unlocked",
+        "url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
+        "version": null
+      },
       "dictionary": "gsw.dict",
       "locale": "gsw",
       "manifest": "gsw.json",

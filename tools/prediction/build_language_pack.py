@@ -243,8 +243,44 @@ def source_hash(path):
     return {"path": path.name, "sha256": sha256(path)}
 
 
+def acquisition_lock_sha256(lock):
+    if not isinstance(lock, dict):
+        raise ValueError("acquisition_lock must be an object")
+    url = lock.get("url")
+    version = lock.get("version")
+    shards = lock.get("shards")
+    if not isinstance(url, str) or not url or not isinstance(version, str) or not version:
+        raise ValueError("acquisition_lock requires URL and version")
+    if not isinstance(shards, list) or not shards:
+        raise ValueError("acquisition_lock requires nonempty shards")
+    normalized_shards = []
+    names = set()
+    for shard in shards:
+        if not isinstance(shard, dict) or not isinstance(shard.get("name"), str):
+            raise ValueError("acquisition_lock shards require relative names")
+        name = pathlib.PurePath(shard["name"])
+        if name.is_absolute() or pathlib.PureWindowsPath(shard["name"]).is_absolute() or ".." in name.parts:
+            raise ValueError("acquisition_lock shards require relative names")
+        if str(name) in names:
+            raise ValueError("acquisition_lock shard names must be unique")
+        shard_hash = shard.get("sha256")
+        if not isinstance(shard_hash, str) or len(shard_hash) != SHA256_HEX_LENGTH:
+            raise ValueError("acquisition_lock shards require SHA-256 hashes")
+        try:
+            int(shard_hash, 16)
+        except ValueError as error:
+            raise ValueError("acquisition_lock shards require SHA-256 hashes") from error
+        names.add(str(name))
+        normalized_shards.append({"name": str(name), "sha256": shard_hash})
+    canonical = {"shards": sorted(normalized_shards, key=lambda shard: shard["name"]), "url": url, "version": version}
+    return hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def validate_provenance(
-        provenance, provenance_directory=None, declared_inputs=None, external_source_sha256=None):
+        provenance, provenance_directory=None, declared_inputs=None, external_source_sha256=None,
+        external_source_url=None, external_source_version=None):
     if not isinstance(provenance, dict) or not provenance:
         raise ValueError("provenance must be a nonempty object")
     if GENERATED_SOURCE_NAMES.intersection(provenance):
@@ -266,6 +302,8 @@ def validate_provenance(
         if source.get("type") == "external_corpus":
             if not isinstance(source.get("url"), str) or not source["url"]:
                 raise ValueError("external corpus provenance must include a URL")
+            if not isinstance(source.get("version"), str) or not source["version"]:
+                raise ValueError("external corpus provenance must include a version")
             if "source_path" in source:
                 raise ValueError("external corpus provenance must not declare source_path")
             external_corpora.append(source)
@@ -294,6 +332,10 @@ def validate_provenance(
             raise ValueError("ready pack provenance must contain exactly one external corpus")
         if external_corpora[0]["source_sha256"] != external_source_sha256:
             raise ValueError("external corpus hash must match the acquisition lock")
+        if external_corpora[0]["url"] != external_source_url:
+            raise ValueError("external corpus source URL must match the acquisition lock")
+        if external_corpora[0]["version"] != external_source_version:
+            raise ValueError("external corpus source version must match the acquisition lock")
     return provenance
 
 
@@ -317,8 +359,9 @@ def validate_registry_entry(pack, fixture_only=False):
             int(source_sha256, 16)
         except ValueError as error:
             raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256") from error
-        if pack.get("acquisition_lock") != "locked":
-            raise ValueError("ready language pack registry entries with acquisition metadata require a locked acquisition_lock")
+        lock_hash = acquisition_lock_sha256(pack.get("acquisition_lock"))
+        if source_sha256 != lock_hash:
+            raise ValueError("ready language pack source_sha256 does not match its acquisition_lock")
     return pack
 
 
@@ -328,14 +371,26 @@ def validate_source_pending_registry_entry(pack):
     if not isinstance(pack, dict) or any(
         field not in pack or (field not in nullable and (not isinstance(pack[field], str) or not pack[field]))
         or (field in nullable and pack[field] is not None and (not isinstance(pack[field], str) or not pack[field]))
-        for field in required
+        for field in required if field != "acquisition_lock"
     ):
         raise ValueError("source-pending language pack registry entries must declare acquisition_lock, asset_license, attribution, dictionary, locale, manifest, source_metadata, source_revision, source_sha256, source_url, source_version, and state")
     if pack["state"] != "source_pending":
         raise ValueError("source-pending language pack registry entries must declare state source_pending")
     source_sha256 = pack["source_sha256"]
+    lock = pack.get("acquisition_lock")
+    if isinstance(lock, dict):
+        if lock.get("url") != pack["source_url"] or lock.get("version") != pack["source_version"]:
+            raise ValueError("source-pending acquisition_lock must match known source URL and version")
+        if lock.get("state") not in {"unlocked", "locked"} or not isinstance(lock.get("shards"), list):
+            raise ValueError("source-pending acquisition_lock must declare state and shards")
+    elif not isinstance(lock, str):
+        raise ValueError("source-pending acquisition_lock must be a string or object")
     if source_sha256 is None:
-        if pack["acquisition_lock"] != "unlocked":
+        if isinstance(lock, dict):
+            invalid_unlocked_lock = lock["state"] != "unlocked" or lock["shards"]
+        else:
+            invalid_unlocked_lock = lock != "unlocked"
+        if invalid_unlocked_lock:
             raise ValueError("source-pending language pack acquisition_lock must be unlocked without source_sha256")
     else:
         if len(source_sha256) != SHA256_HEX_LENGTH:
@@ -344,7 +399,10 @@ def validate_source_pending_registry_entry(pack):
             int(source_sha256, 16)
         except ValueError as error:
             raise ValueError("source-pending language pack source_sha256 must be a SHA-256 hash") from error
-        if pack["acquisition_lock"] != "locked":
+        if isinstance(lock, dict):
+            if lock["state"] != "locked" or acquisition_lock_sha256(lock) != source_sha256:
+                raise ValueError("source-pending language pack acquisition_lock must be locked with source_sha256")
+        elif lock != "locked":
             raise ValueError("source-pending language pack acquisition_lock must be locked with source_sha256")
     artifact_fields = {"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}
     if artifact_fields.intersection(pack):
@@ -509,6 +567,7 @@ def main():
         }
         if actual_inputs != {name: path.resolve() for name, path in expected_inputs.items()}:
             raise ValueError("builder inputs must match the language pack registry")
+        lock = pack.get("acquisition_lock")
         provenance = validate_provenance(
             json.loads(args.provenance.read_text(encoding="utf-8")),
             args.provenance.parent,
@@ -517,6 +576,8 @@ def main():
                 args.ngram_tsv: ngram_tsv,
             },
             external_source_sha256=pack.get("source_sha256"),
+            external_source_url=lock.get("url") if isinstance(lock, dict) else None,
+            external_source_version=lock.get("version") if isinstance(lock, dict) else None,
         )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
