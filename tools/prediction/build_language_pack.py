@@ -358,16 +358,6 @@ def validate_registry_entry(pack, fixture_only=False):
         if pack["asset_license"] != "CC0-1.0" or not pack["dictionary"].startswith("minimal_"):
             raise ValueError("fixture-only language pack registry entries must be CC0 minimal fixtures")
     else:
-        if pack.get("locale") == "gsw":
-            for field in ("attestation", "attestation_sha256"):
-                if not isinstance(pack.get(field), str) or not pack[field]:
-                    raise ValueError("ready language pack registry entries require " + field)
-            if len(pack["attestation_sha256"]) != SHA256_HEX_LENGTH:
-                raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash")
-            try:
-                int(pack["attestation_sha256"], 16)
-            except ValueError as error:
-                raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash") from error
         source_sha256 = pack.get("source_sha256")
         if not isinstance(source_sha256, str) or len(source_sha256) != SHA256_HEX_LENGTH:
             raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256")
@@ -381,6 +371,15 @@ def validate_registry_entry(pack, fixture_only=False):
         lock_hash = acquisition_lock_sha256(lock)
         if source_sha256 != lock_hash:
             raise ValueError("ready language pack source_sha256 does not match its acquisition_lock")
+        for field in ("attestation", "attestation_sha256"):
+            if not isinstance(pack.get(field), str) or not pack[field]:
+                raise ValueError("ready language pack registry entries require " + field)
+        if len(pack["attestation_sha256"]) != SHA256_HEX_LENGTH:
+            raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash")
+        try:
+            int(pack["attestation_sha256"], 16)
+        except ValueError as error:
+            raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash") from error
     return pack
 
 
@@ -549,7 +548,7 @@ def load_language_packs(registry_path, development_only=False):
         dictionary = registry_file_path(registry_directory, pack["dictionary"], "dictionary")
         manifest_path = registry_file_path(registry_directory, pack["manifest"], "manifest")
         attribution = registry_file_path(registry_directory, pack["attribution"], "attribution")
-        attestation = None if fixture_only or pack["locale"] != "gsw" else registry_file_path(
+        attestation = None if fixture_only else registry_file_path(
             registry_directory, pack["attestation"], "attestation"
         )
         for field in ("word_frequency_tsv", "ngram_tsv", "provenance"):
@@ -568,8 +567,7 @@ def load_language_packs(registry_path, development_only=False):
             raise ValueError("language pack registry output hash does not match its dictionary")
         if not fixture_only:
             validate_ready_pack_assets(pack, manifest, attribution.read_text(encoding="utf-8"))
-            if attestation is not None:
-                validate_ready_pack_attestation(pack, dictionary, manifest_path, manifest, attestation)
+            validate_ready_pack_attestation(pack, dictionary, manifest_path, manifest, attestation)
         if not development_only or pack["development_supported"]:
             packs.append(pack)
     return packs

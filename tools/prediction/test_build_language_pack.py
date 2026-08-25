@@ -403,7 +403,8 @@ class BuildLanguagePackTest(unittest.TestCase):
             "word_frequency_tsv": "sources/en.words.tsv",
         }
 
-        self.assertEqual(pack, build_language_pack.validate_registry_entry(pack))
+        with self.assertRaisesRegex(ValueError, "attestation"):
+            build_language_pack.validate_registry_entry(pack)
         for state in (None, "unlocked"):
             candidate = {**pack, "acquisition_lock": dict(lock)}
             if state is None:

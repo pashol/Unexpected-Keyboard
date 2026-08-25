@@ -1,5 +1,6 @@
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,62 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class ReleasePackagingTest(unittest.TestCase):
+    def test_production_pack_copier_rejects_an_output_that_contains_its_registry(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            packs = directory / "packs"
+            shutil.copytree(ROOT / "assets" / "latinime" / "packs", packs)
+            registry = packs / "language_packs.json"
+            result = subprocess.run(
+                [sys.executable, "-m", "tools.prediction.copy_production_language_packs",
+                 "--registry", str(registry), "--output", str(packs)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("output", result.stderr)
+
+    def test_production_pack_copier_preserves_existing_output_when_validation_fails(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            output = directory / "output"
+            output.mkdir()
+            sentinel = output / "keep"
+            sentinel.write_text("unchanged", encoding="utf-8")
+            registry = directory / "language_packs.json"
+            registry.write_text('{"format_version":202,"packs":[]}', encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, "-m", "tools.prediction.copy_production_language_packs",
+                 "--registry", str(registry), "--output", str(output)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual("unchanged", sentinel.read_text(encoding="utf-8"))
+
+    def test_production_pack_copier_rejects_an_output_file_aliasing_an_input(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            packs = directory / "packs"
+            shutil.copytree(ROOT / "assets" / "latinime" / "packs", packs)
+            output = directory / "output"
+            output.hardlink_to(packs / "gsw.dict")
+
+            result = subprocess.run(
+                [sys.executable, "-m", "tools.prediction.copy_production_language_packs",
+                 "--registry", str(packs / "language_packs.json"), "--output", str(output)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("alias", result.stderr)
     def test_source_free_production_pack_verifier_validates_the_committed_chain(self):
         result = subprocess.run(
             [sys.executable, "tools/prediction/verify_production_language_packs.py"],
