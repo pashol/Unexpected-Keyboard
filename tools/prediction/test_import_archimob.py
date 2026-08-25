@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import pathlib
+import struct
 import sys
 import tempfile
 import unittest
@@ -280,6 +281,27 @@ class ImportArchiMobTest(unittest.TestCase):
                             input_path, directory / "words.tsv", directory / "ngrams.tsv",
                             directory / "report.json",
                         )
+
+    def test_zip_preflight_rejects_an_oversized_declared_entry_count(self):
+        archive = io.BytesIO(self._minimal_eocd(entry_count=2))
+
+        with mock.patch.object(importer, "MAX_OUTER_ARCHIVE_MEMBERS", 1):
+            with mock.patch.object(importer.zipfile, "ZipFile", side_effect=AssertionError):
+                with self.assertRaisesRegex(ValueError, "entry count exceeds limit"):
+                    importer.archive_sequences(archive)
+
+    def test_zip_preflight_accepts_a_normal_archive(self):
+        archive = self._nested_archive([("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>")])
+
+        importer._preflight_zip(
+            archive, maximum_members=importer.MAX_OUTER_ARCHIVE_MEMBERS,
+            description="outer archive",
+        )
+
+    def _minimal_eocd(self, entry_count):
+        return struct.pack(
+            "<4s4H2LH", b"PK\x05\x06", 0, 0, entry_count, entry_count, 0, 0, 0
+        )
 
     def _nested_archive(
             self, transcripts, compression=zipfile.ZIP_STORED,

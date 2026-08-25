@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import sqlite3
+import struct
 import tempfile
 import unicodedata
 import xml.etree.ElementTree as element_tree
@@ -40,6 +41,10 @@ COPY_CHUNK_BYTES = 1024 * 1024
 MAX_SOURCE_INPUT_BYTES = 64 * 1024 * 1024
 MAX_OUTER_ARCHIVE_MEMBERS = 16
 MAX_NESTED_ARCHIVE_MEMBERS = 64
+EOCD_MINIMUM_BYTES = 22
+EOCD_MAXIMUM_TAIL_BYTES = EOCD_MINIMUM_BYTES + 65535
+ZIP64_LOCATOR_BYTES = 20
+ZIP64_EOCD_BYTES = 56
 
 
 def tokenize(sentence):
@@ -107,6 +112,7 @@ def aggregate_sequences(sequences, minimum_count, top_targets, report):
 
 def archive_sequences(source):
     try:
+        _preflight_zip(source, MAX_OUTER_ARCHIVE_MEMBERS, "outer archive")
         with zipfile.ZipFile(source) as outer:
             outer_members = outer.infolist()
             if len(outer_members) > MAX_OUTER_ARCHIVE_MEMBERS:
@@ -126,6 +132,7 @@ def archive_sequences(source):
                 with outer.open(members[0]) as nested_source:
                     _copy_limited(nested_source, nested_file, MAX_NESTED_ARCHIVE_UNCOMPRESSED_BYTES, "nested archive")
                 nested_file.seek(0)
+                _preflight_zip(nested_file, MAX_NESTED_ARCHIVE_MEMBERS, "nested archive")
                 with zipfile.ZipFile(nested_file) as nested:
                     members = nested.infolist()
                     if len(members) > MAX_NESTED_ARCHIVE_MEMBERS:
@@ -174,6 +181,78 @@ def archive_sequences(source):
                     return sequences
     except zipfile.BadZipFile as error:
         raise ValueError("malformed ArchiMob archive") from error
+
+
+def _preflight_zip(source, maximum_members, description):
+    try:
+        source.seek(0, os.SEEK_END)
+        file_size = source.tell()
+        if file_size < EOCD_MINIMUM_BYTES:
+            raise ValueError(description + " lacks an EOCD record")
+        tail_size = min(file_size, EOCD_MAXIMUM_TAIL_BYTES)
+        source.seek(file_size - tail_size)
+        tail = source.read(tail_size)
+        eocd_index = tail.rfind(b"PK\x05\x06")
+        while eocd_index >= 0:
+            if eocd_index + EOCD_MINIMUM_BYTES <= len(tail):
+                fields = struct.unpack("<4s4H2LH", tail[eocd_index:eocd_index + EOCD_MINIMUM_BYTES])
+                comment_size = fields[-1]
+                if eocd_index + EOCD_MINIMUM_BYTES + comment_size == len(tail):
+                    break
+            eocd_index = tail.rfind(b"PK\x05\x06", 0, eocd_index)
+        if eocd_index < 0:
+            raise ValueError(description + " lacks a valid EOCD record")
+        _, disk_number, central_directory_disk, disk_entries, entries, directory_size, directory_offset, _ = fields
+        eocd_offset = file_size - tail_size + eocd_index
+        zip64 = (
+            disk_entries == 0xFFFF
+            or entries == 0xFFFF
+            or directory_size == 0xFFFFFFFF
+            or directory_offset == 0xFFFFFFFF
+        )
+        if zip64:
+            locator_offset = eocd_offset - ZIP64_LOCATOR_BYTES
+            if locator_offset < 0:
+                raise ValueError(description + " lacks a ZIP64 locator")
+            source.seek(locator_offset)
+            locator = source.read(ZIP64_LOCATOR_BYTES)
+            if len(locator) != ZIP64_LOCATOR_BYTES:
+                raise ValueError(description + " lacks a ZIP64 locator")
+            signature, zip64_disk, zip64_offset, disk_count = struct.unpack("<4sLQL", locator)
+            if signature != b"PK\x06\x07" or zip64_disk or disk_count != 1:
+                raise ValueError(description + " must be a single-disk ZIP archive")
+            if zip64_offset + ZIP64_EOCD_BYTES > locator_offset:
+                raise ValueError(description + " ZIP64 EOCD is out of bounds")
+            source.seek(zip64_offset)
+            zip64_eocd = source.read(ZIP64_EOCD_BYTES)
+            if len(zip64_eocd) != ZIP64_EOCD_BYTES:
+                raise ValueError(description + " ZIP64 EOCD is truncated")
+            (
+                signature, record_size, _, _, disk_number, central_directory_disk,
+                disk_entries, entries, directory_size, directory_offset,
+            ) = struct.unpack("<4sQ2H2L4Q", zip64_eocd)
+            if signature != b"PK\x06\x06" or record_size != ZIP64_EOCD_BYTES - 12:
+                raise ValueError(description + " ZIP64 EOCD is invalid")
+            directory_end = zip64_offset
+        else:
+            directory_end = eocd_offset
+        _validate_central_directory(
+            disk_number, central_directory_disk, disk_entries, entries, directory_size,
+            directory_offset, directory_end, file_size, maximum_members, description,
+        )
+    finally:
+        source.seek(0)
+
+
+def _validate_central_directory(
+        disk_number, central_directory_disk, disk_entries, entries, directory_size,
+        directory_offset, directory_end, file_size, maximum_members, description):
+    if disk_number or central_directory_disk or disk_entries != entries:
+        raise ValueError(description + " must be a single-disk ZIP archive")
+    if entries > maximum_members:
+        raise ValueError(description + " entry count exceeds limit")
+    if directory_offset + directory_size != directory_end or directory_end > file_size:
+        raise ValueError(description + " central directory is out of bounds")
 
 
 def _validate_archive_size(members, compressed_limit, uncompressed_limit, description):
