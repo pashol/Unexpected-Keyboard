@@ -1,5 +1,18 @@
 """Transform AOSP combined-format word lists into dictionary TSV generations."""
 
+import argparse
+import gzip
+import hashlib
+import json
+import pathlib
+import sqlite3
+
+from tools.prediction import import_archimob
+from tools.prediction import import_google_books_ngrams
+
+
+MAX_INPUT_BYTES = 64 * 1024 * 1024
+MAX_OVERLAY_BYTES = 8 * 1024 * 1024
 
 HEADER_PREFIX = "dictionary="
 WORD_PREFIX = "word="
@@ -139,3 +152,145 @@ def select_ngrams(words, bigrams, minimum_count, top_targets):
             selected[(context, target)] = frequency
         capped += max(0, len(ranked) - top_targets)
     return selected, capped, below
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_hex(value, description):
+    if len(value) != 64:
+        raise ValueError(description + " must be a SHA-256 hash")
+    try:
+        int(value, 16)
+    except ValueError as error:
+        raise ValueError(description + " must be a SHA-256 hash") from error
+
+
+def _read_source(path, limit, description):
+    data = path.read_bytes()
+    if len(data) > limit:
+        raise ValueError(description + " exceeds size limit")
+    if data[:2] == b"\x1f\x8b":
+        with gzip.open(path, "rt", encoding="utf-8") as text_source:
+            return text_source.readlines(), data
+    with path.open("r", encoding="utf-8") as text_source:
+        return text_source.read().splitlines(keepends=True), data
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", required=True, type=pathlib.Path)
+    parser.add_argument("--input-sha256", required=True)
+    parser.add_argument("--overlay", type=pathlib.Path)
+    parser.add_argument("--overlay-sha256")
+    parser.add_argument("--map", dest="maps", action="append", default=[],
+                        metavar="OLD:NEW",
+                        help="literal character replacement, repeatable")
+    parser.add_argument("--words-output", required=True, type=pathlib.Path)
+    parser.add_argument("--ngrams-output", required=True, type=pathlib.Path)
+    parser.add_argument("--report-output", required=True, type=pathlib.Path)
+    parser.add_argument("--minimum-count", required=True,
+                        type=import_archimob._positive_integer)
+    parser.add_argument("--top-targets", required=True,
+                        type=import_archimob._positive_integer)
+    arguments = parser.parse_args(argv)
+
+    maps = []
+    for specification in arguments.maps:
+        old, separator, new = specification.partition(":")
+        if not separator or not old:
+            parser.error("--map must take the form OLD:NEW")
+        maps.append((old, new))
+
+    _validate_hex(arguments.input_sha256, "--input-sha256")
+    if arguments.overlay is not None:
+        if arguments.overlay_sha256 is None:
+            parser.error("--overlay requires --overlay-sha256")
+        _validate_hex(arguments.overlay_sha256, "--overlay-sha256")
+
+    import_google_books_ngrams.validate_paths(
+        arguments.input, arguments.words_output, arguments.ngrams_output
+    )
+    import_archimob._validate_report_output_path(
+        arguments.report_output, arguments.words_output, arguments.ngrams_output
+    )
+
+    actual_input_hash = _sha256_file(arguments.input)
+    if actual_input_hash != arguments.input_sha256:
+        raise ValueError("source SHA-256 does not match --input-sha256")
+    lines, _ = _read_source(arguments.input, MAX_INPUT_BYTES, "combined input")
+    words, bigrams, stats = parse_combined(lines)
+    report = {
+        "input_sha256": actual_input_hash,
+        "accepted_words": len(words),
+        "accepted_bigrams_before_selection": len(bigrams),
+        "minimum_count": arguments.minimum_count,
+        "top_targets": arguments.top_targets,
+        "maps": [old + ":" + new for old, new in maps],
+        **stats,
+    }
+
+    if arguments.overlay is not None:
+        actual_overlay_hash = _sha256_file(arguments.overlay)
+        if actual_overlay_hash != arguments.overlay_sha256:
+            raise ValueError("source SHA-256 does not match --overlay-sha256")
+        overlay_lines, _ = _read_source(
+            arguments.overlay, MAX_OVERLAY_BYTES, "combined overlay")
+        overlay_words, overlay_bigrams, overlay_stats = parse_combined(overlay_lines)
+        report["overlay_sha256"] = actual_overlay_hash
+        report.update(overlay_stats)
+    else:
+        overlay_words, overlay_bigrams = {}, {}
+
+    if maps:
+        words, bigrams, replacements = apply_word_maps(words, bigrams, maps)
+        report["mapped_words"] = replacements
+        overlay_words, overlay_bigrams, _ = apply_word_maps(
+            overlay_words, overlay_bigrams, maps)
+
+    words, bigrams, overlay_report = merge_overlay(
+        words, bigrams, overlay_words, overlay_bigrams)
+    report.update(overlay_report)
+    report["accepted_words_final"] = len(words)
+
+    bigrams, capped, below = select_ngrams(
+        words, bigrams, arguments.minimum_count, arguments.top_targets)
+    report["capped_target_bigrams"] = capped
+    report["below_minimum_count_bigrams"] = below
+    report["accepted_bigrams"] = len(bigrams)
+
+    if not bigrams and arguments.minimum_count > 1:
+        raise ValueError("no retained n-grams; lower --minimum-count")
+
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.executescript(
+            "CREATE TABLE selected "
+            "(context TEXT NOT NULL, target TEXT NOT NULL, count INTEGER NOT NULL);"
+            "CREATE TABLE word_counts (word TEXT PRIMARY KEY, count INTEGER NOT NULL);"
+        )
+        connection.executemany(
+            "INSERT INTO word_counts(word, count) VALUES (?, ?)", sorted(words.items())
+        )
+        connection.executemany(
+            "INSERT INTO selected(context, target, count) VALUES (?, ?, ?)",
+            [(context, target, count) for (context, target), count in sorted(bigrams.items())],
+        )
+        report_contents = (
+            json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        import_google_books_ngrams._publish_generation(
+            connection, arguments.words_output, arguments.ngrams_output,
+            (arguments.report_output.name, report_contents), arguments.report_output,
+        )
+    finally:
+        connection.close()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,12 @@
+import hashlib
+import json
+import pathlib
+import tempfile
 import unittest
 
 from tools.prediction import import_aosp_combined as importer
+from tools.prediction import import_archimob
+from tools.prediction import import_google_books_ngrams
 
 
 PARSE_INPUT = [
@@ -108,3 +114,82 @@ class SelectNgramsTest(unittest.TestCase):
             importer.select_ngrams({}, {}, minimum_count=0, top_targets=2)
         with self.assertRaisesRegex(ValueError, "top_targets"):
             importer.select_ngrams({}, {}, minimum_count=2, top_targets=0)
+
+
+BASE = "\n".join([
+    "dictionary=main:de,locale=de_DE,description=x,version=18",
+    " word=Straße,f=222",
+    "  bigram=Fuß,f=3",
+    " word=Haus,f=200",
+    "  bigram=Straße,f=2",
+]) + "\n"
+OVERLAY = "\n".join([
+    "dictionary=main:de_CH,vendor=openboard",
+    " word=Velo,f=90",
+    " word=Haus,f=150",
+]) + "\n"
+
+
+class CliTest(unittest.TestCase):
+    def _run(self, arguments):
+        importer.main(arguments)
+
+    def test_publishes_scored_generations_with_report_and_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            base = root / "base.combined"
+            base.write_text(BASE, encoding="utf-8")
+            overlay = root / "overlay.combined"
+            overlay.write_text(OVERLAY, encoding="utf-8")
+            words_out = root / "de.words.tsv"
+            ngrams_out = root / "de.ngrams.tsv"
+            report_out = root / "de.import-report.json"
+            self._run([
+                "--input", str(base), "--input-sha256", _sha(base),
+                "--overlay", str(overlay), "--overlay-sha256", _sha(overlay),
+                "--map", "ß:ss",
+                "--words-output", str(words_out), "--ngrams-output", str(ngrams_out),
+                "--report-output", str(report_out),
+                "--minimum-count", "1", "--top-targets", "8",
+            ])
+            pointer = json.loads(
+                import_google_books_ngrams.current_manifest_path(words_out, ngrams_out)
+                .read_text(encoding="utf-8"))
+            self.assertEqual(1, pointer["format_version"])
+            words_path, _, published_report = import_archimob.load_current_generation(
+                words_out, ngrams_out)
+            words = dict(
+                line.split("\t") for line in
+                words_path.read_text(encoding="utf-8").splitlines())
+            self.assertEqual({"Strasse", "Haus", "Velo"}, set(words))
+            self.assertEqual("255", words["Strasse"])  # highest f stretches to 255
+            self.assertEqual("230", words["Haus"])
+            self.assertEqual("104", words["Velo"])
+            report = json.loads(published_report.read_text(encoding="utf-8"))
+            self.assertEqual(1, report["overlay_added_words"])
+            self.assertEqual(1, report["overlay_merged_words"])
+            self.assertEqual(1, report["mapped_words"])
+            # (Strasse, Fuss) is dropped: Fuss only occurs as a bigram target,
+            # and select_ngrams requires both endpoints to be known words.
+            self.assertEqual(1, report["accepted_bigrams"])
+            receipt = json.loads(report_out.read_text(encoding="utf-8"))
+            self.assertEqual(1, receipt["format_version"])
+            self.assertIn("active_generation", receipt)
+
+    def test_rejects_input_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            base = root / "base.combined"
+            base.write_text(BASE, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                self._run([
+                    "--input", str(base), "--input-sha256", "0" * 64,
+                    "--words-output", str(root / "w.tsv"),
+                    "--ngrams-output", str(root / "n.tsv"),
+                    "--report-output", str(root / "r.json"),
+                    "--minimum-count", "1", "--top-targets", "8",
+                ])
+
+
+def _sha(path):
+    return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
