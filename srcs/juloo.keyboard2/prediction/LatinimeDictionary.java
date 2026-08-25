@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import juloo.keyboard2.Logs;
 
 public final class LatinimeDictionary implements PredictionEngine
 {
@@ -29,35 +30,44 @@ public final class LatinimeDictionary implements PredictionEngine
 
   public static LatinimeDictionary open(File file) throws IOException
   {
-    if (!file.isFile() || file.length() == 0)
-      throw new IOException("Dictionary file is missing or empty");
-    long dictionary = BinaryDictionary.open(file.getAbsolutePath(), file.length());
-    if (dictionary == 0)
-      throw new IOException("Unable to open dictionary");
-    if (BinaryDictionary.format_version(dictionary) != FORMAT_VERSION
-        || BinaryDictionary.is_corrupted(dictionary))
-    {
-      close_dictionary(dictionary);
-      throw new IOException("Dictionary is not a valid format-202 dictionary");
-    }
-    DicTraverseSession session = new DicTraverseSession("en", dictionary, file.length());
     try
     {
-      // Traverse a fixed context so the native decoder marks malformed trie buffers.
-      BinaryDictionary.get_suggestions(dictionary, session.native_session(),
-          new int[][] { VALIDATION_WORD }, 1, new int[1],
-          new int[NATIVE_MAX_RESULTS * MAX_WORD_LENGTH], new int[NATIVE_MAX_RESULTS]);
+      if (!file.isFile() || file.length() == 0)
+        throw new IOException("Dictionary file is missing or empty");
+      long dictionary = BinaryDictionary.open(file.getAbsolutePath(), file.length());
+      if (dictionary == 0)
+        throw new IOException("Unable to open dictionary");
+      if (BinaryDictionary.format_version(dictionary) != FORMAT_VERSION
+          || BinaryDictionary.is_corrupted(dictionary))
+      {
+        close_dictionary(dictionary);
+        throw new IOException("Dictionary is not a valid format-202 dictionary");
+      }
+      DicTraverseSession session = new DicTraverseSession("en", dictionary, file.length());
+      try
+      {
+        // Traverse a fixed context so the native decoder marks malformed trie buffers.
+        BinaryDictionary.get_suggestions(dictionary, session.native_session(),
+            new int[][] { VALIDATION_WORD }, 1, new int[1],
+            new int[NATIVE_MAX_RESULTS * MAX_WORD_LENGTH], new int[NATIVE_MAX_RESULTS]);
+      }
+      finally
+      {
+        session.close();
+      }
+      if (BinaryDictionary.is_corrupted(dictionary))
+      {
+        close_dictionary(dictionary);
+        throw new IOException("Dictionary is not a valid format-202 dictionary");
+      }
+      Logs.debug("NextWord: dictionary open=success");
+      return new LatinimeDictionary(file, dictionary);
     }
-    finally
+    catch (IOException | RuntimeException e)
     {
-      session.close();
+      Logs.debug("NextWord: dictionary open=failure");
+      throw e;
     }
-    if (BinaryDictionary.is_corrupted(dictionary))
-    {
-      close_dictionary(dictionary);
-      throw new IOException("Dictionary is not a valid format-202 dictionary");
-    }
-    return new LatinimeDictionary(file, dictionary);
   }
 
   interface CloseObserver
@@ -106,6 +116,7 @@ public final class LatinimeDictionary implements PredictionEngine
         return Float.compare(right.score(), left.score());
       }
     });
+    Logs.debug("NextWord: dictionary resultCount=" + results.size());
     return results;
   }
 

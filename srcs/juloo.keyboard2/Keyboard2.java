@@ -281,11 +281,19 @@ public class Keyboard2 extends InputMethodService
 
   private PredictionEngineController create_prediction_controller(EditorInfo info)
   {
-    if (!_config.next_word_predictions_enabled
-        || !EditorPredictionPolicy.allow_next_word(info.inputType)
-        || _config.device_locales.default_ == null
-        || !DevelopmentPredictionPack.supports_locale(
-            _config.device_locales.default_.lang_tag))
+    boolean enabled = _config.next_word_predictions_enabled;
+    boolean input_allowed = EditorPredictionPolicy.allow_next_word(info.inputType);
+    DeviceLocales.Loc locale = _config.device_locales.default_;
+    boolean locale_present = locale != null;
+    boolean locale_supported = locale_present
+      && DevelopmentPredictionPack.supports_locale(locale.lang_tag);
+    Logs.debug("NextWord: controller enabled=" + enabled
+        + " inputAllowed=" + input_allowed
+        + " localePresent=" + locale_present
+        + " localeSupported=" + locale_supported
+        + (locale_supported ? " language="
+            + java.util.Locale.forLanguageTag(locale.lang_tag).getLanguage() : ""));
+    if (!enabled || !input_allowed || !locale_present || !locale_supported)
       return null;
     try
     {

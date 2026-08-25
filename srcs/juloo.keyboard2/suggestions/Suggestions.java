@@ -7,6 +7,7 @@ import juloo.cdict.Cdict;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
+import juloo.keyboard2.Logs;
 import juloo.keyboard2.Utils;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngineController;
@@ -75,13 +76,21 @@ public final class Suggestions
       List<String> preceding_words)
   {
     int generation = ++_request_generation;
+    int candidate_count = 0;
     if (!_enabled)
+    {
+      Logs.debug("NextWord: routing emptyToken=" + (word.length() == 0)
+          + " precedingWordCount=" + preceding_words.size()
+          + " controllerPresent=" + (_prediction_controller != null)
+          + " candidateCount=" + candidate_count);
       return;
+    }
     if (word.length() == 0 && !preceding_words.isEmpty()
         && _prediction_controller != null)
     {
       List<PredictionCandidate> candidates = _prediction_controller.predict(
           new PredictionRequest(preceding_words, MAX_COUNT, generation));
+      candidate_count = candidates.size();
       if (generation == _request_generation)
         set_next_word_candidates(candidates);
     }
@@ -90,6 +99,10 @@ public final class Suggestions
       clear();
     else
       query_suggestions(word, sentence_start);
+    Logs.debug("NextWord: routing emptyToken=" + (word.length() == 0)
+        + " precedingWordCount=" + preceding_words.size()
+        + " controllerPresent=" + (_prediction_controller != null)
+        + " candidateCount=" + candidate_count);
     if (_callback != null)
       _callback.set_suggestions(this);
   }
