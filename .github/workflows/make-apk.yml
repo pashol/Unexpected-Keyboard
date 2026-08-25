@@ -41,6 +41,7 @@ jobs:
 
     - name: Run tests
       run: |
+        ./gradlew verifyProductionLanguagePacks
         gradle test
         # Warn about outdated generated files.
         if ! git diff --name-only; then

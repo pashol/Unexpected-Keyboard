@@ -1,8 +1,12 @@
 package juloo.keyboard2.prediction;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
 
 import java.util.Arrays;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import org.junit.Test;
 
 public class LatinimeDictionaryTest
@@ -22,5 +26,23 @@ public class LatinimeDictionaryTest
 
     assertArrayEquals(new int[] { 'd', '\'', 'F', 'r', 'a', 'u' }, words[0]);
     assertArrayEquals(new int[] { 'n', 'ö', 'd' }, words[1]);
+  }
+
+  @Test public void tampered_dictionary_is_rejected_before_opening() throws IOException
+  {
+    File dictionary = File.createTempFile("prediction", ".dict");
+    try
+    {
+      FileOutputStream output = new FileOutputStream(dictionary);
+      output.write(new byte[] { 1, 2, 3 });
+      output.close();
+
+      assertFalse(ProductionPredictionPack.matches_sha256(dictionary,
+          "0000000000000000000000000000000000000000000000000000000000000000"));
+    }
+    finally
+    {
+      dictionary.delete();
+    }
   }
 }

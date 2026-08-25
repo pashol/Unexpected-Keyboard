@@ -11,6 +11,15 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class ReleasePackagingTest(unittest.TestCase):
+    def test_source_free_production_pack_verifier_validates_the_committed_chain(self):
+        result = subprocess.run(
+            [sys.executable, "tools/prediction/verify_production_language_packs.py"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
     def test_generated_production_assets_include_the_ready_gsw_pack_and_not_raw_inputs(self):
         environment = os.environ | {
             "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64",
@@ -82,7 +91,9 @@ class ReleasePackagingTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         tasks = [line.removesuffix(" SKIPPED") for line in result.stdout.splitlines() if line.startswith(":")]
         environment = tasks.index(":verifyReleaseEnvironment")
+        production_packs = tasks.index(":verifyProductionLanguagePacks")
         self.assertLess(environment, tasks.index(":packageRelease"))
+        self.assertLess(production_packs, tasks.index(":verifyReleasePackaging"))
         self.assertLess(environment, tasks.index(":assembleRelease"))
 
     def test_release_environment_verifier_reports_missing_signing_variables(self):

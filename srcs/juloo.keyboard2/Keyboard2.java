@@ -285,9 +285,13 @@ public class Keyboard2 extends InputMethodService
     boolean input_allowed = EditorPredictionPolicy.allow_next_word(info.inputType);
     DeviceLocales.Loc locale = _config.device_locales.default_;
     boolean locale_present = locale != null;
-    String prediction_asset = locale_present
-      ? ProductionPredictionPack.asset_for_locale(locale.lang_tag) : null;
-    boolean locale_supported = prediction_asset != null;
+    ProductionPredictionPack prediction_pack = null;
+    try
+    {
+      prediction_pack = locale_present ? ProductionPredictionPack.load(getAssets(), locale.lang_tag) : null;
+    }
+    catch (IOException e) {}
+    boolean locale_supported = prediction_pack != null;
     Logs.debug("NextWord: controller enabled=" + enabled
         + " inputAllowed=" + input_allowed
         + " localePresent=" + locale_present
@@ -299,7 +303,7 @@ public class Keyboard2 extends InputMethodService
     try
     {
       return new PredictionEngineController(true,
-          LatinimeDictionary.open(copy_prediction_dictionary(prediction_asset)), EMPTY_PREDICTION_ENGINE);
+          LatinimeDictionary.open(copy_prediction_dictionary(prediction_pack)), EMPTY_PREDICTION_ENGINE);
     }
     catch (IOException | RuntimeException e)
     {
@@ -308,14 +312,16 @@ public class Keyboard2 extends InputMethodService
     }
   }
 
-  private File copy_prediction_dictionary(String asset) throws IOException
+  private File copy_prediction_dictionary(ProductionPredictionPack pack) throws IOException
   {
+    if (!ProductionPredictionPack.matches_sha256(getAssets(), pack))
+      throw new IOException("Prediction dictionary hash does not match its manifest");
     File directory = new File(getFilesDir(), "prediction");
     if (!directory.isDirectory() && !directory.mkdirs())
       throw new IOException("Unable to create prediction directory");
-    File destination = new File(directory, asset);
-    File temporary = new File(directory, asset + ".tmp");
-    InputStream input = getAssets().open("latinime/packs/" + asset,
+    File destination = new File(directory, pack.dictionary_asset());
+    File temporary = new File(directory, pack.dictionary_asset() + ".tmp");
+    InputStream input = getAssets().open("latinime/packs/" + pack.dictionary_asset(),
         AssetManager.ACCESS_STREAMING);
     FileOutputStream output = new FileOutputStream(temporary);
     try

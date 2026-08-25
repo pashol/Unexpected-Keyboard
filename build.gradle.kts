@@ -251,10 +251,17 @@ val verifyLatinimeNative by tasks.registering(Exec::class) {
   commandLine("tools/verify_latinime_native.sh")
 }
 
+val verifyProductionLanguagePacks by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Verifies committed production language-pack registry and attestation chains."
+  workingDir = projectDir
+  commandLine("python3", "tools/prediction/verify_production_language_packs.py")
+}
+
 val verifyReleasePackaging by tasks.registering(Exec::class) {
   group = "verification"
   description = "Assembles and verifies the LatinIME NOTICE in the release APK."
-  dependsOn(verifyReleaseEnvironment, "assembleRelease")
+  dependsOn(verifyProductionLanguagePacks, verifyReleaseEnvironment, "assembleRelease")
   workingDir = projectDir
   commandLine("python3", "tools/verify_release_notice.py")
 }
@@ -283,6 +290,7 @@ tasks.named("check") {
   dependsOn(verifyLanguagePackFixture)
   dependsOn(verifyLatinimeNative)
   dependsOn(verifyReleasePackaging)
+  dependsOn(verifyProductionLanguagePacks)
   dependsOn(verifyLatinimeJniFacade)
 }
 
