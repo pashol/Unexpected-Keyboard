@@ -7,7 +7,7 @@ format-202 dictionary using a caller-provided, clean checkout at the pinned AOSP
 revision. It does not download sources or data.
 
 ```sh
-SOURCE_DATE_EPOCH=0 python3 tools/prediction/build_language_pack.py \
+SOURCE_DATE_EPOCH=0 python3 -m tools.prediction.build_language_pack \
   --source /path/to/LatinIME \
   --registry test/fixtures/latinime/language_packs.json \
   --locale gsw \
@@ -32,3 +32,11 @@ The checked-in English and Swiss German packs are deliberately tiny test fixture
 not production-quality corpora or language packs. Gradle packages only entries that
 explicitly set `development_supported` to `true`; currently that is the English
 fixture.
+
+Run the development fixture copier from the repository root as a package module:
+
+```sh
+python3 -m tools.prediction.copy_development_language_packs \
+  --registry test/fixtures/latinime/language_packs.json \
+  --output build/generated-assets/latinime/packs
+```

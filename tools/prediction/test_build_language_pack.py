@@ -3,6 +3,7 @@ import io
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,25 @@ class BuildLanguagePackTest(unittest.TestCase):
         self.assertEqual("Chäs", build_language_pack.normalize_word("gsw", "Chäs"))
         self.assertEqual("d'Frau", build_language_pack.normalize_word("gsw", "d'Frau"))
         self.assertEqual("MÄR", build_language_pack.normalize_word("gsw", "MÄR"))
+
+    def test_copier_runs_as_a_root_package_module_and_copies_the_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = pathlib.Path(temporary_directory) / "packs"
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "tools.prediction.copy_development_language_packs",
+                    "--registry", str(FIXTURE_DIR / "language_packs.json"), "--output", str(output),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                (FIXTURE_DIR / "minimal_en.dict").read_bytes(),
+                (output / "development_en_fixture.dict").read_bytes(),
+            )
 
     def test_tsv_inputs_are_normalized_sorted_and_rendered_as_combined_source(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

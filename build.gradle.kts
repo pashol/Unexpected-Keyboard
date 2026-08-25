@@ -202,7 +202,7 @@ val copyLatinimeDevelopmentFixture by tasks.registering(Exec::class) {
   outputs.dir("build/generated-assets/latinime")
   workingDir = projectDir
   commandLine(
-      "python3", "tools/prediction/copy_development_language_packs.py",
+      "python3", "-m", "tools.prediction.copy_development_language_packs",
       "--registry", "test/fixtures/latinime/language_packs.json",
       "--output", "build/generated-assets/latinime",
   )

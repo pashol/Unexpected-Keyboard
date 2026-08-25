@@ -94,7 +94,7 @@ dictionary manifest.
 ## Command template
 
 ```sh
-python3 tools/prediction/import_google_books_ngrams.py \
+python3 -m tools.prediction.import_google_books_ngrams \
   --input /reviewed/google-books-v3-en-2gram-selected-shards.tsv \
   --locale en \
   --words-output /reviewed/en.words.tsv \

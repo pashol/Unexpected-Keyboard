@@ -5,7 +5,7 @@ import argparse
 import pathlib
 import shutil
 
-from build_language_pack import load_language_packs
+from tools.prediction.build_language_pack import load_language_packs
 
 
 def main():
