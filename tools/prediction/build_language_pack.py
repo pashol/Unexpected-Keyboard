@@ -243,11 +243,13 @@ def source_hash(path):
     return {"path": path.name, "sha256": sha256(path)}
 
 
-def validate_provenance(provenance, provenance_directory=None, declared_inputs=None):
+def validate_provenance(
+        provenance, provenance_directory=None, declared_inputs=None, external_source_sha256=None):
     if not isinstance(provenance, dict) or not provenance:
         raise ValueError("provenance must be a nonempty object")
     if GENERATED_SOURCE_NAMES.intersection(provenance):
         raise ValueError("provenance must not use reserved generated source names")
+    external_corpora = []
     for name, source in provenance.items():
         if not isinstance(name, str) or not isinstance(source, dict):
             raise ValueError("provenance sources must be objects")
@@ -261,6 +263,15 @@ def validate_provenance(provenance, provenance_directory=None, declared_inputs=N
             int(source_sha256, 16)
         except ValueError as error:
             raise ValueError("provenance sources must include a SHA-256 source hash") from error
+        if source.get("type") == "external_corpus":
+            if not isinstance(source.get("url"), str) or not source["url"]:
+                raise ValueError("external corpus provenance must include a URL")
+            if "source_path" in source:
+                raise ValueError("external corpus provenance must not declare source_path")
+            external_corpora.append(source)
+            continue
+        if "type" in source:
+            raise ValueError("provenance source type must be external_corpus")
         if provenance_directory is not None:
             source_path = source.get("source_path")
             if not isinstance(source_path, str) or not source_path:
@@ -278,6 +289,11 @@ def validate_provenance(provenance, provenance_directory=None, declared_inputs=N
                 raise ValueError("provenance source_path must name a declared input file")
             if not path.is_file() or sha256(path) != source_sha256:
                 raise ValueError("provenance source hash does not match its declared input file")
+    if external_source_sha256 is not None:
+        if len(external_corpora) != 1:
+            raise ValueError("ready pack provenance must contain exactly one external corpus")
+        if external_corpora[0]["source_sha256"] != external_source_sha256:
+            raise ValueError("external corpus hash must match the acquisition lock")
     return provenance
 
 
@@ -500,6 +516,7 @@ def main():
                 args.word_frequency_tsv: word_frequency_tsv,
                 args.ngram_tsv: ngram_tsv,
             },
+            external_source_sha256=pack.get("source_sha256"),
         )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:

@@ -82,7 +82,12 @@ class BuildLanguagePackTest(unittest.TestCase):
             selected_words, selected_ngrams = import_google_books_ngrams.load_current_generation(
                 words, ngrams
             )
+            lock_hash = "a" * 64
             provenance_path.write_text(json.dumps({
+                "corpus": {
+                    "type": "external_corpus", "license": "CC BY 3.0",
+                    "source_sha256": lock_hash, "url": "https://example.invalid/corpus",
+                },
                 "ngrams": {
                     "license": "CC0-1.0", "source_path": "ngrams.tsv",
                     "source_sha256": hashlib.sha256(selected_ngrams.read_bytes()).hexdigest(),
@@ -94,7 +99,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             }), encoding="utf-8")
             pack = {
                 "locale": "en", "word_frequency_tsv": "words.tsv", "ngram_tsv": "ngrams.tsv",
-                "provenance": "provenance.json",
+                "provenance": "provenance.json", "source_sha256": lock_hash,
             }
             arguments = [
                 "build_language_pack.py", "--source", str(directory / "aosp"), "--locale", "en",
@@ -200,6 +205,46 @@ class BuildLanguagePackTest(unittest.TestCase):
             provenance["fixture"]["source_sha256"] = "a" * 64
             with self.assertRaisesRegex(ValueError, "does not match"):
                 build_language_pack.validate_provenance(provenance, directory, [words, ngrams])
+
+    def test_ready_pack_provenance_requires_one_external_corpus_matching_the_lock_hash(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            words.write_text("hello\t1\n", encoding="utf-8")
+            lock_hash = "a" * 64
+            provenance = {
+                "corpus": {
+                    "type": "external_corpus", "license": "CC BY 3.0",
+                    "source_sha256": lock_hash, "url": "https://example.invalid/corpus",
+                },
+                "generated_words": {
+                    "license": "CC BY 3.0", "source_path": "words.tsv",
+                    "source_sha256": hashlib.sha256(words.read_bytes()).hexdigest(),
+                },
+            }
+
+            self.assertEqual(
+                provenance,
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash
+                ),
+            )
+            provenance["corpus"]["source_path"] = "words.tsv"
+            with self.assertRaisesRegex(ValueError, "must not declare source_path"):
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash
+                )
+            provenance["corpus"].pop("source_path")
+            provenance["corpus"]["source_sha256"] = "b" * 64
+            with self.assertRaisesRegex(ValueError, "acquisition lock"):
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash
+                )
+            provenance.pop("corpus")
+            with self.assertRaisesRegex(ValueError, "exactly one external corpus"):
+                build_language_pack.validate_provenance(
+                    provenance, directory, [words], external_source_sha256=lock_hash
+                )
 
     def test_compiler_requires_the_pinned_jdk_identity(self):
         with mock.patch.object(

@@ -72,6 +72,14 @@ supplied word and n-gram output filenames.
 generation file. Plain TSV inputs without a current manifest continue to use
 their supplied path for both identity and hashing.
 
+For a ready production pack, provenance must include exactly one raw corpus
+record with `"type": "external_corpus"`, `license`, `url`, and
+`source_sha256`. This record has no `source_path`: its hash is the reviewed raw
+corpus/shard hash and must equal the pack registry's locked `source_sha256`.
+Generated TSV provenance records retain `source_path` and are checked against
+the selected TSV content. The external corpus record is retained in the output
+dictionary manifest.
+
 ## Command template
 
 ```sh
