@@ -11,6 +11,12 @@ version `1.0` (legacy `1.0.0`), version DOI
 only a transcript export whose text rights are explicitly stated as CC
 BY-NC-SA 4.0.
 
+The verified released outer archive is `swissubase_2269_1_0.zip` (version
+`1.0`) with SHA-256
+`1e417aabb2b7edda51b00c8b283710306e03a6ceceb62059446bd4c2d929d46a`.
+It contains the Release 2 member `Archimob_Release_2.zip`; the importer accepts
+only that member and only its TEI XML transcripts.
+
 ArchiMob transcript-derived TSVs and any resulting `gsw` binary are licensed
 under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 Every generated asset must carry this attribution statement:
@@ -27,25 +33,25 @@ not permitted.
 
 ## Acquisition lock
 
-There is no anonymous transcript/export URL. Before running the importer, the
-release record must contain the authenticated downloaded transcript/export
-version, export date, exporter or source-file identity, and SHA-256, as well
-as the catalogue URL. The source hash is an acquisition lock: pass that exact
-value as `--source-sha256`, and the importer rejects a different input before
-it decodes or processes transcript text.
+There is no anonymous transcript/export URL. Before a ready pack can build,
+the registry and provenance record must contain the authenticated downloaded
+transcript/export version, export date, exporter or source-file identity, the
+verified outer SHA-256 above, and the catalogue URL. The source hash is an
+acquisition lock: pass that exact value as `--source-sha256`, and the importer
+rejects a different input before it decodes or processes transcript text.
 
 The public DIP MD5 `ca7356cb1e10d128c41ef1f8f930b54b` is not a
 transcript/export source lock and must not be used as `--source-sha256` or
 recorded as a source SHA-256. This document intentionally does not invent an
-authenticated export version, date, source-file identity, or SHA-256. No
-`gsw` pack can be promoted to `ready` or built as a ready pack until the actual
+authenticated download date or exporter/source-file identity. No `gsw` pack
+can be promoted to `ready` or built as a ready pack until the actual
 authenticated downloaded transcript/export SHA-256 and release fields are
 locked in its registry entry and provenance record.
 
 ```bash
 python3 -m tools.prediction.import_archimob \
-  --input /approved/archimob-transcript.txt \
-  --source-sha256 "$(sha256sum /approved/archimob-transcript.txt | cut -d' ' -f1)" \
+  --input /approved/swissubase_2269_1_0.zip \
+  --source-sha256 1e417aabb2b7edda51b00c8b283710306e03a6ceceb62059446bd4c2d929d46a \
   --words-output /review/gsw.words.tsv \
   --ngrams-output /review/gsw.ngrams.tsv \
   --report-output /review/gsw.import-report.json \

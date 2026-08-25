@@ -2,13 +2,14 @@
 
 import argparse
 import hashlib
+import io
 import json
-import os
 import pathlib
 import re
 import sqlite3
-import tempfile
 import unicodedata
+import xml.etree.ElementTree as element_tree
+import zipfile
 
 from tools.prediction import import_google_books_ngrams
 
@@ -20,6 +21,9 @@ TIMESTAMP = re.compile(r"^\s*\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?\s+")
 ANNOTATION = re.compile(r"\[[^]]*\]")
 URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
 SENTENCE_BOUNDARY = re.compile(r"[.!?]+")
+TEI_NAMESPACE = "{http://www.tei-c.org/ns/1.0}"
+ARCHIMOB_RELEASE_ARCHIVE = "Archimob_Release_2.zip"
+TRANSCRIPT_MEMBER = re.compile(r"^Archimob_Release_2/\d+(?:_\d+)?\.xml$")
 
 
 def tokenize(sentence):
@@ -50,8 +54,8 @@ def aggregate(lines, minimum_count, top_targets):
         raise ValueError("minimum_count must be positive")
     if top_targets <= 0:
         raise ValueError("top_targets must be positive")
-    edge_counts = {}
     report = {"accepted_lines": 0, "rejected_lines": 0}
+    sequences = []
     for line in lines:
         filtered = filter_line(line.rstrip("\r\n"))
         if filtered is None:
@@ -59,17 +63,22 @@ def aggregate(lines, minimum_count, top_targets):
             continue
         report["accepted_lines"] += 1
         for sentence in SENTENCE_BOUNDARY.split(filtered):
-            for edge, count in count_bigrams(tokenize(sentence)).items():
-                edge_counts[edge] = edge_counts.get(edge, 0) + count
+            sequences.append(tokenize(sentence))
+    return aggregate_sequences(sequences, minimum_count, top_targets, report)
+
+
+def aggregate_sequences(sequences, minimum_count, top_targets, report):
+    edge_counts = {}
+    for tokens in sequences:
+        for edge, count in count_bigrams(tokens).items():
+            edge_counts[edge] = edge_counts.get(edge, 0) + count
+    targets_by_context = {}
+    for (context, target), count in edge_counts.items():
+        if count >= minimum_count:
+            targets_by_context.setdefault(context, []).append((target, count))
     selected = {}
-    for context in sorted({context for context, _ in edge_counts}):
-        targets = sorted(
-            (
-                (target, count) for (candidate, target), count in edge_counts.items()
-                if candidate == context and count >= minimum_count
-            ),
-            key=lambda item: (-item[1], item[0]),
-        )[:top_targets]
+    for context, candidates in sorted(targets_by_context.items()):
+        targets = sorted(candidates, key=lambda item: (-item[1], item[0]))[:top_targets]
         for target, count in targets:
             selected[(context, target)] = count
     word_counts = {}
@@ -78,6 +87,52 @@ def aggregate(lines, minimum_count, top_targets):
         word_counts[target] = word_counts.get(target, 0) + count
     words, ngrams = _scored_counts(word_counts, selected)
     return words, ngrams, report
+
+
+def archive_sequences(source):
+    try:
+        with zipfile.ZipFile(source) as outer:
+            members = [
+                member for member in outer.infolist()
+                if not member.is_dir() and member.filename == ARCHIMOB_RELEASE_ARCHIVE
+            ]
+            if len(members) != 1:
+                raise ValueError("archive must contain exactly one " + ARCHIMOB_RELEASE_ARCHIVE)
+            with outer.open(members[0]) as nested_source:
+                with zipfile.ZipFile(io.BytesIO(nested_source.read())) as nested:
+                    members = nested.infolist()
+                    if any(
+                        pathlib.PurePosixPath(member.filename).is_absolute()
+                        or ".." in pathlib.PurePosixPath(member.filename).parts
+                        for member in members
+                    ):
+                        raise ValueError("nested archive contains an unsafe member path")
+                    xml_members = [
+                        member for member in members
+                        if not member.is_dir() and TRANSCRIPT_MEMBER.fullmatch(member.filename)
+                    ]
+                    if not xml_members:
+                        raise ValueError("nested archive contains no XML transcripts")
+                    sequences = []
+                    for member in sorted(xml_members, key=lambda item: item.filename):
+                        try:
+                            with nested.open(member) as transcript:
+                                root = element_tree.parse(transcript).getroot()
+                        except element_tree.ParseError as error:
+                            raise ValueError("malformed TEI XML transcript") from error
+                        if root.tag != TEI_NAMESPACE + "TEI":
+                            raise ValueError("transcript must use the TEI namespace")
+                        for utterance in root.findall(
+                            "./" + TEI_NAMESPACE + "text/" + TEI_NAMESPACE + "body/" + TEI_NAMESPACE + "u"
+                        ):
+                            tokens = []
+                            for word in utterance.iter(TEI_NAMESPACE + "w"):
+                                tokens.extend(tokenize(word.text or ""))
+                            if tokens:
+                                sequences.append(tokens)
+                    return sequences
+    except zipfile.BadZipFile as error:
+        raise ValueError("malformed ArchiMob archive") from error
 
 
 def _scored_counts(word_counts, selected):
@@ -90,7 +145,19 @@ def _scored_counts(word_counts, selected):
 
 
 def load_current_generation(words_output, ngrams_output):
-    return import_google_books_ngrams.load_current_generation(words_output, ngrams_output)
+    words, ngrams = import_google_books_ngrams.load_current_generation(words_output, ngrams_output)
+    pointer = import_google_books_ngrams.current_manifest_path(words_output, ngrams_output)
+    data = json.loads(pointer.read_text(encoding="utf-8"))
+    report = data.get("report")
+    if not isinstance(report, dict) or not isinstance(report.get("path"), str):
+        raise ValueError("current generation does not contain a report")
+    report_path = (pointer.parent / report["path"]).resolve()
+    root = import_google_books_ngrams.generation_root_path(words_output, ngrams_output).resolve()
+    if root not in report_path.parents or not report_path.is_file():
+        raise ValueError("current generation report is outside the output directory")
+    if _sha256(report_path) != report.get("sha256"):
+        raise ValueError("current generation report hash does not match")
+    return words, ngrams, report_path
 
 
 def main():
@@ -112,27 +179,45 @@ def main():
     }:
         raise ValueError("input, output, and report paths must differ")
     _validate_report_output_path(arguments.report_output, arguments.words_output, arguments.ngrams_output)
-    actual_hash = _sha256(arguments.input)
-    if actual_hash != arguments.source_sha256:
-        raise ValueError("source SHA-256 does not match --source-sha256")
-    with arguments.input.open(encoding="utf-8") as source:
-        words, ngrams, report = aggregate(source, arguments.minimum_count, arguments.top_targets)
+    with arguments.input.open("rb") as source:
+        actual_hash = _sha256_opened(source)
+        if actual_hash != arguments.source_sha256:
+            raise ValueError("source SHA-256 does not match --source-sha256")
+        source.seek(0)
+        if zipfile.is_zipfile(source):
+            source.seek(0)
+            sequences = archive_sequences(source)
+            report = {"accepted_lines": len(sequences), "rejected_lines": 0}
+            words, ngrams, report = aggregate_sequences(
+                sequences, arguments.minimum_count, arguments.top_targets, report
+            )
+        else:
+            source.seek(0)
+            with io.TextIOWrapper(source, encoding="utf-8") as text_source:
+                words, ngrams, report = aggregate(
+                    text_source, arguments.minimum_count, arguments.top_targets
+                )
     if not ngrams:
         raise ValueError("no retained n-grams; lower --minimum-count or use another input")
-    _publish_generation(words, ngrams, arguments.words_output, arguments.ngrams_output)
     report["source_sha256"] = actual_hash
-    _publish_report(report, arguments.report_output)
+    _publish_generation(
+        words, ngrams, arguments.words_output, arguments.ngrams_output,
+        arguments.report_output.name,
+        (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
+    )
 
 
 def _validate_report_output_path(report_output, words_output, ngrams_output):
     report_output = report_output.resolve()
+    if report_output.name in {words_output.name, ngrams_output.name}:
+        raise ValueError("report name must differ from generation TSV names")
     pointer = import_google_books_ngrams.current_manifest_path(words_output, ngrams_output).resolve()
     generation_root = import_google_books_ngrams.generation_root_path(words_output, ngrams_output).resolve()
     if report_output == pointer or report_output == generation_root or generation_root in report_output.parents:
         raise ValueError("report output must not overlap active publication paths")
 
 
-def _publish_generation(words, ngrams, words_output, ngrams_output):
+def _publish_generation(words, ngrams, words_output, ngrams_output, report_name, report_contents):
     connection = sqlite3.connect(":memory:")
     try:
         connection.executescript(
@@ -146,27 +231,11 @@ def _publish_generation(words, ngrams, words_output, ngrams_output):
             "INSERT INTO selected(context, target, count) VALUES (?, ?, ?)",
             [(context, target, score) for context, target, score in ngrams],
         )
-        import_google_books_ngrams._publish_generation(connection, words_output, ngrams_output)
+        import_google_books_ngrams._publish_generation(
+            connection, words_output, ngrams_output, (report_name, report_contents)
+        )
     finally:
         connection.close()
-
-
-def _publish_report(report, output_path):
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        dir=output_path.parent, prefix=f".{output_path.name}.", suffix=".tmp", text=True
-    )
-    temporary_path = pathlib.Path(temporary)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as output:
-            json.dump(report, output, sort_keys=True, separators=(",", ":"))
-            output.write("\n")
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary_path, output_path)
-        import_google_books_ngrams._sync_directory(output_path.parent)
-    finally:
-        temporary_path.unlink(missing_ok=True)
 
 
 def _sha256(path):
@@ -174,6 +243,13 @@ def _sha256(path):
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_opened(source):
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        digest.update(chunk)
     return digest.hexdigest()
 
 

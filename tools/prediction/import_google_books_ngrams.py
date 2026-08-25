@@ -174,12 +174,13 @@ def load_current_generation(words_output, ngrams_output):
     return tuple(files)
 
 
-def _publish_generation(connection, words_output, ngrams_output):
+def _publish_generation(connection, words_output, ngrams_output, report=None):
     generation_root = generation_root_path(words_output, ngrams_output)
     generation_root.mkdir(exist_ok=True)
     generation = pathlib.Path(tempfile.mkdtemp(prefix="generation-", dir=generation_root))
     words_path = generation / words_output.name
     ngrams_path = generation / ngrams_output.name
+    report_path = None
     pointer_temporary = None
     try:
         word_maximum = connection.execute("SELECT MAX(count) FROM word_counts").fetchone()[0]
@@ -196,6 +197,13 @@ def _publish_generation(connection, words_output, ngrams_output):
                 output.write(f"{context}\t{target}\t{score(count, ngram_maximum)}\n")
             output.flush()
             os.fsync(output.fileno())
+        if report is not None:
+            report_name, report_contents = report
+            report_path = generation / report_name
+            with report_path.open("wb") as output:
+                output.write(report_contents)
+                output.flush()
+                os.fsync(output.fileno())
         _sync_directory(generation)
         _sync_directory(generation_root)
         pointer = current_manifest_path(words_output, ngrams_output)
@@ -210,6 +218,11 @@ def _publish_generation(connection, words_output, ngrams_output):
                 "sha256": _sha256(ngrams_path),
             },
         }
+        if report_path is not None:
+            manifest["report"] = {
+                "path": str(report_path.relative_to(pointer.parent)),
+                "sha256": _sha256(report_path),
+            }
         descriptor, temporary = tempfile.mkstemp(
             dir=pointer.parent, prefix=f".{pointer.name}.", suffix=".tmp", text=True
         )
