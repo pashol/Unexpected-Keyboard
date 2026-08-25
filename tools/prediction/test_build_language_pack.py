@@ -501,12 +501,40 @@ class BuildLanguagePackTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source_sha256"):
             build_language_pack.validate_registry_entry(pack)
 
+    def test_ready_production_pack_requires_a_locked_source_hash(self):
+        pack = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
+
+        with self.assertRaisesRegex(ValueError, "source_sha256"):
+            build_language_pack.validate_registry_entry(pack)
+
+    def test_registry_rejects_traversal_or_absolute_ready_builder_inputs(self):
+        for field, value in (
+            ("word_frequency_tsv", "../sources/en.words.tsv"),
+            ("ngram_tsv", "/sources/en.ngrams.tsv"),
+            ("provenance", "../sources/en.provenance.json"),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary_directory:
+                directory = pathlib.Path(temporary_directory)
+                registry_path = directory / "language_packs.json"
+                registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
+                for name in ("minimal_en.dict", "minimal_en.json", "ATTRIBUTION.en.md"):
+                    (directory / name).write_bytes((FIXTURE_DIR / name).read_bytes())
+                registry["packs"] = [registry["packs"][0]]
+                registry["packs"][0]["dictionary"] = "minimal_en.dict"
+                registry["packs"][0]["manifest"] = "minimal_en.json"
+                registry["packs"][0]["attribution"] = "ATTRIBUTION.en.md"
+                registry["packs"][0][field] = value
+                registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+                with self.assertRaisesRegex(ValueError, "under the registry|relative"):
+                    build_language_pack.load_language_packs(registry_path)
+
     def test_registry_rejects_traversal_in_ready_or_pending_file_references(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             ready = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
-            ready["dictionary"] = "../minimal_en.dict"
-            registry_path.write_text(json.dumps({"format_version": 202, "packs": [ready]}), encoding="utf-8")
+            ready["dictionary"] = "minimal_/../../minimal_en.dict"
+            registry_path.write_text(json.dumps({"format_version": 202, "fixture_only": True, "packs": [ready]}), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "under the registry"):
                 build_language_pack.load_language_packs(registry_path)
@@ -534,7 +562,7 @@ class BuildLanguagePackTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             pack = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
-            registry_path.write_text(json.dumps({"format_version": 202, "packs": [pack, pack]}), encoding="utf-8")
+            registry_path.write_text(json.dumps({"format_version": 202, "fixture_only": True, "packs": [pack, pack]}), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "duplicate locale"):
                 build_language_pack.load_language_packs(registry_path)

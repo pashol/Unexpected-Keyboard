@@ -262,7 +262,7 @@ def validate_provenance(provenance, provenance_directory=None, declared_inputs=N
     return provenance
 
 
-def validate_registry_entry(pack):
+def validate_registry_entry(pack, fixture_only=False):
     if not isinstance(pack, dict) or not isinstance(pack.get("development_supported"), bool):
         raise ValueError("language pack registry entries must declare development_supported")
     required = ("dictionary", "locale", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv")
@@ -271,7 +271,10 @@ def validate_registry_entry(pack):
     for field in ("asset_license", "attribution"):
         if not isinstance(pack.get(field), str) or not pack[field]:
             raise ValueError("language pack registry entries must declare " + field)
-    if "acquisition_lock" in pack or "source_sha256" in pack:
+    if fixture_only:
+        if pack["asset_license"] != "CC0-1.0" or not pack["dictionary"].startswith("minimal_"):
+            raise ValueError("fixture-only language pack registry entries must be CC0 minimal fixtures")
+    else:
         source_sha256 = pack.get("source_sha256")
         if not isinstance(source_sha256, str) or len(source_sha256) != SHA256_HEX_LENGTH:
             raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256")
@@ -334,6 +337,9 @@ def load_language_packs(registry_path, development_only=False):
         raise ValueError("language pack registry must be JSON") from error
     if not isinstance(registry, dict) or registry.get("format_version") != FORMAT_VERSION or not isinstance(registry.get("packs"), list):
         raise ValueError("language pack registry has an invalid format")
+    fixture_only = registry.get("fixture_only", False)
+    if not isinstance(fixture_only, bool):
+        raise ValueError("language pack registry fixture_only must be a boolean")
     registry_directory = registry_path.parent
     validated = []
     locales = set()
@@ -344,7 +350,7 @@ def load_language_packs(registry_path, development_only=False):
         if state == "source_pending":
             validate_source_pending_registry_entry(pack)
         elif state == "ready":
-            validate_registry_entry(pack)
+            validate_registry_entry(pack, fixture_only)
         else:
             raise ValueError("language pack registry entry has an invalid state")
         if pack["locale"] in locales:
@@ -364,6 +370,8 @@ def load_language_packs(registry_path, development_only=False):
         dictionary = registry_file_path(registry_directory, pack["dictionary"], "dictionary")
         manifest_path = registry_file_path(registry_directory, pack["manifest"], "manifest")
         attribution = registry_file_path(registry_directory, pack["attribution"], "attribution")
+        for field in ("word_frequency_tsv", "ngram_tsv", "provenance"):
+            registry_file_path(registry_directory, pack[field], field)
         if not attribution.is_file():
             raise ValueError("language pack registry attribution file must exist")
         if not dictionary.is_file() or not manifest_path.is_file():
