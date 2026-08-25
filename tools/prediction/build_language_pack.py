@@ -275,12 +275,14 @@ def validate_registry_entry(pack):
 
 
 def validate_source_pending_registry_entry(pack):
-    required = ("asset_license", "attribution", "locale", "source_id", "source_location", "state")
+    required = ("asset_license", "attribution", "dictionary", "locale", "manifest", "source_id", "source_location", "state")
     if not isinstance(pack, dict) or any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
-        raise ValueError("source-pending language pack registry entries must declare asset_license, attribution, locale, source_id, source_location, and state")
+        raise ValueError("source-pending language pack registry entries must declare asset_license, attribution, dictionary, locale, manifest, source_id, source_location, and state")
     if pack["state"] != "source_pending":
         raise ValueError("source-pending language pack registry entries must declare state source_pending")
-    artifact_fields = {"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}
+    if pathlib.PurePath(pack["dictionary"]).is_absolute() or pathlib.PurePath(pack["manifest"]).is_absolute():
+        raise ValueError("source-pending language pack artifact paths must be relative")
+    artifact_fields = {"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}
     if artifact_fields.intersection(pack):
         raise ValueError("source-pending language pack registry entries must not declare artifacts")
     return pack

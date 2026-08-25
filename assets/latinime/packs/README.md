@@ -9,3 +9,5 @@ Until a source pack is processed into a release, its `source_pending` entry
 declares its locale, license, attribution, source identifier, and source
 location without references to nonexistent artifacts. Dictionary binaries and
 manifests are checked-in, reviewable release artifacts when they are available.
+Pending entries declare the planned relative dictionary and manifest paths, but
+their files and output hash are not required until the entry becomes ready.

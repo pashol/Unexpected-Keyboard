@@ -372,7 +372,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "attribution file must exist"):
                 build_language_pack.load_language_packs(registry_path)
 
-    def test_production_registry_lists_source_pending_packs_without_artifact_references(self):
+    def test_production_registry_lists_source_pending_packs_with_planned_artifact_paths(self):
         registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
@@ -387,7 +387,11 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertTrue(pack["source_id"])
             self.assertIsInstance(pack["source_location"], str)
             self.assertTrue(pack["source_location"])
-            self.assertFalse({"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
+            self.assertEqual(pack["locale"] + ".dict", pack["dictionary"])
+            self.assertEqual(pack["locale"] + ".json", pack["manifest"])
+            self.assertFalse(pathlib.PurePath(pack["dictionary"]).is_absolute())
+            self.assertFalse(pathlib.PurePath(pack["manifest"]).is_absolute())
+            self.assertFalse({"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
 
     def test_registry_rejects_source_pending_pack_without_a_source_identifier(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -404,6 +408,44 @@ class BuildLanguagePackTest(unittest.TestCase):
             }), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "source_id"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_registry_rejects_source_pending_pack_without_planned_artifact_paths(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry_path.write_text(json.dumps({
+                "format_version": 202,
+                "packs": [{
+                    "asset_license": "CC BY 3.0",
+                    "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "locale": "en",
+                    "source_id": "example",
+                    "source_location": "outside-version-control/example",
+                    "state": "source_pending",
+                }],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "dictionary"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_registry_rejects_absolute_source_pending_artifact_paths(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry_path.write_text(json.dumps({
+                "format_version": 202,
+                "packs": [{
+                    "asset_license": "CC BY 3.0",
+                    "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "dictionary": "/planned/en.dict",
+                    "locale": "en",
+                    "manifest": "en.json",
+                    "source_id": "example",
+                    "source_location": "outside-version-control/example",
+                    "state": "source_pending",
+                }],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "relative"):
                 build_language_pack.load_language_packs(registry_path)
 
     def test_registry_rejects_an_unknown_pack_state(self):
