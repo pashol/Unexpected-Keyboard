@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import pathlib
 import re
 import sqlite3
@@ -36,6 +37,9 @@ MAX_TRANSCRIPT_XML_BYTES = 4 * 1024 * 1024
 MAX_TRANSCRIPT_XML_TOTAL_BYTES = 60 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 100
 COPY_CHUNK_BYTES = 1024 * 1024
+MAX_SOURCE_INPUT_BYTES = 64 * 1024 * 1024
+MAX_OUTER_ARCHIVE_MEMBERS = 16
+MAX_NESTED_ARCHIVE_MEMBERS = 64
 
 
 def tokenize(sentence):
@@ -105,6 +109,8 @@ def archive_sequences(source):
     try:
         with zipfile.ZipFile(source) as outer:
             outer_members = outer.infolist()
+            if len(outer_members) > MAX_OUTER_ARCHIVE_MEMBERS:
+                raise ValueError("outer archive entry count exceeds limit")
             _validate_archive_size(outer_members, MAX_OUTER_COMPRESSED_BYTES, MAX_OUTER_UNCOMPRESSED_BYTES, "outer archive")
             members = [
                 member for member in outer.infolist()
@@ -122,6 +128,8 @@ def archive_sequences(source):
                 nested_file.seek(0)
                 with zipfile.ZipFile(nested_file) as nested:
                     members = nested.infolist()
+                    if len(members) > MAX_NESTED_ARCHIVE_MEMBERS:
+                        raise ValueError("nested archive entry count exceeds limit")
                     _validate_archive_size(
                         members, MAX_NESTED_COMPRESSED_BYTES, MAX_NESTED_UNCOMPRESSED_BYTES,
                         "nested archive",
@@ -244,6 +252,8 @@ def main():
         raise ValueError("input, output, and report paths must differ")
     _validate_report_output_path(arguments.report_output, arguments.words_output, arguments.ngrams_output)
     with arguments.input.open("rb") as source:
+        if os.fstat(source.fileno()).st_size > MAX_SOURCE_INPUT_BYTES:
+            raise ValueError("source input exceeds size limit")
         actual_hash = _sha256_opened(source)
         if actual_hash != arguments.source_sha256:
             raise ValueError("source SHA-256 does not match --source-sha256")

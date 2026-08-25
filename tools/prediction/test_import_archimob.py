@@ -249,14 +249,52 @@ class ImportArchiMobTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "compression ratio"):
                 importer.archive_sequences(archive)
 
-    def _nested_archive(self, transcripts, compression=zipfile.ZIP_STORED):
+    def test_archive_sequences_rejects_too_many_outer_empty_entries(self):
+        archive = self._nested_archive(
+            [("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>")], outer_empty_entries=2
+        )
+
+        with mock.patch.object(importer, "MAX_OUTER_ARCHIVE_MEMBERS", 1, create=True):
+            with self.assertRaisesRegex(ValueError, "outer archive.*entry.*limit"):
+                importer.archive_sequences(archive)
+
+    def test_archive_sequences_rejects_too_many_nested_empty_entries(self):
+        archive = self._nested_archive(
+            [("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>")], nested_empty_entries=2
+        )
+
+        with mock.patch.object(importer, "MAX_NESTED_ARCHIVE_MEMBERS", 1, create=True):
+            with self.assertRaisesRegex(ValueError, "nested archive.*entry.*limit"):
+                importer.archive_sequences(archive)
+
+    def test_main_rejects_an_oversized_input_before_hashing(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "archimob.txt"
+            input_path.write_text("Mär gönd nöd hei.\n", encoding="utf-8")
+
+            with mock.patch.object(importer, "MAX_SOURCE_INPUT_BYTES", 1, create=True):
+                with mock.patch.object(importer, "_sha256_opened", side_effect=AssertionError):
+                    with self.assertRaisesRegex(ValueError, "source input.*limit"):
+                        self._run_main(
+                            input_path, directory / "words.tsv", directory / "ngrams.tsv",
+                            directory / "report.json",
+                        )
+
+    def _nested_archive(
+            self, transcripts, compression=zipfile.ZIP_STORED,
+            outer_empty_entries=0, nested_empty_entries=0):
         nested = io.BytesIO()
         with zipfile.ZipFile(nested, "w", compression=compression) as archive:
             for name, contents in transcripts:
                 archive.writestr("Archimob_Release_2/" + name, contents)
+            for index in range(nested_empty_entries):
+                archive.writestr("Archimob_Release_2/empty-" + str(index), b"")
         outer = io.BytesIO()
         with zipfile.ZipFile(outer, "w", compression=compression) as archive:
             archive.writestr("Archimob_Release_2.zip", nested.getvalue())
+            for index in range(outer_empty_entries):
+                archive.writestr("empty-" + str(index), b"")
         outer.seek(0)
         return outer
 
