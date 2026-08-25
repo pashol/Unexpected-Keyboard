@@ -285,6 +285,9 @@ def load_language_packs(registry_path, development_only=False):
     packs = []
     for pack in registry["packs"]:
         validate_registry_entry(pack)
+        attribution = registry_path.parent / pack["attribution"]
+        if not attribution.is_file():
+            raise ValueError("language pack registry attribution file must exist")
         dictionary = registry_path.parent / pack.get("dictionary", "")
         manifest_path = registry_path.parent / pack.get("manifest", "")
         if not dictionary.is_file() or not manifest_path.is_file():

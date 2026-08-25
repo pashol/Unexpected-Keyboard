@@ -359,6 +359,19 @@ class BuildLanguagePackTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "asset_license"):
                 build_language_pack.load_language_packs(registry_path)
 
+    def test_registry_rejects_an_artifact_pack_with_a_missing_attribution_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
+            registry["packs"] = [registry["packs"][0]]
+            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
+            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["attribution"] = "missing-attribution.md"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "attribution file must exist"):
+                build_language_pack.load_language_packs(registry_path)
+
     def test_production_registry_lists_source_pending_packs_without_artifact_references(self):
         registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
@@ -371,12 +384,20 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
             self.assertFalse({"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
 
+    def test_gsw_attribution_names_generated_asset_license_obligations(self):
+        attribution = (ROOT / "assets" / "latinime" / "packs" / "ATTRIBUTION.gsw.md").read_text(encoding="utf-8")
+
+        self.assertIn("CC BY-NC-SA 4.0 requires attribution", attribution)
+        self.assertIn("ShareAlike", attribution)
+        self.assertIn("generated GSW asset", attribution)
+
     def test_registry_rejects_an_entry_with_a_stale_output_hash(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
             registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
             registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["attribution"] = str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve())
             registry["packs"][0]["output_sha256"] = "0" * 64
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
