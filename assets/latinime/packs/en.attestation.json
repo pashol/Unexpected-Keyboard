@@ -1,0 +1,51 @@
+{
+  "acquisition_lock_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+  "combined_source_sha256": "e6ba1ffe40af02fa37808958e9c655dbfec6c545505c8c2fb6c955136e31147e",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "builder": {
+      "path": "build_language_pack.py",
+      "sha256": "3d12d32b5e00619bd6742374428db786519ceb2378f45ab51716eb6b8e98badc"
+    },
+    "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
+    "jdk": {
+      "java_version": "17.0.19",
+      "javac_version": "javac 17.0.19"
+    }
+  },
+  "final_assets": {
+    "dictionary_sha256": "bde709fdc4ac6241fdc9c8d8ffe19de3abccaeaa22af31322c751f46fb5dd424",
+    "manifest_sha256": "cf76e03088807e521eb845215ebd6d3b311cb2f997be2eb534610cc3e91d645b"
+  },
+  "format_version": 1,
+  "generated_inputs": {
+    "ngrams": {
+      "sha256": "438b047df0bab9ee0e8bd7dbafd4522e035a36438367f9d2e1dd8d7c43dbd21d"
+    },
+    "words": {
+      "sha256": "3127151784d980954281d75ec3d32217fa47fc78fb9a1a37cc13b8e0e4d5bff2"
+    }
+  },
+  "importer_reports": {
+    "generation_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "generation_report_sha256": "37f752ef0bc6b4caf83e912dda732f18e72665fa6d711f35b74a0ec97d5631bb"
+  },
+  "locale": "en",
+  "source_provenance": {
+    "ecdc_tm": {
+      "license": "EU/ECDC Reuse Licence (2011/833/EU)",
+      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "type": "external_corpus",
+      "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+      "version": "2012-10"
+    },
+    "ngram_tsv": {
+      "path": "en.ngrams.tsv",
+      "sha256": "438b047df0bab9ee0e8bd7dbafd4522e035a36438367f9d2e1dd8d7c43dbd21d"
+    },
+    "word_frequency_tsv": {
+      "path": "en.words.tsv",
+      "sha256": "3127151784d980954281d75ec3d32217fa47fc78fb9a1a37cc13b8e0e4d5bff2"
+    }
+  }
+}

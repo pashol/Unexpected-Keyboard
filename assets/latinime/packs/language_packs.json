@@ -2,61 +2,85 @@
   "format_version": 202,
   "packs": [
     {
-      "asset_license": "CC BY 3.0",
+      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.en.md",
+      "attestation": "en.attestation.json",
+      "attestation_sha256": "d250ad47f3c4c1bf9a98a7df4f3855097383b0316ded2dd6ba2a9a6e638aee96",
       "acquisition_lock": {
-        "shards": [],
-        "state": "pending",
-        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-        "version": "v3"
+        "shards": [
+          {
+            "name": "ECDC-TM.zip",
+            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
+          }
+        ],
+        "state": "locked",
+        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+        "version": "2012-10"
       },
+      "development_supported": false,
       "dictionary": "en.dict",
       "locale": "en",
       "manifest": "en.json",
-      "source_metadata": "sources/en.acquisition.json",
-      "source_revision": null,
-      "source_sha256": null,
-      "source_url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-      "source_version": "v3",
-      "state": "source_pending"
+      "ngram_tsv": "sources/en.ngrams.tsv",
+      "output_sha256": "bde709fdc4ac6241fdc9c8d8ffe19de3abccaeaa22af31322c751f46fb5dd424",
+      "provenance": "sources/en.provenance.json",
+      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "state": "ready",
+      "word_frequency_tsv": "sources/en.words.tsv"
     },
     {
-      "asset_license": "CC BY 3.0",
+      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.de.md",
+      "attestation": "de.attestation.json",
+      "attestation_sha256": "22020d44c28c851d67c089c5c14d7b2becbd891a7424867da4e0f1164e15cdcf",
       "acquisition_lock": {
-        "shards": [],
-        "state": "pending",
-        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-        "version": "v3"
+        "shards": [
+          {
+            "name": "ECDC-TM.zip",
+            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
+          }
+        ],
+        "state": "locked",
+        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+        "version": "2012-10"
       },
+      "development_supported": false,
       "dictionary": "de.dict",
       "locale": "de",
       "manifest": "de.json",
-      "source_metadata": "sources/de.acquisition.json",
-      "source_revision": null,
-      "source_sha256": null,
-      "source_url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-      "source_version": "v3",
-      "state": "source_pending"
+      "ngram_tsv": "sources/de.ngrams.tsv",
+      "output_sha256": "87b52d3e5cb98b71ce6c81cef78cc25335bd946e80c07af0038190ef41a8b687",
+      "provenance": "sources/de.provenance.json",
+      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "state": "ready",
+      "word_frequency_tsv": "sources/de.words.tsv"
     },
     {
-      "asset_license": "CC BY 3.0",
+      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
       "attribution": "ATTRIBUTION.de.md",
+      "attestation": "de-CH.attestation.json",
+      "attestation_sha256": "28feeb4ab5389b83b3cad9784cd3215cc1f48e4a14c821713dc69654705d6409",
       "acquisition_lock": {
-        "shards": [],
-        "state": "pending",
-        "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-        "version": "v3"
+        "shards": [
+          {
+            "name": "ECDC-TM.zip",
+            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
+          }
+        ],
+        "state": "locked",
+        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+        "version": "2012-10"
       },
+      "development_supported": false,
       "dictionary": "de-CH.dict",
       "locale": "de-CH",
       "manifest": "de-CH.json",
-      "source_metadata": "sources/de-CH.acquisition.json",
-      "source_revision": null,
-      "source_sha256": null,
-      "source_url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-      "source_version": "v3",
-      "state": "source_pending"
+      "ngram_tsv": "sources/de.ngrams.tsv",
+      "output_sha256": "8a7d5a30cbdd710dd1c94b7879e355aa67eb1f3229806298097f96a85785a903",
+      "provenance": "sources/de.provenance.json",
+      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "state": "ready",
+      "word_frequency_tsv": "sources/de.words.tsv"
     },
     {
       "asset_license": "CC BY-NC-SA 4.0",

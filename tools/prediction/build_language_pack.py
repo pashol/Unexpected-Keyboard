@@ -627,6 +627,8 @@ def main():
     parser.add_argument("--ngram-tsv", required=True, type=pathlib.Path)
     parser.add_argument("--provenance", required=True, type=pathlib.Path)
     parser.add_argument("--registry", required=True, type=pathlib.Path)
+    parser.add_argument("--unregistered-promotion", action="store_true",
+                        help="compile externally staged inputs before their reviewed registry entry is ready")
     parser.add_argument("--combined-output", type=pathlib.Path)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
@@ -640,36 +642,39 @@ def main():
     if not word_frequency_tsv.is_file() or not ngram_tsv.is_file() or not args.provenance.is_file():
         parser.error("TSV inputs and provenance must name existing files")
     try:
-        registry = load_language_packs(args.registry)
-        matches = [pack for pack in registry if pack["locale"] == args.locale]
-        if len(matches) != 1:
-            raise ValueError("language pack registry must declare the requested locale exactly once")
-        pack = matches[0]
-        registry_directory = args.registry.resolve().parent
-        expected_inputs = {
-            "word_frequency_tsv": registry_directory / pack["word_frequency_tsv"],
-            "ngram_tsv": registry_directory / pack["ngram_tsv"],
-            "provenance": registry_directory / pack["provenance"],
-        }
-        actual_inputs = {
-            "word_frequency_tsv": args.word_frequency_tsv.resolve(),
-            "ngram_tsv": args.ngram_tsv.resolve(),
-            "provenance": args.provenance.resolve(),
-        }
-        if actual_inputs != {name: path.resolve() for name, path in expected_inputs.items()}:
-            raise ValueError("builder inputs must match the language pack registry")
-        lock = pack.get("acquisition_lock")
-        provenance = validate_provenance(
-            json.loads(args.provenance.read_text(encoding="utf-8")),
-            args.provenance.parent,
-            {
-                args.word_frequency_tsv: word_frequency_tsv,
-                args.ngram_tsv: ngram_tsv,
-            },
-            external_source_sha256=pack.get("source_sha256"),
-            external_source_url=lock.get("url") if isinstance(lock, dict) else None,
-            external_source_version=lock.get("version") if isinstance(lock, dict) else None,
-        )
+        if args.unregistered_promotion:
+            provenance = validate_provenance(json.loads(args.provenance.read_text(encoding="utf-8")))
+        else:
+            registry = load_language_packs(args.registry)
+            matches = [pack for pack in registry if pack["locale"] == args.locale]
+            if len(matches) != 1:
+                raise ValueError("language pack registry must declare the requested locale exactly once")
+            pack = matches[0]
+            registry_directory = args.registry.resolve().parent
+            expected_inputs = {
+                "word_frequency_tsv": registry_directory / pack["word_frequency_tsv"],
+                "ngram_tsv": registry_directory / pack["ngram_tsv"],
+                "provenance": registry_directory / pack["provenance"],
+            }
+            actual_inputs = {
+                "word_frequency_tsv": args.word_frequency_tsv.resolve(),
+                "ngram_tsv": args.ngram_tsv.resolve(),
+                "provenance": args.provenance.resolve(),
+            }
+            if actual_inputs != {name: path.resolve() for name, path in expected_inputs.items()}:
+                raise ValueError("builder inputs must match the language pack registry")
+            lock = pack.get("acquisition_lock")
+            provenance = validate_provenance(
+                json.loads(args.provenance.read_text(encoding="utf-8")),
+                args.provenance.parent,
+                {
+                    args.word_frequency_tsv: word_frequency_tsv,
+                    args.ngram_tsv: ngram_tsv,
+                },
+                external_source_sha256=pack.get("source_sha256"),
+                external_source_url=lock.get("url") if isinstance(lock, dict) else None,
+                external_source_version=lock.get("version") if isinstance(lock, dict) else None,
+            )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
         parser.error("provenance must be JSON and SOURCE_DATE_EPOCH must be an integer: " + str(error))

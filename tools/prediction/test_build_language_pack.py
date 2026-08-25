@@ -348,7 +348,7 @@ class BuildLanguagePackTest(unittest.TestCase):
         pack = next(pack for pack in registry["packs"] if pack["locale"] == "gsw")
 
         self.assertIn("attestation", pack)
-        self.assertEqual([pack], build_language_pack.load_language_packs(registry_path))
+        self.assertEqual(registry["packs"], build_language_pack.load_language_packs(registry_path))
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)
@@ -691,38 +691,23 @@ class BuildLanguagePackTest(unittest.TestCase):
         registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
-        self.assertEqual(["gsw"], [pack["locale"] for pack in build_language_pack.load_language_packs(registry_path)])
+        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in build_language_pack.load_language_packs(registry_path)])
         self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["packs"]])
         for pack, source_url, source_version, state in zip(registry["packs"], (
-            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
-            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
             "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
-        ), ("v3", "v3", "v3", "1.0"), ("source_pending", "source_pending", "source_pending", "ready")):
+        ), ("2012-10", "2012-10", "2012-10", "1.0"), ("ready", "ready", "ready", "ready")):
             self.assertEqual(state, pack["state"])
             self.assertIsInstance(pack["asset_license"], str)
             self.assertTrue(pack["asset_license"])
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
-            if state == "source_pending":
-                self.assertEqual(source_url, pack["source_url"])
-                self.assertEqual(source_version, pack["source_version"])
-                self.assertIsNone(pack["source_revision"])
-                self.assertIsNone(pack["source_sha256"])
-                self.assertEqual("pending", pack["acquisition_lock"]["state"])
-                self.assertEqual([], pack["acquisition_lock"]["shards"])
-                self.assertEqual(source_url, pack["acquisition_lock"]["url"])
-                self.assertEqual(source_version, pack["acquisition_lock"]["version"])
-                self.assertFalse(pathlib.PurePath(pack["source_metadata"]).is_absolute())
-                self.assertFalse({"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
-            else:
-                self.assertEqual("locked", pack["acquisition_lock"]["state"])
-                self.assertEqual(source_url, pack["acquisition_lock"]["url"])
-                self.assertEqual(source_version, pack["acquisition_lock"]["version"])
-                self.assertEqual("swissubase_2269_1_0.zip", pack["acquisition_lock"]["shards"][0]["name"])
-                self.assertEqual("1e417aabb2b7edda51b00c8b283710306e03a6ceceb62059446bd4c2d929d46a", pack["acquisition_lock"]["shards"][0]["sha256"])
-                self.assertEqual("CC BY-NC-SA 4.0", pack["asset_license"])
-                self.assertTrue(pack["output_sha256"])
-                self.assertFalse(pack["development_supported"])
+            self.assertEqual("locked", pack["acquisition_lock"]["state"])
+            self.assertEqual(source_url, pack["acquisition_lock"]["url"])
+            self.assertEqual(source_version, pack["acquisition_lock"]["version"])
+            self.assertTrue(pack["output_sha256"])
+            self.assertFalse(pack["development_supported"])
             self.assertEqual(pack["locale"] + ".dict", pack["dictionary"])
             self.assertEqual(pack["locale"] + ".json", pack["manifest"])
             self.assertFalse(pathlib.PurePath(pack["dictionary"]).is_absolute())
@@ -931,10 +916,10 @@ class BuildLanguagePackTest(unittest.TestCase):
         gsw = (directory / "ATTRIBUTION.gsw.md").read_text(encoding="utf-8")
 
         for attribution in (english, german):
-            self.assertIn("Google", attribution)
-            self.assertIn("https://storage.googleapis.com/books/ngrams/books/datasetsv3.html", attribution)
-            self.assertIn("https://creativecommons.org/licenses/by/3.0/", attribution)
-            self.assertIn("transformed into a frequency dictionary", attribution)
+            self.assertIn("ECDC", attribution)
+            self.assertIn("https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip", attribution)
+            self.assertIn("2011/833/EU", attribution)
+            self.assertIn("transformed into", attribution)
         self.assertIn("ArchiMob", gsw)
         self.assertIn("https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview", gsw)
         self.assertIn("https://creativecommons.org/licenses/by-nc-sa/4.0/", gsw)

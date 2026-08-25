@@ -1,0 +1,36 @@
+{
+  "combined_source_sha256": "e391d77ea7fefb77bb499ca63b2eb1b65a1cc7df8defc267f1a1a9fa47b131e6",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "builder": {
+      "path": "build_language_pack.py",
+      "sha256": "3d12d32b5e00619bd6742374428db786519ceb2378f45ab51716eb6b8e98badc"
+    },
+    "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
+    "jdk": {
+      "java_version": "17.0.19",
+      "javac_version": "javac 17.0.19"
+    }
+  },
+  "format_version": 202,
+  "locale": "de",
+  "output_sha256": "87b52d3e5cb98b71ce6c81cef78cc25335bd946e80c07af0038190ef41a8b687",
+  "sources": {
+    "ecdc_tm": {
+      "license": "EU/ECDC Reuse Licence (2011/833/EU)",
+      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "type": "external_corpus",
+      "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+      "version": "2012-10"
+    },
+    "ngram_tsv": {
+      "path": "de.ngrams.tsv",
+      "sha256": "25a4744b539b783ef45b2ecc0b3e6b2aa978407f2587d5ca1a3be22aa7ed64ef"
+    },
+    "word_frequency_tsv": {
+      "path": "de.words.tsv",
+      "sha256": "bcbd98472e5dd4fad7d337702478641eaf911743cf898e015c80b793e3bebed4"
+    }
+  },
+  "timestamp": "1970-01-01T00:00:00Z"
+}
