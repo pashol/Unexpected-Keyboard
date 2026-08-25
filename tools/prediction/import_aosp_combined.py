@@ -14,6 +14,7 @@ def parse_combined(lines):
     skipped = 0
     dropped = 0
     context = None
+    context_retained = False
     for raw_line in lines:
         line = raw_line.rstrip("\r\n")
         if not header_seen:
@@ -28,16 +29,18 @@ def parse_combined(lines):
             continue
         if stripped.startswith(WORD_PREFIX):
             word, frequency = _parse_entry(stripped, WORD_PREFIX)
+            context = word
             if frequency <= 0:
                 dropped += 1
+                context_retained = False
                 continue
             words[word] = max(words.get(word, 0), frequency)
-            context = word
+            context_retained = True
         elif stripped.startswith(BIGRAM_PREFIX):
             if context is None:
                 raise ValueError("bigram entry precedes its context word")
             target, frequency = _parse_entry(stripped, BIGRAM_PREFIX)
-            if frequency <= 0:
+            if frequency <= 0 or not context_retained:
                 dropped += 1
                 continue
             bigrams[(context, target)] = max(bigrams.get((context, target), 0), frequency)
@@ -60,7 +63,7 @@ def _parse_entry(entry, prefix):
 
 
 def apply_word_maps(words, bigrams, maps):
-    """Apply literal old:new replacements; collisions keep the maximum frequency."""
+    """Apply literal old:new replacements; collisions keep the maximum frequency. Maps apply sequentially per word, so their order matters."""
     def map_word(word):
         for old, new in maps:
             word = word.replace(old, new)

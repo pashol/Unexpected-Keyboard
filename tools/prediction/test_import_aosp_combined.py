@@ -38,6 +38,28 @@ class ParseCombinedTest(unittest.TestCase):
         self.assertEqual({}, bigrams)
         self.assertEqual({"skipped_lines": 0, "dropped_entries": 2}, dropped)
 
+    def test_bigram_after_dropped_word_is_counted_as_dropped(self):
+        words, bigrams, stats = importer.parse_combined(
+            [
+                "dictionary=main:x",
+                " word=a,f=5",
+                "  bigram=T,f=2",
+                " word=b,f=0",
+                "  bigram=T,f=4",
+            ]
+        )
+        self.assertEqual({"a": 5}, words)
+        self.assertEqual({("a", "T"): 2}, bigrams)
+        self.assertEqual({"skipped_lines": 0, "dropped_entries": 2}, stats)
+
+    def test_rejects_bigram_before_any_word(self):
+        with self.assertRaisesRegex(ValueError, "precedes"):
+            importer.parse_combined(["dictionary=main:x", "  bigram=T,f=1"])
+
+    def test_rejects_empty_input_without_header(self):
+        with self.assertRaisesRegex(ValueError, "header"):
+            importer.parse_combined([])
+
 
 class ApplyMapsTest(unittest.TestCase):
     def test_maps_characters_and_merges_collisions_by_maximum(self):
@@ -80,3 +102,9 @@ class SelectNgramsTest(unittest.TestCase):
         )
         self.assertEqual(1, capped)
         self.assertEqual(1, below)
+
+    def test_rejects_non_positive_minimum_count_and_top_targets(self):
+        with self.assertRaisesRegex(ValueError, "minimum_count"):
+            importer.select_ngrams({}, {}, minimum_count=0, top_targets=2)
+        with self.assertRaisesRegex(ValueError, "top_targets"):
+            importer.select_ngrams({}, {}, minimum_count=2, top_targets=0)
