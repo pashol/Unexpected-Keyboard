@@ -374,6 +374,30 @@ def validate_registry_entry(pack, fixture_only=False):
     return pack
 
 
+def validate_ready_pack_assets(pack, manifest, attribution):
+    lock = pack["acquisition_lock"]
+    sources = manifest.get("sources")
+    if not isinstance(sources, dict):
+        raise ValueError("ready pack manifest must declare provenance sources")
+    validate_provenance(
+        {name: source for name, source in sources.items() if name not in GENERATED_SOURCE_NAMES},
+        external_source_sha256=pack["source_sha256"],
+        external_source_url=lock["url"],
+        external_source_version=lock["version"],
+    )
+    if pack["locale"] == "gsw":
+        required_notice = (
+            "CC BY-NC-SA 4.0",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "non-commercial",
+            "ShareAlike",
+        )
+        if pack["asset_license"] != "CC BY-NC-SA 4.0" or any(
+                term not in attribution for term in required_notice):
+            raise ValueError("ready GSW packs require CC BY-NC-SA 4.0 non-commercial ShareAlike attribution")
+    return pack
+
+
 def validate_source_pending_registry_entry(pack):
     required = ("acquisition_lock", "asset_license", "attribution", "dictionary", "locale", "manifest", "source_metadata", "source_revision", "source_sha256", "source_url", "source_version", "state")
     nullable = {"source_revision", "source_sha256", "source_version"}
@@ -486,6 +510,8 @@ def load_language_packs(registry_path, development_only=False):
             raise ValueError("language pack registry entry does not match its manifest")
         if sha256(dictionary) != pack.get("output_sha256"):
             raise ValueError("language pack registry output hash does not match its dictionary")
+        if not fixture_only:
+            validate_ready_pack_assets(pack, manifest, attribution.read_text(encoding="utf-8"))
         if not development_only or pack["development_supported"]:
             packs.append(pack)
     return packs

@@ -9,4 +9,4 @@ License: CC BY-NC-SA 4.0, https://creativecommons.org/licenses/by-nc-sa/4.0/
 ArchiMob text transcripts were transformed into a frequency dictionary for the
 Swiss German language pack. CC BY-NC-SA 4.0 requires attribution for the
 generated GSW asset and requires adaptations of that asset to be shared under
-the same license (ShareAlike).
+the same license (ShareAlike). The generated GSW asset remains non-commercial.

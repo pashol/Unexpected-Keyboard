@@ -28,10 +28,14 @@ and sorted deterministically. The `gsw` normalizer deliberately
 preserves dialect variants such as `nöd`, `nid`, and `ned`, umlauts, apostrophes, and
 casing.
 
-The checked-in English and Swiss German packs are deliberately tiny test fixtures,
-not production-quality corpora or language packs. Gradle packages only entries that
-explicitly set `development_supported` to `true`; currently that is the English
-fixture.
+The checked-in English and Swiss German packs under `test/fixtures` are tiny test
+fixtures. `assets/latinime/packs/gsw.dict` is a reviewed production artifact;
+its archive, import report, and TSV generation stay outside Git. Rebuild it by
+following `sources/archimob.md`, using the locked outer archive SHA-256, the
+immutable import report receipt, `--minimum-count 2 --top-targets 8`, Java
+17.0.19, `SOURCE_DATE_EPOCH=0`, and the pinned AOSP revision. Stage temporary
+TSV pointers and provenance beside a temporary registry copy, then copy only
+the verified `.dict` and `.json` into the pack directory.
 
 Run the development fixture copier from the repository root as a package module:
 

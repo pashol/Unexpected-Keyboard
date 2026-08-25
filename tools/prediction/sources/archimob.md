@@ -33,20 +33,18 @@ not permitted.
 
 ## Acquisition lock
 
-There is no anonymous transcript/export URL. Before a ready pack can build,
-the registry and provenance record must contain the authenticated downloaded
-transcript/export version, export date, exporter or source-file identity, the
-verified outer SHA-256 above, and the catalogue URL. The source hash is an
-acquisition lock: pass that exact value as `--source-sha256`, and the importer
-rejects a different input before it decodes or processes transcript text.
+There is no anonymous transcript/export URL. The ready GSW pack locks the
+verified outer archive as the sole acquisition shard, records catalogue version
+`1.0`, and binds the manifest's external corpus record to the canonical
+aggregate lock hash. The source hash is an acquisition lock: pass the outer
+archive SHA-256 below as `--source-sha256`, and the importer rejects a
+different input before it decodes or processes transcript text.
 
 The public DIP MD5 `ca7356cb1e10d128c41ef1f8f930b54b` is not a
 transcript/export source lock and must not be used as `--source-sha256` or
-recorded as a source SHA-256. This document intentionally does not invent an
-authenticated download date or exporter/source-file identity. No `gsw` pack
-can be promoted to `ready` or built as a ready pack until the actual
-authenticated downloaded transcript/export SHA-256 and release fields are
-locked in its registry entry and provenance record.
+recorded as a source SHA-256. To rebuild, retain the importer's immutable
+active-generation report and its receipt outside Git with the verified archive;
+they restore the exact externally generated TSV inputs used for review.
 
 ```bash
 python3 -m tools.prediction.import_archimob \

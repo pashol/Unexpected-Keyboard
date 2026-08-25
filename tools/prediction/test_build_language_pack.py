@@ -291,6 +291,57 @@ class BuildLanguagePackTest(unittest.TestCase):
                     external_source_url=lock_url, external_source_version=lock_version,
                 )
 
+    def test_ready_gsw_promotion_requires_locked_external_provenance_and_nc_sa_attribution(self):
+        lock = {
+            "state": "locked",
+            "url": "https://example.invalid/archimob",
+            "version": "1.0",
+            "shards": [{"name": "swissubase_2269_1_0.zip", "sha256": "a" * 64}],
+        }
+        pack = {
+            "acquisition_lock": lock,
+            "asset_license": "CC BY-NC-SA 4.0",
+            "attribution": "ATTRIBUTION.gsw.md",
+            "development_supported": False,
+            "dictionary": "gsw.dict",
+            "locale": "gsw",
+            "manifest": "gsw.json",
+            "ngram_tsv": "sources/gsw.ngrams.tsv",
+            "output_sha256": "b" * 64,
+            "provenance": "sources/gsw.provenance.json",
+            "source_sha256": build_language_pack.acquisition_lock_sha256(lock),
+            "state": "ready",
+            "word_frequency_tsv": "sources/gsw.words.tsv",
+        }
+        manifest = {
+            "locale": "gsw",
+            "output_sha256": "b" * 64,
+            "sources": {
+                "archimob": {
+                    "license": "CC BY-NC-SA 4.0",
+                    "source_sha256": pack["source_sha256"],
+                    "type": "external_corpus",
+                    "url": lock["url"],
+                    "version": lock["version"],
+                },
+            },
+        }
+        attribution = (
+            "CC BY-NC-SA 4.0, https://creativecommons.org/licenses/by-nc-sa/4.0/\n"
+            "This generated GSW asset remains non-commercial and ShareAlike.\n"
+        )
+
+        self.assertEqual(
+            pack,
+            build_language_pack.validate_ready_pack_assets(pack, manifest, attribution),
+        )
+        manifest["sources"]["archimob"]["source_sha256"] = "c" * 64
+        with self.assertRaisesRegex(ValueError, "acquisition lock"):
+            build_language_pack.validate_ready_pack_assets(pack, manifest, attribution)
+        manifest["sources"]["archimob"]["source_sha256"] = pack["source_sha256"]
+        with self.assertRaisesRegex(ValueError, "CC BY-NC-SA 4.0"):
+            build_language_pack.validate_ready_pack_assets(pack, manifest, "attribution only")
+
     def test_ready_registry_lock_requires_canonical_shards_and_matching_aggregate_hash(self):
         lock = {
             "state": "locked", "url": "https://example.invalid/exports", "version": "v3",
@@ -594,36 +645,46 @@ class BuildLanguagePackTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "attribution file must exist"):
                 build_language_pack.load_language_packs(registry_path)
 
-    def test_production_registry_lists_source_pending_packs_with_planned_artifact_paths(self):
+    def test_production_registry_promotes_only_gsw_with_locked_ready_assets(self):
         registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
-        self.assertEqual([], build_language_pack.load_language_packs(registry_path))
+        self.assertEqual(["gsw"], [pack["locale"] for pack in build_language_pack.load_language_packs(registry_path)])
         self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["packs"]])
-        for pack, source_url, source_version in zip(registry["packs"], (
+        for pack, source_url, source_version, state in zip(registry["packs"], (
             "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
             "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
             "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
             "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
-        ), ("v3", "v3", "v3", None)):
-            self.assertEqual("source_pending", pack["state"])
+        ), ("v3", "v3", "v3", "1.0"), ("source_pending", "source_pending", "source_pending", "ready")):
+            self.assertEqual(state, pack["state"])
             self.assertIsInstance(pack["asset_license"], str)
             self.assertTrue(pack["asset_license"])
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
-            self.assertEqual(source_url, pack["source_url"])
-            self.assertEqual(source_version, pack["source_version"])
-            self.assertIsNone(pack["source_revision"])
-            self.assertIsNone(pack["source_sha256"])
-            self.assertEqual("pending", pack["acquisition_lock"]["state"])
-            self.assertEqual([], pack["acquisition_lock"]["shards"])
-            self.assertEqual(source_url, pack["acquisition_lock"]["url"])
-            self.assertEqual(source_version, pack["acquisition_lock"]["version"])
-            self.assertFalse(pathlib.PurePath(pack["source_metadata"]).is_absolute())
+            if state == "source_pending":
+                self.assertEqual(source_url, pack["source_url"])
+                self.assertEqual(source_version, pack["source_version"])
+                self.assertIsNone(pack["source_revision"])
+                self.assertIsNone(pack["source_sha256"])
+                self.assertEqual("pending", pack["acquisition_lock"]["state"])
+                self.assertEqual([], pack["acquisition_lock"]["shards"])
+                self.assertEqual(source_url, pack["acquisition_lock"]["url"])
+                self.assertEqual(source_version, pack["acquisition_lock"]["version"])
+                self.assertFalse(pathlib.PurePath(pack["source_metadata"]).is_absolute())
+                self.assertFalse({"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
+            else:
+                self.assertEqual("locked", pack["acquisition_lock"]["state"])
+                self.assertEqual(source_url, pack["acquisition_lock"]["url"])
+                self.assertEqual(source_version, pack["acquisition_lock"]["version"])
+                self.assertEqual("swissubase_2269_1_0.zip", pack["acquisition_lock"]["shards"][0]["name"])
+                self.assertEqual("1e417aabb2b7edda51b00c8b283710306e03a6ceceb62059446bd4c2d929d46a", pack["acquisition_lock"]["shards"][0]["sha256"])
+                self.assertEqual("CC BY-NC-SA 4.0", pack["asset_license"])
+                self.assertTrue(pack["output_sha256"])
+                self.assertFalse(pack["development_supported"])
             self.assertEqual(pack["locale"] + ".dict", pack["dictionary"])
             self.assertEqual(pack["locale"] + ".json", pack["manifest"])
             self.assertFalse(pathlib.PurePath(pack["dictionary"]).is_absolute())
             self.assertFalse(pathlib.PurePath(pack["manifest"]).is_absolute())
-            self.assertFalse({"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
 
     def test_registry_rejects_source_pending_pack_without_a_source_url(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

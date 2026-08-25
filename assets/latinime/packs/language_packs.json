@@ -62,20 +62,26 @@
       "asset_license": "CC BY-NC-SA 4.0",
       "attribution": "ATTRIBUTION.gsw.md",
       "acquisition_lock": {
-        "shards": [],
-        "state": "pending",
+        "shards": [
+          {
+            "name": "swissubase_2269_1_0.zip",
+            "sha256": "1e417aabb2b7edda51b00c8b283710306e03a6ceceb62059446bd4c2d929d46a"
+          }
+        ],
+        "state": "locked",
         "url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
-        "version": null
+        "version": "1.0"
       },
+      "development_supported": false,
       "dictionary": "gsw.dict",
       "locale": "gsw",
       "manifest": "gsw.json",
-      "source_metadata": "sources/gsw.acquisition.json",
-      "source_revision": null,
-      "source_sha256": null,
-      "source_url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
-      "source_version": null,
-      "state": "source_pending"
+      "ngram_tsv": "sources/gsw.ngrams.tsv",
+      "output_sha256": "e2abb3175f8856e4239993c6913d1efab91f2e4f82649c32dc17e6f331feaab6",
+      "provenance": "sources/gsw.provenance.json",
+      "source_sha256": "4f7c5953b1365744d0b3074459c6c8c368ff6a243db9430922f3d5e96097230a",
+      "state": "ready",
+      "word_frequency_tsv": "sources/gsw.words.tsv"
     }
   ]
 }
