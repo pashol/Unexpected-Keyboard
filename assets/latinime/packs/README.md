@@ -12,3 +12,9 @@ describe future assets; they do not assert that binaries or manifests exist.
 Dictionary binaries and manifests are checked-in, reviewable release artifacts
 when they are available. Pending entries do not require the planned files or an
 output hash until the entry becomes ready.
+
+Source-pending entries name a source URL, known version or revision, planned
+acquisition metadata path, and an acquisition lock. An `unlocked` entry has no
+recorded `source_sha256` and cannot be built. It must be changed to `locked`
+with a valid recorded SHA-256 after source acquisition before it may progress to
+a ready pack.

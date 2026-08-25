@@ -350,8 +350,8 @@ class BuildLanguagePackTest(unittest.TestCase):
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
             registry["packs"] = [registry["packs"][0]]
-            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
-            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["dictionary"] = "minimal_en.dict"
+            registry["packs"][0]["manifest"] = "minimal_en.json"
             registry["packs"][0].pop("asset_license")
             registry["packs"][0].pop("attribution")
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
@@ -364,8 +364,8 @@ class BuildLanguagePackTest(unittest.TestCase):
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
             registry["packs"] = [registry["packs"][0]]
-            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
-            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0]["dictionary"] = "minimal_en.dict"
+            registry["packs"][0]["manifest"] = "minimal_en.json"
             registry["packs"][0]["attribution"] = "missing-attribution.md"
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
@@ -378,22 +378,29 @@ class BuildLanguagePackTest(unittest.TestCase):
 
         self.assertEqual([], build_language_pack.load_language_packs(registry_path))
         self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["packs"]])
-        for pack in registry["packs"]:
+        for pack, source_url, source_version in zip(registry["packs"], (
+            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+            "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
+            "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
+        ), ("v3", "v3", "v3", None)):
             self.assertEqual("source_pending", pack["state"])
             self.assertIsInstance(pack["asset_license"], str)
             self.assertTrue(pack["asset_license"])
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
-            self.assertIsInstance(pack["source_id"], str)
-            self.assertTrue(pack["source_id"])
-            self.assertIsInstance(pack["source_location"], str)
-            self.assertTrue(pack["source_location"])
+            self.assertEqual(source_url, pack["source_url"])
+            self.assertEqual(source_version, pack["source_version"])
+            self.assertIsNone(pack["source_revision"])
+            self.assertIsNone(pack["source_sha256"])
+            self.assertEqual("unlocked", pack["acquisition_lock"])
+            self.assertFalse(pathlib.PurePath(pack["source_metadata"]).is_absolute())
             self.assertEqual(pack["locale"] + ".dict", pack["dictionary"])
             self.assertEqual(pack["locale"] + ".json", pack["manifest"])
             self.assertFalse(pathlib.PurePath(pack["dictionary"]).is_absolute())
             self.assertFalse(pathlib.PurePath(pack["manifest"]).is_absolute())
             self.assertFalse({"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
 
-    def test_registry_rejects_source_pending_pack_without_a_source_identifier(self):
+    def test_registry_rejects_source_pending_pack_without_a_source_url(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
             registry_path.write_text(json.dumps({
@@ -401,13 +408,19 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "acquisition_lock": "unlocked",
+                    "dictionary": "en.dict",
                     "locale": "en",
-                    "source_location": "outside-version-control/example",
+                    "manifest": "en.json",
+                    "source_metadata": "sources/en.acquisition.json",
+                    "source_revision": None,
+                    "source_sha256": None,
+                    "source_version": "v3",
                     "state": "source_pending",
                 }],
             }), encoding="utf-8")
 
-            with self.assertRaisesRegex(ValueError, "source_id"):
+            with self.assertRaisesRegex(ValueError, "source_url"):
                 build_language_pack.load_language_packs(registry_path)
 
     def test_registry_rejects_source_pending_pack_without_planned_artifact_paths(self):
@@ -418,9 +431,13 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "acquisition_lock": "unlocked",
                     "locale": "en",
-                    "source_id": "example",
-                    "source_location": "outside-version-control/example",
+                    "source_metadata": "sources/en.acquisition.json",
+                    "source_revision": None,
+                    "source_sha256": None,
+                    "source_url": "https://example.invalid/source",
+                    "source_version": "v3",
                     "state": "source_pending",
                 }],
             }), encoding="utf-8")
@@ -436,16 +453,98 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "acquisition_lock": "unlocked",
                     "dictionary": "/planned/en.dict",
                     "locale": "en",
                     "manifest": "en.json",
-                    "source_id": "example",
-                    "source_location": "outside-version-control/example",
+                    "source_metadata": "sources/en.acquisition.json",
+                    "source_revision": None,
+                    "source_sha256": None,
+                    "source_url": "https://example.invalid/source",
+                    "source_version": "v3",
                     "state": "source_pending",
                 }],
             }), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "relative"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_registry_rejects_source_pending_pack_with_an_unlocked_hash(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry_path.write_text(json.dumps({
+                "format_version": 202,
+                "packs": [{
+                    "asset_license": "CC BY 3.0",
+                    "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
+                    "acquisition_lock": "unlocked",
+                    "dictionary": "en.dict",
+                    "locale": "en",
+                    "manifest": "en.json",
+                    "source_metadata": "sources/en.acquisition.json",
+                    "source_revision": None,
+                    "source_sha256": "a" * 64,
+                    "source_url": "https://example.invalid/source",
+                    "source_version": "v3",
+                    "state": "source_pending",
+                }],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "acquisition_lock"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_ready_pack_rejects_an_unlocked_acquisition(self):
+        pack = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
+        pack["acquisition_lock"] = "unlocked"
+        pack["source_sha256"] = None
+
+        with self.assertRaisesRegex(ValueError, "source_sha256"):
+            build_language_pack.validate_registry_entry(pack)
+
+    def test_registry_rejects_traversal_in_ready_or_pending_file_references(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            ready = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
+            ready["dictionary"] = "../minimal_en.dict"
+            registry_path.write_text(json.dumps({"format_version": 202, "packs": [ready]}), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "under the registry"):
+                build_language_pack.load_language_packs(registry_path)
+
+            pending = {
+                "asset_license": "CC BY 3.0",
+                "attribution": "ATTRIBUTION.en.md",
+                "acquisition_lock": "unlocked",
+                "dictionary": "en.dict",
+                "locale": "en",
+                "manifest": "en.json",
+                "source_metadata": "../sources/en.acquisition.json",
+                "source_revision": None,
+                "source_sha256": None,
+                "source_url": "https://example.invalid/source",
+                "source_version": "v3",
+                "state": "source_pending",
+            }
+            registry_path.write_text(json.dumps({"format_version": 202, "packs": [pending]}), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "under the registry"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_registry_rejects_duplicate_locales_and_non_object_shapes(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            pack = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))["packs"][0]
+            registry_path.write_text(json.dumps({"format_version": 202, "packs": [pack, pack]}), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "duplicate locale"):
+                build_language_pack.load_language_packs(registry_path)
+
+            registry_path.write_text(json.dumps([]), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid format"):
+                build_language_pack.load_language_packs(registry_path)
+
+            registry_path.write_text(json.dumps({"format_version": 202, "packs": ["not-an-object"]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "entry must be an object"):
                 build_language_pack.load_language_packs(registry_path)
 
     def test_registry_rejects_an_unknown_pack_state(self):
@@ -469,13 +568,34 @@ class BuildLanguagePackTest(unittest.TestCase):
         self.assertIn("ShareAlike", attribution)
         self.assertIn("generated GSW asset", attribution)
 
+    def test_production_attributions_identify_sources_licenses_and_transformations(self):
+        directory = ROOT / "assets" / "latinime" / "packs"
+        english = (directory / "ATTRIBUTION.en.md").read_text(encoding="utf-8")
+        german = (directory / "ATTRIBUTION.de.md").read_text(encoding="utf-8")
+        gsw = (directory / "ATTRIBUTION.gsw.md").read_text(encoding="utf-8")
+
+        for attribution in (english, german):
+            self.assertIn("Google", attribution)
+            self.assertIn("https://storage.googleapis.com/books/ngrams/books/datasetsv3.html", attribution)
+            self.assertIn("https://creativecommons.org/licenses/by/3.0/", attribution)
+            self.assertIn("transformed into a frequency dictionary", attribution)
+        self.assertIn("ArchiMob", gsw)
+        self.assertIn("https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview", gsw)
+        self.assertIn("https://creativecommons.org/licenses/by-nc-sa/4.0/", gsw)
+        self.assertIn("transformed into a frequency dictionary", gsw)
+        self.assertIn("attribution", gsw)
+        self.assertIn("ShareAlike", gsw)
+
     def test_registry_rejects_an_entry_with_a_stale_output_hash(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            directory = pathlib.Path(temporary_directory)
+            registry_path = directory / "language_packs.json"
             registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
-            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
-            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
-            registry["packs"][0]["attribution"] = str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve())
+            for name in ("minimal_en.dict", "minimal_en.json", "ATTRIBUTION.en.md"):
+                (directory / name).write_bytes((FIXTURE_DIR / name).read_bytes())
+            registry["packs"][0]["dictionary"] = "minimal_en.dict"
+            registry["packs"][0]["manifest"] = "minimal_en.json"
+            registry["packs"][0]["attribution"] = "ATTRIBUTION.en.md"
             registry["packs"][0]["output_sha256"] = "0" * 64
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
 

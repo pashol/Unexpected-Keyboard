@@ -271,21 +271,59 @@ def validate_registry_entry(pack):
     for field in ("asset_license", "attribution"):
         if not isinstance(pack.get(field), str) or not pack[field]:
             raise ValueError("language pack registry entries must declare " + field)
+    if "acquisition_lock" in pack or "source_sha256" in pack:
+        source_sha256 = pack.get("source_sha256")
+        if not isinstance(source_sha256, str) or len(source_sha256) != SHA256_HEX_LENGTH:
+            raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256")
+        try:
+            int(source_sha256, 16)
+        except ValueError as error:
+            raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256") from error
+        if pack.get("acquisition_lock") != "locked":
+            raise ValueError("ready language pack registry entries with acquisition metadata require a locked acquisition_lock")
     return pack
 
 
 def validate_source_pending_registry_entry(pack):
-    required = ("asset_license", "attribution", "dictionary", "locale", "manifest", "source_id", "source_location", "state")
-    if not isinstance(pack, dict) or any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
-        raise ValueError("source-pending language pack registry entries must declare asset_license, attribution, dictionary, locale, manifest, source_id, source_location, and state")
+    required = ("acquisition_lock", "asset_license", "attribution", "dictionary", "locale", "manifest", "source_metadata", "source_revision", "source_sha256", "source_url", "source_version", "state")
+    nullable = {"source_revision", "source_sha256", "source_version"}
+    if not isinstance(pack, dict) or any(
+        field not in pack or (field not in nullable and (not isinstance(pack[field], str) or not pack[field]))
+        or (field in nullable and pack[field] is not None and (not isinstance(pack[field], str) or not pack[field]))
+        for field in required
+    ):
+        raise ValueError("source-pending language pack registry entries must declare acquisition_lock, asset_license, attribution, dictionary, locale, manifest, source_metadata, source_revision, source_sha256, source_url, source_version, and state")
     if pack["state"] != "source_pending":
         raise ValueError("source-pending language pack registry entries must declare state source_pending")
-    if pathlib.PurePath(pack["dictionary"]).is_absolute() or pathlib.PurePath(pack["manifest"]).is_absolute():
-        raise ValueError("source-pending language pack artifact paths must be relative")
+    source_sha256 = pack["source_sha256"]
+    if source_sha256 is None:
+        if pack["acquisition_lock"] != "unlocked":
+            raise ValueError("source-pending language pack acquisition_lock must be unlocked without source_sha256")
+    else:
+        if len(source_sha256) != SHA256_HEX_LENGTH:
+            raise ValueError("source-pending language pack source_sha256 must be a SHA-256 hash")
+        try:
+            int(source_sha256, 16)
+        except ValueError as error:
+            raise ValueError("source-pending language pack source_sha256 must be a SHA-256 hash") from error
+        if pack["acquisition_lock"] != "locked":
+            raise ValueError("source-pending language pack acquisition_lock must be locked with source_sha256")
     artifact_fields = {"ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}
     if artifact_fields.intersection(pack):
         raise ValueError("source-pending language pack registry entries must not declare artifacts")
     return pack
+
+
+def registry_file_path(registry_directory, value, field):
+    path = pathlib.PurePath(value)
+    if path.is_absolute() or pathlib.PureWindowsPath(value).is_absolute():
+        raise ValueError("language pack registry " + field + " path must be relative and remain under the registry directory")
+    resolved = (registry_directory / path).resolve()
+    try:
+        resolved.relative_to(registry_directory)
+    except ValueError as error:
+        raise ValueError("language pack registry " + field + " path must remain under the registry directory") from error
+    return resolved
 
 
 def load_language_packs(registry_path, development_only=False):
@@ -294,25 +332,40 @@ def load_language_packs(registry_path, development_only=False):
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("language pack registry must be JSON") from error
-    if registry.get("format_version") != FORMAT_VERSION or not isinstance(registry.get("packs"), list):
+    if not isinstance(registry, dict) or registry.get("format_version") != FORMAT_VERSION or not isinstance(registry.get("packs"), list):
         raise ValueError("language pack registry has an invalid format")
-    packs = []
+    registry_directory = registry_path.parent
+    validated = []
+    locales = set()
     for pack in registry["packs"]:
+        if not isinstance(pack, dict):
+            raise ValueError("language pack registry entry must be an object")
         state = pack.get("state", "ready")
         if state == "source_pending":
             validate_source_pending_registry_entry(pack)
-            attribution = registry_path.parent / pack["attribution"]
+        elif state == "ready":
+            validate_registry_entry(pack)
+        else:
+            raise ValueError("language pack registry entry has an invalid state")
+        if pack["locale"] in locales:
+            raise ValueError("language pack registry has a duplicate locale")
+        locales.add(pack["locale"])
+        validated.append((pack, state))
+    packs = []
+    for pack, state in validated:
+        if state == "source_pending":
+            registry_file_path(registry_directory, pack["dictionary"], "dictionary")
+            registry_file_path(registry_directory, pack["manifest"], "manifest")
+            registry_file_path(registry_directory, pack["source_metadata"], "source_metadata")
+            attribution = registry_file_path(registry_directory, pack["attribution"], "attribution")
             if not attribution.is_file():
                 raise ValueError("language pack registry attribution file must exist")
             continue
-        if state != "ready":
-            raise ValueError("language pack registry entry has an invalid state")
-        validate_registry_entry(pack)
-        attribution = registry_path.parent / pack["attribution"]
+        dictionary = registry_file_path(registry_directory, pack["dictionary"], "dictionary")
+        manifest_path = registry_file_path(registry_directory, pack["manifest"], "manifest")
+        attribution = registry_file_path(registry_directory, pack["attribution"], "attribution")
         if not attribution.is_file():
             raise ValueError("language pack registry attribution file must exist")
-        dictionary = registry_path.parent / pack.get("dictionary", "")
-        manifest_path = registry_path.parent / pack.get("manifest", "")
         if not dictionary.is_file() or not manifest_path.is_file():
             raise ValueError("language pack registry entry files must exist")
         try:
