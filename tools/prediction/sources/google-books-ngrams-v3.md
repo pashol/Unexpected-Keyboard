@@ -55,12 +55,16 @@ importer atomically replaces
 relative paths and SHA-256 values. A failed import can leave an unselected
 generation, but cannot select a mixed pair. Generation files, the manifest, and
 their directories are synced before publication so a crash cannot make the
-pointer durable ahead of either selected TSV.
+pointer durable ahead of either selected TSV. The importer syncs both TSVs,
+then their generation directory, then the generation-root directory before it
+atomically replaces the current manifest and syncs the manifest's directory.
 
 Consumers must resolve the current manifest, open both files named by it, and
 verify their SHA-256 values before accepting the pair. Python consumers can use
 `load_current_generation(words_output, ngrams_output)` to perform that
-validation and obtain the selected paths.
+validation and obtain the selected paths. That resolver also rejects a manifest
+unless both paths are under the deterministic generation root and retain the
+supplied word and n-gram output filenames.
 
 ## Command template
 

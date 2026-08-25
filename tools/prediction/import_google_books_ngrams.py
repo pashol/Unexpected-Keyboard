@@ -145,17 +145,27 @@ def current_manifest_path(words_output, ngrams_output):
     return words_output.parent / f".{words_output.name}.{ngrams_output.name}.current.json"
 
 
+def generation_root_path(words_output, ngrams_output):
+    words_output = pathlib.Path(words_output)
+    ngrams_output = pathlib.Path(ngrams_output)
+    return words_output.parent / f".{words_output.name}.{ngrams_output.name}.generations"
+
+
 def load_current_generation(words_output, ngrams_output):
     pointer = current_manifest_path(words_output, ngrams_output)
     data = json.loads(pointer.read_text(encoding="utf-8"))
     if data.get("format_version") != 1:
         raise ValueError("invalid current generation manifest")
     files = []
+    expected_names = {"words": pathlib.Path(words_output).name, "ngrams": pathlib.Path(ngrams_output).name}
+    root = generation_root_path(words_output, ngrams_output).resolve()
     for kind in ("words", "ngrams"):
         entry = data.get(kind)
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise ValueError("invalid current generation manifest")
         path = (pointer.parent / entry["path"]).resolve()
+        if path.name != expected_names[kind] or root not in path.parents:
+            raise ValueError("current generation names a wrong pair")
         if pointer.parent.resolve() not in path.parents:
             raise ValueError("current generation path is outside the output directory")
         if _sha256(path) != entry.get("sha256"):
@@ -165,7 +175,7 @@ def load_current_generation(words_output, ngrams_output):
 
 
 def _publish_generation(connection, words_output, ngrams_output):
-    generation_root = words_output.parent / f".{words_output.name}.{ngrams_output.name}.generations"
+    generation_root = generation_root_path(words_output, ngrams_output)
     generation_root.mkdir(exist_ok=True)
     generation = pathlib.Path(tempfile.mkdtemp(prefix="generation-", dir=generation_root))
     words_path = generation / words_output.name
@@ -187,6 +197,7 @@ def _publish_generation(connection, words_output, ngrams_output):
             output.flush()
             os.fsync(output.fileno())
         _sync_directory(generation)
+        _sync_directory(generation_root)
         pointer = current_manifest_path(words_output, ngrams_output)
         manifest = {
             "format_version": 1,

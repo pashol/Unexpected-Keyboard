@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 from tools.prediction import build_language_pack
+from tools.prediction import import_google_books_ngrams
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE_DIR = ROOT / "test" / "fixtures" / "latinime"
@@ -38,6 +39,27 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "word=z'Morge,f=7\n"
                 "bigram=Chäs,f=9\n",
                 build_language_pack.combined_source("gsw", words, ngrams),
+            )
+
+    def test_combined_source_resolves_an_imported_current_generation_pair(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            source = directory / "input.tsv"
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            source.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+            arguments = [
+                "import_google_books_ngrams.py", "--input", str(source), "--locale", "en",
+                "--words-output", str(words), "--ngrams-output", str(ngrams),
+                "--minimum-count", "1", "--top-targets", "1",
+            ]
+
+            with mock.patch.object(sys, "argv", arguments):
+                import_google_books_ngrams.main()
+
+            self.assertEqual(
+                "dictionary=main,locale=en\nword=hello,f=255\nbigram=world,f=255\nword=world,f=255\n",
+                build_language_pack.combined_source("en", words, ngrams),
             )
 
     def test_duplicate_tsv_rows_use_the_highest_frequency_independent_of_order(self):

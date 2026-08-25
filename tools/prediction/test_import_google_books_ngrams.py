@@ -1,3 +1,4 @@
+import json
 import pathlib
 import sqlite3
 import sys
@@ -143,6 +144,22 @@ class ImportGoogleBooksNgramsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash"):
                 self._published(words_path, ngrams_path)
 
+    def test_current_generation_rejects_a_hash_valid_wrong_pair(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.tsv"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+            self._run_main(input_path, words_path, ngrams_path)
+            pointer = importer.current_manifest_path(words_path, ngrams_path)
+            manifest = json.loads(pointer.read_text(encoding="utf-8"))
+            manifest["words"], manifest["ngrams"] = manifest["ngrams"], manifest["words"]
+            pointer.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "wrong pair"):
+                self._published(words_path, ngrams_path)
+
     def test_publication_syncs_generation_files_before_replacing_the_pointer(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)
@@ -155,6 +172,24 @@ class ImportGoogleBooksNgramsTest(unittest.TestCase):
                 self._run_main(input_path, words_path, ngrams_path)
 
             self.assertGreaterEqual(fsync.call_count, 3)
+
+    def test_publication_syncs_the_generation_root_before_replacing_the_pointer(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            input_path = directory / "input.tsv"
+            words_path = directory / "words.tsv"
+            ngrams_path = directory / "ngrams.tsv"
+            input_path.write_text("hello world\t2000\t2\t1\n", encoding="utf-8")
+            generation_root = directory / ".words.tsv.ngrams.tsv.generations"
+
+            with mock.patch.object(
+                importer, "_sync_directory", wraps=importer._sync_directory
+            ) as sync_directory:
+                self._run_main(input_path, words_path, ngrams_path)
+
+            synced = [call.args[0] for call in sync_directory.call_args_list]
+            self.assertIn(generation_root, synced)
+            self.assertLess(synced.index(generation_root), synced.index(directory))
 
     def test_main_rejects_empty_retained_result(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

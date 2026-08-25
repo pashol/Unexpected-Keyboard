@@ -13,6 +13,8 @@ import tempfile
 import unicodedata
 from datetime import datetime, timezone
 
+from tools.prediction import import_google_books_ngrams
+
 
 AOSP_COMMIT = "8081a1d8572f78488900438a6eaaec232b882bbf"
 FORMAT_MAGIC = bytes.fromhex("9bc13afe")
@@ -209,6 +211,7 @@ def tsv_rows(path, columns):
 
 
 def combined_source(locale, word_frequency_tsv, ngram_tsv):
+    word_frequency_tsv, ngram_tsv = resolve_tsv_inputs(word_frequency_tsv, ngram_tsv)
     words = {}
     for fields, frequency in tsv_rows(word_frequency_tsv, 2):
         word = normalize_word(locale, fields[0])
@@ -226,6 +229,14 @@ def combined_source(locale, word_frequency_tsv, ngram_tsv):
             if context == word:
                 lines.append("bigram=" + target + ",f=" + str(frequency))
     return "\n".join(lines) + "\n"
+
+
+def resolve_tsv_inputs(word_frequency_tsv, ngram_tsv):
+    word_frequency_tsv = pathlib.Path(word_frequency_tsv)
+    ngram_tsv = pathlib.Path(ngram_tsv)
+    if import_google_books_ngrams.current_manifest_path(word_frequency_tsv, ngram_tsv).is_file():
+        return import_google_books_ngrams.load_current_generation(word_frequency_tsv, ngram_tsv)
+    return word_frequency_tsv, ngram_tsv
 
 
 def source_hash(path):
@@ -447,7 +458,13 @@ def main():
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     args = parser.parse_args()
-    if not args.word_frequency_tsv.is_file() or not args.ngram_tsv.is_file() or not args.provenance.is_file():
+    try:
+        word_frequency_tsv, ngram_tsv = resolve_tsv_inputs(
+            args.word_frequency_tsv, args.ngram_tsv
+        )
+    except (OSError, ValueError) as error:
+        parser.error("TSV inputs must resolve to a valid current generation: " + str(error))
+    if not word_frequency_tsv.is_file() or not ngram_tsv.is_file() or not args.provenance.is_file():
         parser.error("TSV inputs and provenance must name existing files")
     try:
         registry = load_language_packs(args.registry)
@@ -471,14 +488,14 @@ def main():
         provenance = validate_provenance(
             json.loads(args.provenance.read_text(encoding="utf-8")),
             args.provenance.parent,
-            [args.word_frequency_tsv, args.ngram_tsv],
+            [word_frequency_tsv, ngram_tsv],
         )
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
     except (json.JSONDecodeError, KeyError, ValueError) as error:
         parser.error("provenance must be JSON and SOURCE_DATE_EPOCH must be an integer: " + str(error))
     input_path = args.combined_output or args.output.with_suffix(".combined")
     metadata = lambda compiler_hash: manifest_data(
-        args.locale, args.word_frequency_tsv, args.ngram_tsv, input_path, args.output, provenance, epoch, compiler_hash
+        args.locale, word_frequency_tsv, ngram_tsv, input_path, args.output, provenance, epoch, compiler_hash
     )
     try:
         validate_paths(input_path, args.output, args.manifest)
@@ -487,7 +504,7 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     input_path.parent.mkdir(parents=True, exist_ok=True)
-    input_path.write_text(combined_source(args.locale, args.word_frequency_tsv, args.ngram_tsv), encoding="utf-8")
+    input_path.write_text(combined_source(args.locale, word_frequency_tsv, ngram_tsv), encoding="utf-8")
     build(verified_checkout(args.source), input_path, args.output, args.manifest, metadata)
 
 
