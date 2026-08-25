@@ -39,7 +39,7 @@ The importer aggregates `match_count` across years, not `volume_count`.
 
 ```sh
 python3 tools/prediction/import_google_books_ngrams.py \
-  --input /reviewed/googlebooks-eng-all-2gram-20120701-0.gz.decoded.tsv \
+  --input /reviewed/google-books-v3-en-2gram-selected-shards.tsv \
   --locale en \
   --words-output /reviewed/en.words.tsv \
   --ngrams-output /reviewed/en.ngrams.tsv \
