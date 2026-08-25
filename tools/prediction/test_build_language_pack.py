@@ -342,6 +342,47 @@ class BuildLanguagePackTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "CC BY-NC-SA 4.0"):
             build_language_pack.validate_ready_pack_assets(pack, manifest, "attribution only")
 
+    def test_ready_pack_requires_a_hash_bound_attestation_with_generated_input_evidence(self):
+        registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        pack = next(pack for pack in registry["packs"] if pack["locale"] == "gsw")
+
+        self.assertIn("attestation", pack)
+        self.assertEqual([pack], build_language_pack.load_language_packs(registry_path))
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            for name in ("gsw.dict", "gsw.json", "ATTRIBUTION.gsw.md", pack["attestation"]):
+                (directory / name).write_bytes((registry_path.parent / name).read_bytes())
+            forged = {**pack, "dictionary": "gsw.dict", "manifest": "gsw.json",
+                      "attribution": "ATTRIBUTION.gsw.md"}
+            receipt = json.loads((directory / pack["attestation"]).read_text(encoding="utf-8"))
+            receipt["generated_inputs"].pop("words")
+            (directory / pack["attestation"]).write_text(json.dumps(receipt), encoding="utf-8")
+            forged["attestation_sha256"] = hashlib.sha256(
+                (directory / pack["attestation"]).read_bytes()
+            ).hexdigest()
+            (directory / "language_packs.json").write_text(json.dumps({
+                "format_version": 202, "packs": [forged],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "generated input"):
+                build_language_pack.load_language_packs(directory / "language_packs.json")
+
+    def test_committed_gsw_attestation_matches_available_promotion_generation(self):
+        promotion = pathlib.Path("/tmp/opencode/gsw-production-promotion")
+        if not promotion.is_dir():
+            self.skipTest("external GSW promotion generation is unavailable")
+        packs = ROOT / "assets" / "latinime" / "packs"
+        receipt = json.loads((packs / "gsw.attestation.json").read_text(encoding="utf-8"))
+        current = json.loads((promotion / "sources" / ".gsw.words.tsv.gsw.ngrams.tsv.current.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(hashlib.sha256((promotion / "gsw.dict").read_bytes()).hexdigest(), receipt["final_assets"]["dictionary_sha256"])
+        self.assertEqual(hashlib.sha256((promotion / "gsw.json").read_bytes()).hexdigest(), receipt["final_assets"]["manifest_sha256"])
+        self.assertEqual(current["words"]["sha256"], receipt["generated_inputs"]["words"]["sha256"])
+        self.assertEqual(current["ngrams"]["sha256"], receipt["generated_inputs"]["ngrams"]["sha256"])
+        self.assertEqual(current["report"]["sha256"], receipt["importer_reports"]["generation_report_sha256"])
+
     def test_ready_registry_lock_requires_canonical_shards_and_matching_aggregate_hash(self):
         lock = {
             "state": "locked", "url": "https://example.invalid/exports", "version": "v3",

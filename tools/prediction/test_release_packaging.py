@@ -11,10 +11,70 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class ReleasePackagingTest(unittest.TestCase):
+    def test_generated_production_assets_include_the_ready_gsw_pack_and_not_raw_inputs(self):
+        environment = os.environ | {
+            "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64",
+            "PATH": "/usr/lib/jvm/java-17-openjdk-amd64/bin:" + os.environ["PATH"],
+            "ANDROID_HOME": os.environ.get("ANDROID_HOME", "/home/pascal/Android/Sdk"),
+        }
+        result = subprocess.run(
+            ["./gradlew", "--no-configuration-cache", "copyLatinimeProductionPacks"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        generated = ROOT / "build" / "generated-assets" / "latinime" / "packs"
+        self.assertTrue((generated / "language_packs.json").is_file())
+        self.assertEqual(
+            (ROOT / "assets" / "latinime" / "packs" / "gsw.dict").read_bytes(),
+            (generated / "gsw.dict").read_bytes(),
+        )
+        self.assertEqual(
+            (ROOT / "assets" / "latinime" / "packs" / "gsw.json").read_bytes(),
+            (generated / "gsw.json").read_bytes(),
+        )
+        self.assertTrue((generated / "ATTRIBUTION.gsw.md").is_file())
+        self.assertTrue((generated / "gsw.attestation.json").is_file())
+        self.assertFalse((generated / "sources").exists())
+
+    def test_debug_apk_contains_gsw_dictionary_manifest_and_attribution(self):
+        environment = os.environ | {
+            "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64",
+            "PATH": "/usr/lib/jvm/java-17-openjdk-amd64/bin:" + os.environ["PATH"],
+            "ANDROID_HOME": os.environ.get("ANDROID_HOME", "/home/pascal/Android/Sdk"),
+        }
+        result = subprocess.run(
+            ["./gradlew", "--no-configuration-cache", "assembleDebug"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        apk = ROOT / "build" / "outputs" / "apk" / "debug" / "Unexpected-Keyboard-debug.apk"
+        with zipfile.ZipFile(apk) as archive:
+            for name in (
+                "assets/latinime/packs/gsw.dict",
+                "assets/latinime/packs/gsw.json",
+                "assets/latinime/packs/ATTRIBUTION.gsw.md",
+                "assets/latinime/packs/language_packs.json",
+            ):
+                self.assertIn(name, archive.namelist())
+
     def test_release_environment_precedes_release_packaging_tasks(self):
+        environment = os.environ | {
+            "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64",
+            "PATH": "/usr/lib/jvm/java-17-openjdk-amd64/bin:" + os.environ["PATH"],
+            "ANDROID_HOME": os.environ.get("ANDROID_HOME", "/home/pascal/Android/Sdk"),
+        }
         result = subprocess.run(
             ["./gradlew", "--no-configuration-cache", "verifyReleasePackaging", "--dry-run"],
             cwd=ROOT,
+            env=environment,
             capture_output=True,
             text=True,
         )

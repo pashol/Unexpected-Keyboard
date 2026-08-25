@@ -37,6 +37,14 @@ immutable import report receipt, `--minimum-count 2 --top-targets 8`, Java
 TSV pointers and provenance beside a temporary registry copy, then copy only
 the verified `.dict` and `.json` into the pack directory.
 
+The committed `assets/latinime/packs/gsw.attestation.json` is the promotion
+receipt. Its registry-bound hash ties the acquired archive lock, importer
+generation/report hashes, generated TSV hashes, combined input, compiler
+identity, source provenance, and final assets together. CI must not attempt to
+re-acquire or rebuild the authenticated corpus. It validates that cryptographic
+chain and the generated APK assets instead; only a promotion workstation with
+the authenticated external generation performs a rebuild comparison.
+
 Run the development fixture copier from the repository root as a package module:
 
 ```sh

@@ -56,11 +56,12 @@ public class PredictionSessionControllerTest
   }
 
   @Test
-  public void development_fixture_is_limited_to_english_locale_tags()
+  public void production_registry_selects_swiss_german_without_a_german_fallback()
   {
-    assertTrue(DevelopmentPredictionPack.supports_locale("en"));
-    assertTrue(DevelopmentPredictionPack.supports_locale("en-GB"));
-    assertFalse(DevelopmentPredictionPack.supports_locale("fr-FR"));
+    assertEquals("gsw.dict", ProductionPredictionPack.asset_for_locale("gsw-CH"));
+    assertEquals("gsw.dict", ProductionPredictionPack.asset_for_locale("gsw"));
+    assertNull(ProductionPredictionPack.asset_for_locale("de-CH"));
+    assertNull(ProductionPredictionPack.asset_for_locale("de"));
   }
 
   private static final class RecordingEngine implements PredictionEngine

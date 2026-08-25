@@ -358,6 +358,16 @@ def validate_registry_entry(pack, fixture_only=False):
         if pack["asset_license"] != "CC0-1.0" or not pack["dictionary"].startswith("minimal_"):
             raise ValueError("fixture-only language pack registry entries must be CC0 minimal fixtures")
     else:
+        if pack.get("locale") == "gsw":
+            for field in ("attestation", "attestation_sha256"):
+                if not isinstance(pack.get(field), str) or not pack[field]:
+                    raise ValueError("ready language pack registry entries require " + field)
+            if len(pack["attestation_sha256"]) != SHA256_HEX_LENGTH:
+                raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash")
+            try:
+                int(pack["attestation_sha256"], 16)
+            except ValueError as error:
+                raise ValueError("ready language pack attestation_sha256 must be a SHA-256 hash") from error
         source_sha256 = pack.get("source_sha256")
         if not isinstance(source_sha256, str) or len(source_sha256) != SHA256_HEX_LENGTH:
             raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256")
@@ -396,6 +406,49 @@ def validate_ready_pack_assets(pack, manifest, attribution):
                 term not in attribution for term in required_notice):
             raise ValueError("ready GSW packs require CC BY-NC-SA 4.0 non-commercial ShareAlike attribution")
     return pack
+
+
+def validate_ready_pack_attestation(pack, dictionary, manifest_path, manifest, attestation_path):
+    if sha256(attestation_path) != pack["attestation_sha256"]:
+        raise ValueError("ready pack attestation hash does not match its registry")
+    try:
+        attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError("ready pack attestation must be JSON") from error
+    required = {
+        "acquisition_lock_sha256", "combined_source_sha256", "compiler", "final_assets",
+        "format_version", "generated_inputs", "importer_reports", "locale", "source_provenance",
+    }
+    if not isinstance(attestation, dict) or set(attestation) != required or attestation["format_version"] != 1:
+        raise ValueError("ready pack attestation has an invalid format")
+    if attestation["locale"] != pack["locale"]:
+        raise ValueError("ready pack attestation locale does not match its registry")
+    if attestation["acquisition_lock_sha256"] != acquisition_lock_sha256(pack["acquisition_lock"]):
+        raise ValueError("ready pack attestation acquisition lock does not match its registry")
+    if attestation["combined_source_sha256"] != manifest.get("combined_source_sha256"):
+        raise ValueError("ready pack attestation combined source does not match its manifest")
+    if attestation["compiler"] != manifest.get("compiler"):
+        raise ValueError("ready pack attestation compiler does not match its manifest")
+    if attestation["source_provenance"] != manifest.get("sources"):
+        raise ValueError("ready pack attestation source provenance does not match its manifest")
+    final_assets = attestation["final_assets"]
+    if not isinstance(final_assets, dict) or final_assets.get("dictionary_sha256") != sha256(dictionary) or final_assets.get("manifest_sha256") != sha256(manifest_path):
+        raise ValueError("ready pack attestation final assets do not match checked-in assets")
+    generated = attestation["generated_inputs"]
+    sources = manifest.get("sources")
+    if not isinstance(generated, dict) or not isinstance(sources, dict):
+        raise ValueError("ready pack attestation requires generated input evidence")
+    for name, manifest_name in (("words", "word_frequency_tsv"), ("ngrams", "ngram_tsv")):
+        evidence = generated.get(name)
+        source = sources.get(manifest_name)
+        if not isinstance(evidence, dict) or not isinstance(source, dict) or evidence.get("sha256") != source.get("sha256"):
+            raise ValueError("ready pack attestation generated input evidence does not match its manifest")
+    reports = attestation["importer_reports"]
+    if not isinstance(reports, dict) or not all(
+            isinstance(reports.get(name), str) and len(reports[name]) == SHA256_HEX_LENGTH
+            for name in ("generation_manifest_sha256", "generation_report_sha256")):
+        raise ValueError("ready pack attestation requires importer report hashes")
+    return attestation
 
 
 def validate_source_pending_registry_entry(pack):
@@ -496,9 +549,12 @@ def load_language_packs(registry_path, development_only=False):
         dictionary = registry_file_path(registry_directory, pack["dictionary"], "dictionary")
         manifest_path = registry_file_path(registry_directory, pack["manifest"], "manifest")
         attribution = registry_file_path(registry_directory, pack["attribution"], "attribution")
+        attestation = None if fixture_only or pack["locale"] != "gsw" else registry_file_path(
+            registry_directory, pack["attestation"], "attestation"
+        )
         for field in ("word_frequency_tsv", "ngram_tsv", "provenance"):
             registry_file_path(registry_directory, pack[field], field)
-        if not attribution.is_file():
+        if not attribution.is_file() or (attestation is not None and not attestation.is_file()):
             raise ValueError("language pack registry attribution file must exist")
         if not dictionary.is_file() or not manifest_path.is_file():
             raise ValueError("language pack registry entry files must exist")
@@ -512,6 +568,8 @@ def load_language_packs(registry_path, development_only=False):
             raise ValueError("language pack registry output hash does not match its dictionary")
         if not fixture_only:
             validate_ready_pack_assets(pack, manifest, attribution.read_text(encoding="utf-8"))
+            if attestation is not None:
+                validate_ready_pack_attestation(pack, dictionary, manifest_path, manifest, attestation)
         if not development_only or pack["development_supported"]:
             packs.append(pack)
     return packs

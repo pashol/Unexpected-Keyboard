@@ -39,7 +39,7 @@ android {
       manifest.srcFile("AndroidManifest.xml")
       java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict", "vendor/latinime/java")
       res.srcDirs("res", "build/generated-resources")
-      assets.srcDirs("assets", "build/generated-assets")
+      assets.srcDirs("build/generated-assets")
     }
 
     named("test") {
@@ -196,6 +196,12 @@ val copyLatinimeNotice by tasks.registering(Copy::class) {
   into("build/generated-assets/latinime")
 }
 
+val copyStaticAssets by tasks.registering(Copy::class) {
+  from("assets")
+  exclude("latinime/packs/**")
+  into("build/generated-assets")
+}
+
 val copyLatinimeDevelopmentFixture by tasks.registering(Exec::class) {
   inputs.file("test/fixtures/latinime/language_packs.json")
   inputs.dir("test/fixtures/latinime")
@@ -208,8 +214,20 @@ val copyLatinimeDevelopmentFixture by tasks.registering(Exec::class) {
   )
 }
 
+val copyLatinimeProductionPacks by tasks.registering(Exec::class) {
+  inputs.file("assets/latinime/packs/language_packs.json")
+  inputs.dir("assets/latinime/packs")
+  outputs.dir("build/generated-assets/latinime/packs")
+  workingDir = projectDir
+  commandLine(
+      "python3", "-m", "tools.prediction.copy_production_language_packs",
+      "--registry", "assets/latinime/packs/language_packs.json",
+      "--output", "build/generated-assets/latinime/packs",
+  )
+}
+
 tasks.named("preBuild") {
-  dependsOn(copyLatinimeDevelopmentFixture)
+  dependsOn(copyLatinimeDevelopmentFixture, copyLatinimeProductionPacks)
 }
 
 val verifyReleaseEnvironment by tasks.registering(Exec::class) {
@@ -288,7 +306,7 @@ val copyLayoutDefinitions by tasks.registering(Copy::class) {
 }
 
 tasks.named("preBuild") {
-  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions, copyLatinimeNotice)
+  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions, copyLatinimeNotice, copyStaticAssets)
   // 'mustRunAfter' defines ordering between tasks (which is required by
   // Gradle) but doesn't create a dependency. These rules update files that are
   // checked in the repository that don't need to be updated during regular

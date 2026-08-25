@@ -61,6 +61,8 @@
     {
       "asset_license": "CC BY-NC-SA 4.0",
       "attribution": "ATTRIBUTION.gsw.md",
+      "attestation": "gsw.attestation.json",
+      "attestation_sha256": "2dbd8527a07a937a3a215be9ff01b3f61601ede3b9781c4aaea6cc9e36968e2d",
       "acquisition_lock": {
         "shards": [
           {
