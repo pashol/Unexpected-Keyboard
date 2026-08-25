@@ -217,6 +217,49 @@ class ImportArchiMobTest(unittest.TestCase):
             self.assertNotIn("Wir", words.read_text(encoding="utf-8"))
             self.assertEqual({"accepted_lines": 2, "rejected_lines": 0, "source_sha256": hashlib.sha256(input_path.read_bytes()).hexdigest()}, json.loads(report.read_text(encoding="utf-8")))
 
+    def test_archive_sequences_rejects_an_oversized_nested_archive(self):
+        archive = self._nested_archive([("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>")])
+
+        with mock.patch.multiple(
+            importer,
+            MAX_NESTED_ARCHIVE_COMPRESSED_BYTES=1,
+            MAX_NESTED_ARCHIVE_UNCOMPRESSED_BYTES=1,
+            create=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "nested archive.*limit"):
+                importer.archive_sequences(archive)
+
+    def test_archive_sequences_rejects_too_many_transcript_members(self):
+        archive = self._nested_archive([
+            ("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>"),
+            ("1008.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"/>"),
+        ])
+
+        with mock.patch.object(importer, "MAX_TRANSCRIPT_XML_MEMBERS", 1, create=True):
+            with self.assertRaisesRegex(ValueError, "transcript.*limit"):
+                importer.archive_sequences(archive)
+
+    def test_archive_sequences_rejects_an_excessive_compression_ratio(self):
+        archive = self._nested_archive(
+            [("1007.xml", "<TEI xmlns=\"http://www.tei-c.org/ns/1.0\"><text><body><u><w>" + "a" * 1000 + "</w></u></body></text></TEI>")],
+            compression=zipfile.ZIP_DEFLATED,
+        )
+
+        with mock.patch.object(importer, "MAX_COMPRESSION_RATIO", 1, create=True):
+            with self.assertRaisesRegex(ValueError, "compression ratio"):
+                importer.archive_sequences(archive)
+
+    def _nested_archive(self, transcripts, compression=zipfile.ZIP_STORED):
+        nested = io.BytesIO()
+        with zipfile.ZipFile(nested, "w", compression=compression) as archive:
+            for name, contents in transcripts:
+                archive.writestr("Archimob_Release_2/" + name, contents)
+        outer = io.BytesIO()
+        with zipfile.ZipFile(outer, "w", compression=compression) as archive:
+            archive.writestr("Archimob_Release_2.zip", nested.getvalue())
+        outer.seek(0)
+        return outer
+
     def _run_main(self, input_path, words_path, ngrams_path, report_path, source_sha256=None):
         arguments = [
             "import_archimob.py", "--input", str(input_path),

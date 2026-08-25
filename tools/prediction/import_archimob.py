@@ -7,6 +7,7 @@ import json
 import pathlib
 import re
 import sqlite3
+import tempfile
 import unicodedata
 import xml.etree.ElementTree as element_tree
 import zipfile
@@ -24,6 +25,17 @@ SENTENCE_BOUNDARY = re.compile(r"[.!?]+")
 TEI_NAMESPACE = "{http://www.tei-c.org/ns/1.0}"
 ARCHIMOB_RELEASE_ARCHIVE = "Archimob_Release_2.zip"
 TRANSCRIPT_MEMBER = re.compile(r"^Archimob_Release_2/\d+(?:_\d+)?\.xml$")
+MAX_OUTER_COMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_OUTER_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_NESTED_ARCHIVE_COMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_NESTED_ARCHIVE_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_NESTED_COMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_NESTED_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_TRANSCRIPT_XML_MEMBERS = 64
+MAX_TRANSCRIPT_XML_BYTES = 4 * 1024 * 1024
+MAX_TRANSCRIPT_XML_TOTAL_BYTES = 60 * 1024 * 1024
+MAX_COMPRESSION_RATIO = 100
+COPY_CHUNK_BYTES = 1024 * 1024
 
 
 def tokenize(sentence):
@@ -92,15 +104,28 @@ def aggregate_sequences(sequences, minimum_count, top_targets, report):
 def archive_sequences(source):
     try:
         with zipfile.ZipFile(source) as outer:
+            outer_members = outer.infolist()
+            _validate_archive_size(outer_members, MAX_OUTER_COMPRESSED_BYTES, MAX_OUTER_UNCOMPRESSED_BYTES, "outer archive")
             members = [
                 member for member in outer.infolist()
                 if not member.is_dir() and member.filename == ARCHIMOB_RELEASE_ARCHIVE
             ]
             if len(members) != 1:
                 raise ValueError("archive must contain exactly one " + ARCHIMOB_RELEASE_ARCHIVE)
-            with outer.open(members[0]) as nested_source:
-                with zipfile.ZipFile(io.BytesIO(nested_source.read())) as nested:
+            _validate_entry_size(
+                members[0], MAX_NESTED_ARCHIVE_COMPRESSED_BYTES,
+                MAX_NESTED_ARCHIVE_UNCOMPRESSED_BYTES, "nested archive",
+            )
+            with tempfile.TemporaryFile(prefix="archimob-nested-", suffix=".zip") as nested_file:
+                with outer.open(members[0]) as nested_source:
+                    _copy_limited(nested_source, nested_file, MAX_NESTED_ARCHIVE_UNCOMPRESSED_BYTES, "nested archive")
+                nested_file.seek(0)
+                with zipfile.ZipFile(nested_file) as nested:
                     members = nested.infolist()
+                    _validate_archive_size(
+                        members, MAX_NESTED_COMPRESSED_BYTES, MAX_NESTED_UNCOMPRESSED_BYTES,
+                        "nested archive",
+                    )
                     if any(
                         pathlib.PurePosixPath(member.filename).is_absolute()
                         or ".." in pathlib.PurePosixPath(member.filename).parts
@@ -113,8 +138,16 @@ def archive_sequences(source):
                     ]
                     if not xml_members:
                         raise ValueError("nested archive contains no XML transcripts")
+                    if len(xml_members) > MAX_TRANSCRIPT_XML_MEMBERS:
+                        raise ValueError("transcript member count exceeds limit")
+                    if sum(member.file_size for member in xml_members) > MAX_TRANSCRIPT_XML_TOTAL_BYTES:
+                        raise ValueError("transcript XML total exceeds limit")
                     sequences = []
                     for member in sorted(xml_members, key=lambda item: item.filename):
+                        _validate_entry_size(
+                            member, MAX_TRANSCRIPT_XML_BYTES, MAX_TRANSCRIPT_XML_BYTES,
+                            "transcript XML",
+                        )
                         try:
                             with nested.open(member) as transcript:
                                 root = element_tree.parse(transcript).getroot()
@@ -133,6 +166,37 @@ def archive_sequences(source):
                     return sequences
     except zipfile.BadZipFile as error:
         raise ValueError("malformed ArchiMob archive") from error
+
+
+def _validate_archive_size(members, compressed_limit, uncompressed_limit, description):
+    compressed_size = sum(member.compress_size for member in members)
+    uncompressed_size = sum(member.file_size for member in members)
+    if compressed_size > compressed_limit or uncompressed_size > uncompressed_limit:
+        raise ValueError(description + " exceeds size limit")
+    for member in members:
+        _validate_compression_ratio(member, description)
+
+
+def _validate_entry_size(member, compressed_limit, uncompressed_limit, description):
+    if member.compress_size > compressed_limit or member.file_size > uncompressed_limit:
+        raise ValueError(description + " exceeds size limit")
+    _validate_compression_ratio(member, description)
+
+
+def _validate_compression_ratio(member, description):
+    if member.file_size and (
+        not member.compress_size or member.file_size > member.compress_size * MAX_COMPRESSION_RATIO
+    ):
+        raise ValueError(description + " compression ratio exceeds limit")
+
+
+def _copy_limited(source, destination, limit, description):
+    copied = 0
+    while chunk := source.read(COPY_CHUNK_BYTES):
+        copied += len(chunk)
+        if copied > limit:
+            raise ValueError(description + " exceeds size limit")
+        destination.write(chunk)
 
 
 def _scored_counts(word_counts, selected):
