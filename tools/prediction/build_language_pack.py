@@ -262,6 +262,18 @@ def validate_provenance(provenance, provenance_directory=None, declared_inputs=N
     return provenance
 
 
+def validate_registry_entry(pack):
+    if not isinstance(pack, dict) or not isinstance(pack.get("development_supported"), bool):
+        raise ValueError("language pack registry entries must declare development_supported")
+    required = ("dictionary", "locale", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv")
+    if any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
+        raise ValueError("language pack registry entries are incomplete")
+    for field in ("asset_license", "attribution"):
+        if not isinstance(pack.get(field), str) or not pack[field]:
+            raise ValueError("language pack registry entries must declare " + field)
+    return pack
+
+
 def load_language_packs(registry_path, development_only=False):
     registry_path = registry_path.resolve()
     try:
@@ -272,11 +284,7 @@ def load_language_packs(registry_path, development_only=False):
         raise ValueError("language pack registry has an invalid format")
     packs = []
     for pack in registry["packs"]:
-        if not isinstance(pack, dict) or not isinstance(pack.get("development_supported"), bool):
-            raise ValueError("language pack registry entries must declare development_supported")
-        required = ("dictionary", "locale", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv")
-        if any(not isinstance(pack.get(field), str) or not pack[field] for field in required):
-            raise ValueError("language pack registry entries are incomplete")
+        validate_registry_entry(pack)
         dictionary = registry_path.parent / pack.get("dictionary", "")
         manifest_path = registry_path.parent / pack.get("manifest", "")
         if not dictionary.is_file() or not manifest_path.is_file():

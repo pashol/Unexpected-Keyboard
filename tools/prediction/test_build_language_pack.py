@@ -342,6 +342,34 @@ class BuildLanguagePackTest(unittest.TestCase):
 
         self.assertEqual(["en"], [pack["locale"] for pack in registry])
         self.assertEqual("minimal_en.dict", registry[0]["dictionary"])
+        self.assertEqual("CC0-1.0", registry[0]["asset_license"])
+        self.assertEqual("ATTRIBUTION.en.md", registry[0]["attribution"])
+
+    def test_registry_rejects_a_production_style_entry_without_asset_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            registry_path = pathlib.Path(temporary_directory) / "language_packs.json"
+            registry = json.loads((FIXTURE_DIR / "language_packs.json").read_text(encoding="utf-8"))
+            registry["packs"] = [registry["packs"][0]]
+            registry["packs"][0]["dictionary"] = str((FIXTURE_DIR / "minimal_en.dict").resolve())
+            registry["packs"][0]["manifest"] = str((FIXTURE_DIR / "minimal_en.json").resolve())
+            registry["packs"][0].pop("asset_license")
+            registry["packs"][0].pop("attribution")
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "asset_license"):
+                build_language_pack.load_language_packs(registry_path)
+
+    def test_production_registry_lists_source_pending_packs_without_artifact_references(self):
+        registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+
+        self.assertEqual([], build_language_pack.load_language_packs(registry_path))
+        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["source_pending"]])
+        for pack in registry["source_pending"]:
+            self.assertIsInstance(pack["asset_license"], str)
+            self.assertTrue(pack["asset_license"])
+            self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
+            self.assertFalse({"dictionary", "manifest", "ngram_tsv", "output_sha256", "provenance", "word_frequency_tsv"}.intersection(pack))
 
     def test_registry_rejects_an_entry_with_a_stale_output_hash(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

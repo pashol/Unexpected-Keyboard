@@ -1,0 +1,26 @@
+{
+  "format_version": 202,
+  "packs": [],
+  "source_pending": [
+    {
+      "asset_license": "CC BY 3.0",
+      "attribution": "ATTRIBUTION.en.md",
+      "locale": "en"
+    },
+    {
+      "asset_license": "CC BY 3.0",
+      "attribution": "ATTRIBUTION.de.md",
+      "locale": "de"
+    },
+    {
+      "asset_license": "CC BY 3.0",
+      "attribution": "ATTRIBUTION.de.md",
+      "locale": "de-CH"
+    },
+    {
+      "asset_license": "CC BY-NC-SA 4.0",
+      "attribution": "ATTRIBUTION.gsw.md",
+      "locale": "gsw"
+    }
+  ]
+}

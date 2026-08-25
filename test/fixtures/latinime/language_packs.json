@@ -2,6 +2,8 @@
   "format_version": 202,
   "packs": [
     {
+      "asset_license": "CC0-1.0",
+      "attribution": "ATTRIBUTION.en.md",
       "development_supported": true,
       "dictionary": "minimal_en.dict",
       "locale": "en",
@@ -12,6 +14,8 @@
       "word_frequency_tsv": "sources/en.words.tsv"
     },
     {
+      "asset_license": "CC0-1.0",
+      "attribution": "ATTRIBUTION.gsw.md",
       "development_supported": false,
       "dictionary": "minimal_gsw.dict",
       "locale": "gsw",
