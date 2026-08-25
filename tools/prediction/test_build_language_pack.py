@@ -83,7 +83,7 @@ class BuildLanguagePackTest(unittest.TestCase):
                 words, ngrams
             )
             lock = {
-                "url": "https://example.invalid/corpus", "version": "v3",
+                "state": "locked", "url": "https://example.invalid/corpus", "version": "v3",
                 "shards": [{"name": "2-00000-of-00001.gz", "sha256": "a" * 64}],
             }
             lock_hash = build_language_pack.acquisition_lock_sha256(lock)
@@ -273,7 +273,7 @@ class BuildLanguagePackTest(unittest.TestCase):
 
     def test_ready_registry_lock_requires_canonical_shards_and_matching_aggregate_hash(self):
         lock = {
-            "url": "https://example.invalid/exports", "version": "v3",
+            "state": "locked", "url": "https://example.invalid/exports", "version": "v3",
             "shards": [
                 {"name": "2-b.gz", "sha256": "b" * 64},
                 {"name": "2-a.gz", "sha256": "a" * 64},
@@ -292,11 +292,19 @@ class BuildLanguagePackTest(unittest.TestCase):
         }
 
         self.assertEqual(pack, build_language_pack.validate_registry_entry(pack))
+        for state in (None, "unlocked"):
+            candidate = {**pack, "acquisition_lock": dict(lock)}
+            if state is None:
+                candidate["acquisition_lock"].pop("state", None)
+            else:
+                candidate["acquisition_lock"]["state"] = state
+            with self.subTest(state=state), self.assertRaisesRegex(ValueError, "state"):
+                build_language_pack.validate_registry_entry(candidate)
         pack["source_sha256"] = "f" * 64
         with self.assertRaisesRegex(ValueError, "does not match"):
             build_language_pack.validate_registry_entry(pack)
         pack["source_sha256"] = aggregate
-        pack["acquisition_lock"] = {"url": lock["url"], "version": "v3", "shards": []}
+        pack["acquisition_lock"] = {"state": "locked", "url": lock["url"], "version": "v3", "shards": []}
         with self.assertRaisesRegex(ValueError, "shards"):
             build_language_pack.validate_registry_entry(pack)
         for malformed_lock in (
@@ -311,7 +319,7 @@ class BuildLanguagePackTest(unittest.TestCase):
     def test_source_pending_lock_keeps_known_metadata_without_shard_hashes(self):
         pack = {
             "acquisition_lock": {
-                "state": "unlocked", "url": "https://example.invalid/exports",
+                "state": "pending", "url": "https://example.invalid/exports",
                 "version": "v3", "shards": [],
             },
             "asset_license": "CC BY 3.0", "attribution": "ATTRIBUTION.en.md",
@@ -586,7 +594,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             self.assertEqual(source_version, pack["source_version"])
             self.assertIsNone(pack["source_revision"])
             self.assertIsNone(pack["source_sha256"])
-            self.assertEqual("unlocked", pack["acquisition_lock"]["state"])
+            self.assertEqual("pending", pack["acquisition_lock"]["state"])
             self.assertEqual([], pack["acquisition_lock"]["shards"])
             self.assertEqual(source_url, pack["acquisition_lock"]["url"])
             self.assertEqual(source_version, pack["acquisition_lock"]["version"])
@@ -605,7 +613,7 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
-                    "acquisition_lock": "unlocked",
+                    "acquisition_lock": "pending",
                     "dictionary": "en.dict",
                     "locale": "en",
                     "manifest": "en.json",
@@ -628,7 +636,7 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
-                    "acquisition_lock": "unlocked",
+                    "acquisition_lock": "pending",
                     "locale": "en",
                     "source_metadata": "sources/en.acquisition.json",
                     "source_revision": None,
@@ -650,7 +658,7 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
-                    "acquisition_lock": "unlocked",
+                    "acquisition_lock": "pending",
                     "dictionary": "/planned/en.dict",
                     "locale": "en",
                     "manifest": "en.json",
@@ -674,7 +682,7 @@ class BuildLanguagePackTest(unittest.TestCase):
                 "packs": [{
                     "asset_license": "CC BY 3.0",
                     "attribution": str((FIXTURE_DIR / "ATTRIBUTION.en.md").resolve()),
-                    "acquisition_lock": "unlocked",
+                    "acquisition_lock": "pending",
                     "dictionary": "en.dict",
                     "locale": "en",
                     "manifest": "en.json",
@@ -739,7 +747,7 @@ class BuildLanguagePackTest(unittest.TestCase):
             pending = {
                 "asset_license": "CC BY 3.0",
                 "attribution": "ATTRIBUTION.en.md",
-                "acquisition_lock": "unlocked",
+                "acquisition_lock": "pending",
                 "dictionary": "en.dict",
                 "locale": "en",
                 "manifest": "en.json",

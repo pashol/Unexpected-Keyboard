@@ -248,11 +248,14 @@ def acquisition_lock_sha256(lock):
         raise ValueError("acquisition_lock must be an object")
     url = lock.get("url")
     version = lock.get("version")
+    state = lock.get("state")
     shards = lock.get("shards")
     if not isinstance(url, str) or not url or not isinstance(version, str) or not version:
         raise ValueError("acquisition_lock requires URL and version")
     if not isinstance(shards, list) or not shards:
         raise ValueError("acquisition_lock requires nonempty shards")
+    if state not in {"locked", "pending"}:
+        raise ValueError("acquisition_lock requires locked or pending state")
     normalized_shards = []
     names = set()
     for shard in shards:
@@ -272,7 +275,10 @@ def acquisition_lock_sha256(lock):
             raise ValueError("acquisition_lock shards require SHA-256 hashes") from error
         names.add(str(name))
         normalized_shards.append({"name": str(name), "sha256": shard_hash})
-    canonical = {"shards": sorted(normalized_shards, key=lambda shard: shard["name"]), "url": url, "version": version}
+    canonical = {
+        "shards": sorted(normalized_shards, key=lambda shard: shard["name"]),
+        "state": state, "url": url, "version": version,
+    }
     return hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -359,7 +365,10 @@ def validate_registry_entry(pack, fixture_only=False):
             int(source_sha256, 16)
         except ValueError as error:
             raise ValueError("ready language pack registry entries with acquisition metadata require source_sha256") from error
-        lock_hash = acquisition_lock_sha256(pack.get("acquisition_lock"))
+        lock = pack.get("acquisition_lock")
+        if not isinstance(lock, dict) or lock.get("state") != "locked":
+            raise ValueError("ready language pack acquisition_lock state must be locked")
+        lock_hash = acquisition_lock_sha256(lock)
         if source_sha256 != lock_hash:
             raise ValueError("ready language pack source_sha256 does not match its acquisition_lock")
     return pack
@@ -381,15 +390,15 @@ def validate_source_pending_registry_entry(pack):
     if isinstance(lock, dict):
         if lock.get("url") != pack["source_url"] or lock.get("version") != pack["source_version"]:
             raise ValueError("source-pending acquisition_lock must match known source URL and version")
-        if lock.get("state") not in {"unlocked", "locked"} or not isinstance(lock.get("shards"), list):
+        if lock.get("state") != "pending" or not isinstance(lock.get("shards"), list):
             raise ValueError("source-pending acquisition_lock must declare state and shards")
     elif not isinstance(lock, str):
         raise ValueError("source-pending acquisition_lock must be a string or object")
     if source_sha256 is None:
         if isinstance(lock, dict):
-            invalid_unlocked_lock = lock["state"] != "unlocked" or lock["shards"]
+            invalid_unlocked_lock = lock["state"] != "pending" or lock["shards"]
         else:
-            invalid_unlocked_lock = lock != "unlocked"
+            invalid_unlocked_lock = lock != "pending"
         if invalid_unlocked_lock:
             raise ValueError("source-pending language pack acquisition_lock must be unlocked without source_sha256")
     else:
@@ -400,7 +409,7 @@ def validate_source_pending_registry_entry(pack):
         except ValueError as error:
             raise ValueError("source-pending language pack source_sha256 must be a SHA-256 hash") from error
         if isinstance(lock, dict):
-            if lock["state"] != "locked" or acquisition_lock_sha256(lock) != source_sha256:
+            if lock["state"] != "pending" or acquisition_lock_sha256(lock) != source_sha256:
                 raise ValueError("source-pending language pack acquisition_lock must be locked with source_sha256")
         elif lock != "locked":
             raise ValueError("source-pending language pack acquisition_lock must be locked with source_sha256")

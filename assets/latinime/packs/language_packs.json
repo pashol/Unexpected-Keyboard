@@ -6,7 +6,7 @@
       "attribution": "ATTRIBUTION.en.md",
       "acquisition_lock": {
         "shards": [],
-        "state": "unlocked",
+        "state": "pending",
         "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
         "version": "v3"
       },
@@ -25,7 +25,7 @@
       "attribution": "ATTRIBUTION.de.md",
       "acquisition_lock": {
         "shards": [],
-        "state": "unlocked",
+        "state": "pending",
         "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
         "version": "v3"
       },
@@ -44,7 +44,7 @@
       "attribution": "ATTRIBUTION.de.md",
       "acquisition_lock": {
         "shards": [],
-        "state": "unlocked",
+        "state": "pending",
         "url": "https://storage.googleapis.com/books/ngrams/books/datasetsv3.html",
         "version": "v3"
       },
@@ -63,7 +63,7 @@
       "attribution": "ATTRIBUTION.gsw.md",
       "acquisition_lock": {
         "shards": [],
-        "state": "unlocked",
+        "state": "pending",
         "url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
         "version": null
       },

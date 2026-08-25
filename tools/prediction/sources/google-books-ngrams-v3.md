@@ -23,19 +23,20 @@ intermediate TSV data. Acquire reviewed shards outside this repository. Before
 building, the locale's source acquisition lock must record the selected file-list
 URL, every specific compressed shard filename, each shard's acquired SHA-256, and
 the acquisition date. Do not invent a checksum. Review those hashes and source
-details, then change its acquisition lock from `unlocked` to `locked` before
+details, then change its acquisition lock from `pending` to `locked` before
 generating or committing any dictionary asset. A changed source hash requires a
 new review and lock record.
 
 For a ready pack, replace the pending lock with an object containing canonical
-`url`, `version`, and a nonempty `shards` list of relative `{name, sha256}`
-records. Compute the registry `source_sha256` by serializing
-`{"shards": SORTED_SHARDS, "url": URL, "version": VERSION}` with sorted JSON
-keys and compact separators, UTF-8 encoding it, and hashing it with SHA-256.
+`state: "locked"`, `url`, `version`, and a nonempty `shards` list of relative
+`{name, sha256}` records. Compute the registry `source_sha256` by serializing
+`{"shards": SORTED_SHARDS, "state": "locked", "url": URL, "version": VERSION}`
+with sorted JSON keys and compact separators, UTF-8 encoding it, and hashing it with SHA-256.
 `SORTED_SHARDS` is sorted by shard name, so acquisition order cannot change the
 aggregate. Record that same URL, version, and aggregate hash in the provenance
 `external_corpus` record. Pending packs retain known URL/version and an empty
-shard list only; they remain source-pending and are not buildable.
+shard list only with `state: "pending"`; they remain source-pending and are not
+buildable.
 
 Each UTF-8 input row must be exactly:
 
