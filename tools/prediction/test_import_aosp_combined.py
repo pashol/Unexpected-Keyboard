@@ -1,4 +1,7 @@
+import contextlib
+import gzip
 import hashlib
+import io
 import json
 import pathlib
 import tempfile
@@ -189,6 +192,115 @@ class CliTest(unittest.TestCase):
                     "--report-output", str(root / "r.json"),
                     "--minimum-count", "1", "--top-targets", "8",
                 ])
+
+    def test_rejects_report_output_colliding_with_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            source = root / "base.combined"
+            source.write_text(BASE, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "paths must differ"):
+                self._run([
+                    "--input", str(source), "--input-sha256", _sha(source),
+                    "--words-output", str(root / "w.tsv"),
+                    "--ngrams-output", str(root / "n.tsv"),
+                    "--report-output", str(source),
+                    "--minimum-count", "1", "--top-targets", "8",
+                ])
+            self.assertEqual(BASE, source.read_text(encoding="utf-8"))
+
+    def test_report_keeps_base_and_overlay_parse_stats_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            base = root / "base.combined"
+            base.write_text("\n".join([
+                "dictionary=main:de",
+                " word=Straße,f=222",
+                " word=Haus,f=200",
+                "  bigram=Haus,f=2",
+                " shortcut=foo,f=2",
+                " word=Gelöscht,f=0",
+            ]) + "\n", encoding="utf-8")
+            overlay = root / "overlay.combined"
+            overlay.write_text("\n".join([
+                "dictionary=main:de_CH",
+                " word=Velo,f=90",
+            ]) + "\n", encoding="utf-8")
+            words_out = root / "de.words.tsv"
+            ngrams_out = root / "de.ngrams.tsv"
+            self._run([
+                "--input", str(base), "--input-sha256", _sha(base),
+                "--overlay", str(overlay), "--overlay-sha256", _sha(overlay),
+                "--words-output", str(words_out), "--ngrams-output", str(ngrams_out),
+                "--report-output", str(root / "de.import-report.json"),
+                "--minimum-count", "1", "--top-targets", "8",
+            ])
+            _, _, published_report = import_archimob.load_current_generation(
+                words_out, ngrams_out)
+            report = json.loads(published_report.read_text(encoding="utf-8"))
+            self.assertEqual(1, report["skipped_lines"])
+            self.assertEqual(0, report["overlay_skipped_lines"])
+            self.assertEqual(1, report["dropped_entries"])
+            self.assertEqual(0, report["overlay_dropped_entries"])
+
+    def test_rejects_empty_selection_even_at_minimum_count_one(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            base = root / "base.combined"
+            base.write_text("\n".join([
+                "dictionary=main:de",
+                " word=Solo,f=7",
+            ]) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "no retained n-grams"):
+                self._run([
+                    "--input", str(base), "--input-sha256", _sha(base),
+                    "--words-output", str(root / "w.tsv"),
+                    "--ngrams-output", str(root / "n.tsv"),
+                    "--report-output", str(root / "r.json"),
+                    "--minimum-count", "1", "--top-targets", "8",
+                ])
+
+    def test_accepts_gzip_compressed_input_end_to_end(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            compressed = root / "base.combined.gz"
+            with open(compressed, "wb") as raw:
+                with gzip.GzipFile(fileobj=raw, mode="wb") as packed:
+                    packed.write(BASE.encode("utf-8"))
+            words_out = root / "de.words.tsv"
+            ngrams_out = root / "de.ngrams.tsv"
+            self._run([
+                "--input", str(compressed), "--input-sha256", _sha(compressed),
+                "--map", "ß:ss",
+                "--words-output", str(words_out), "--ngrams-output", str(ngrams_out),
+                "--report-output", str(root / "de.import-report.json"),
+                "--minimum-count", "1", "--top-targets", "8",
+            ])
+            words_path, ngrams_path, _ = import_archimob.load_current_generation(
+                words_out, ngrams_out)
+            self.assertEqual(
+                {"Strasse": "255", "Haus": "230"},
+                dict(line.split("\t") for line in
+                     words_path.read_text(encoding="utf-8").splitlines()))
+            self.assertEqual(
+                "Haus\tStrasse\t255\n", ngrams_path.read_text(encoding="utf-8"))
+
+    def test_rejects_overlay_hash_without_overlay(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            base = root / "base.combined"
+            base.write_text(BASE, encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                with self.assertRaises(SystemExit):
+                    self._run([
+                        "--input", str(base), "--input-sha256", _sha(base),
+                        "--overlay-sha256", "a" * 64,
+                        "--words-output", str(root / "w.tsv"),
+                        "--ngrams-output", str(root / "n.tsv"),
+                        "--report-output", str(root / "r.json"),
+                        "--minimum-count", "1", "--top-targets", "8",
+                    ])
+            self.assertIn("--overlay", stderr.getvalue())
 
 
 def _sha(path):

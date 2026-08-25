@@ -212,6 +212,8 @@ def main(argv=None):
         if arguments.overlay_sha256 is None:
             parser.error("--overlay requires --overlay-sha256")
         _validate_hex(arguments.overlay_sha256, "--overlay-sha256")
+    elif arguments.overlay_sha256 is not None:
+        parser.error("--overlay-sha256 requires --overlay")
 
     import_google_books_ngrams.validate_paths(
         arguments.input, arguments.words_output, arguments.ngrams_output
@@ -219,6 +221,16 @@ def main(argv=None):
     import_archimob._validate_report_output_path(
         arguments.report_output, arguments.words_output, arguments.ngrams_output
     )
+    sources = {arguments.input.resolve()}
+    if arguments.overlay is not None:
+        sources.add(arguments.overlay.resolve())
+    outputs = {
+        arguments.words_output.resolve(),
+        arguments.ngrams_output.resolve(),
+        arguments.report_output.resolve(),
+    }
+    if sources & outputs:
+        raise ValueError("input, output, and report paths must differ")
 
     actual_input_hash = _sha256_file(arguments.input)
     if actual_input_hash != arguments.input_sha256:
@@ -243,7 +255,9 @@ def main(argv=None):
             arguments.overlay, MAX_OVERLAY_BYTES, "combined overlay")
         overlay_words, overlay_bigrams, overlay_stats = parse_combined(overlay_lines)
         report["overlay_sha256"] = actual_overlay_hash
-        report.update(overlay_stats)
+        report.update(
+            {"overlay_" + name: value for name, value in overlay_stats.items()}
+        )
     else:
         overlay_words, overlay_bigrams = {}, {}
 
@@ -264,8 +278,8 @@ def main(argv=None):
     report["below_minimum_count_bigrams"] = below
     report["accepted_bigrams"] = len(bigrams)
 
-    if not bigrams and arguments.minimum_count > 1:
-        raise ValueError("no retained n-grams; lower --minimum-count")
+    if not bigrams:
+        raise ValueError("no retained n-grams")
 
     connection = sqlite3.connect(":memory:")
     try:
