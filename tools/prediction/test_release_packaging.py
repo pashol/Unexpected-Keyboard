@@ -68,6 +68,26 @@ class ReleasePackagingTest(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("alias", result.stderr)
+
+    def test_production_pack_copier_preserves_an_existing_non_directory_output(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            output = directory / "output"
+            output.write_text("keep", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, "-m", "tools.prediction.copy_production_language_packs",
+                 "--registry", str(ROOT / "assets" / "latinime" / "packs" / "language_packs.json"),
+                 "--output", str(output)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("directory", result.stderr)
+            self.assertEqual("keep", output.read_text(encoding="utf-8"))
+            self.assertFalse((directory / "output.previous").exists())
     def test_source_free_production_pack_verifier_validates_the_committed_chain(self):
         result = subprocess.run(
             [sys.executable, "tools/prediction/verify_production_language_packs.py"],

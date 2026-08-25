@@ -26,6 +26,8 @@ def copy_packs(registry, output):
         raise ValueError("output must not alias an input file")
     if output.exists() and any(output.samefile(path) for path in inputs):
         raise ValueError("output must not alias an input file")
+    if output.exists() and not output.is_dir():
+        raise ValueError("output must be a directory when it already exists")
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = pathlib.Path(tempfile.mkdtemp(prefix=output.name + ".", dir=output.parent))
     backup = output.with_name(output.name + ".previous")
