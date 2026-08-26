@@ -340,6 +340,8 @@ def validate_provenance(
             if len(external_corpora) != 1:
                 raise ValueError("ready pack provenance must contain exactly one external corpus")
             corpus = external_corpora[0]
+            if "shard" in corpus:
+                raise ValueError("single-shard provenance must not declare acquisition shard names")
             if corpus["source_sha256"] != acquisition_lock_sha256(acquisition_lock):
                 raise ValueError("external corpus hash must match the acquisition lock")
             if corpus["url"] != acquisition_lock["url"]:
@@ -347,19 +349,26 @@ def validate_provenance(
             if corpus["version"] != acquisition_lock["version"]:
                 raise ValueError("external corpus source version must match the acquisition lock")
             return provenance
+        known_names = {str(pathlib.PurePosixPath(shard["name"])) for shard in shards}
         matched = {}
         for corpus in external_corpora:
-            shard_name = corpus.get("shard")
-            if not isinstance(shard_name, str) or shard_name in matched or not any(
-                    shard["name"] == shard_name for shard in shards):
+            declared = corpus.get("shard")
+            if not isinstance(declared, str):
                 raise ValueError(
                     "multi-shard provenance corpora must declare unique acquisition shard names"
                 )
+            shard_name = str(pathlib.PurePosixPath(declared))
+            if shard_name in matched:
+                raise ValueError(
+                    "multi-shard provenance corpora must declare unique acquisition shard names"
+                )
+            if shard_name not in known_names:
+                raise ValueError("multi-shard provenance names an unknown acquisition shard")
             matched[shard_name] = corpus
         if len(matched) != len(shards):
             raise ValueError("multi-shard provenance must cover every acquisition shard")
         for shard in shards:
-            if matched[shard["name"]]["source_sha256"] != shard["sha256"]:
+            if matched[str(pathlib.PurePosixPath(shard["name"]))]["source_sha256"] != shard["sha256"]:
                 raise ValueError("provenance corpus hash must match its acquisition shard")
     return provenance
 

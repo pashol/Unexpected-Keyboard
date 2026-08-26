@@ -736,17 +736,27 @@ class BuildLanguagePackTest(unittest.TestCase):
         registry_path = ROOT / "assets" / "latinime" / "packs" / "language_packs.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
-        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in build_language_pack.load_language_packs(registry_path)])
-        self.assertEqual(["en", "de", "de-CH", "gsw"], [pack["locale"] for pack in registry["packs"]])
+        self.assertEqual(["de", "de-CH", "en", "gsw"], [pack["locale"] for pack in build_language_pack.load_language_packs(registry_path)])
+        self.assertEqual(["de", "de-CH", "en", "gsw"], [pack["locale"] for pack in registry["packs"]])
+        asset_licenses = {
+            "de": "CC BY 4.0",
+            "de-CH": "CC BY 4.0, Apache-2.0, and CC BY-SA 4.0 (openthesaurus Helvetismen)",
+            "en": "CC BY 4.0",
+            "gsw": "CC BY-NC-SA 4.0",
+        }
         for pack, source_url, source_version, state in zip(registry["packs"], (
-            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-            "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
+            "https://codeberg.org/Helium314/aosp-dictionaries",
+            "https://codeberg.org/Helium314/aosp-dictionaries",
+            "https://codeberg.org/Helium314/aosp-dictionaries",
             "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
-        ), ("2012-10", "2012-10", "2012-10", "1.0"), ("ready", "ready", "ready", "ready")):
+        ), (
+            "69afafc3887d189515fa0be8b4585b91df80b92d",
+            "69afafc3887d189515fa0be8b4585b91df80b92d",
+            "69afafc3887d189515fa0be8b4585b91df80b92d",
+            "1.0",
+        ), ("ready", "ready", "ready", "ready")):
             self.assertEqual(state, pack["state"])
-            self.assertIsInstance(pack["asset_license"], str)
-            self.assertTrue(pack["asset_license"])
+            self.assertEqual(asset_licenses[pack["locale"]], pack["asset_license"])
             self.assertTrue((registry_path.parent / pack["attribution"]).is_file())
             self.assertEqual("locked", pack["acquisition_lock"]["state"])
             self.assertEqual(source_url, pack["acquisition_lock"]["url"])
@@ -958,13 +968,20 @@ class BuildLanguagePackTest(unittest.TestCase):
         directory = ROOT / "assets" / "latinime" / "packs"
         english = (directory / "ATTRIBUTION.en.md").read_text(encoding="utf-8")
         german = (directory / "ATTRIBUTION.de.md").read_text(encoding="utf-8")
+        swiss = (directory / "ATTRIBUTION.de-CH.md").read_text(encoding="utf-8")
         gsw = (directory / "ATTRIBUTION.gsw.md").read_text(encoding="utf-8")
 
         for attribution in (english, german):
-            self.assertIn("ECDC", attribution)
-            self.assertIn("https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip", attribution)
-            self.assertIn("2011/833/EU", attribution)
-            self.assertIn("transformed into", attribution)
+            self.assertIn("Leipzig Corpora Collection", attribution)
+            self.assertIn("Helium314/aosp-dictionaries", attribution)
+            self.assertIn("https://creativecommons.org/licenses/by/4.0/", attribution)
+            self.assertIn("format 202", attribution)
+            self.assertIn("replaces the previous ECDC", attribution)
+        self.assertIn("Leipzig Corpora Collection", swiss)
+        self.assertIn("OpenBoard", swiss)
+        self.assertIn("Apache-2.0", swiss)
+        self.assertIn("https://creativecommons.org/licenses/by-sa/4.0/", swiss)
+        self.assertIn("distinct from the dialect (gsw) pack", swiss)
         self.assertIn("ArchiMob", gsw)
         self.assertIn("https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview", gsw)
         self.assertIn("https://creativecommons.org/licenses/by-nc-sa/4.0/", gsw)
@@ -1035,8 +1052,30 @@ class MultiShardProvenanceTest(unittest.TestCase):
             "s1": self._corpus("a.combined", "a" * 64, "missing.combined"),
             "s2": self._corpus("b.combined", "b" * 64, "b.combined"),
         }
-        with self.assertRaisesRegex(ValueError, "unique acquisition shard"):
+        with self.assertRaisesRegex(
+                ValueError, "names an unknown acquisition shard"):
             build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_multi_shard_duplicate_message_is_distinct_from_unknown(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "a" * 64, "a.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "./a.combined"),
+        }
+        with self.assertRaisesRegex(
+                ValueError, "unique acquisition shard names"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=self.LOCK)
+
+    def test_multi_shard_accepts_dot_prefixed_shard_names(self):
+        provenance = {
+            "s1": self._corpus("a.combined", "a" * 64, "./a.combined"),
+            "s2": self._corpus("b.combined", "b" * 64, "b.combined"),
+        }
+        self.assertEqual(
+            provenance,
+            build_language_pack.validate_provenance(
+                provenance, acquisition_lock=self.LOCK
+            ),
+        )
 
     def test_multi_shard_rejects_incomplete_coverage(self):
         provenance = {"s1": self._corpus("a.combined", "a" * 64, "a.combined")}
@@ -1079,6 +1118,26 @@ class MultiShardProvenanceTest(unittest.TestCase):
         }
         provenance = {"only": self._corpus("one.zip", "2" * 64)}
         with self.assertRaisesRegex(ValueError, "must match the acquisition lock"):
+            build_language_pack.validate_provenance(provenance, acquisition_lock=single)
+
+    def test_single_shard_rejects_declared_shard(self):
+        single = {
+            "state": "locked",
+            "url": "https://example.test/src",
+            "version": "v1",
+            "shards": [{"name": "one.zip", "sha256": "1" * 64}],
+        }
+        provenance = {
+            "only": self._corpus(
+                "one.zip",
+                build_language_pack.acquisition_lock_sha256(single),
+            )
+        }
+        provenance["only"]["url"] = single["url"]
+        provenance["only"]["shard"] = "one.zip"
+        with self.assertRaisesRegex(
+                ValueError,
+                "single-shard provenance must not declare acquisition shard names"):
             build_language_pack.validate_provenance(provenance, acquisition_lock=single)
 
 
