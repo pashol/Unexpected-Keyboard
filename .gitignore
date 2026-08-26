@@ -18,3 +18,7 @@
 
 # Python bytecode
 __pycache__/
+
+# Local-only artifacts
+/session-ses_*.md
+/swissubase_2269_1_0.zip
