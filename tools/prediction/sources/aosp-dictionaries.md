@@ -46,6 +46,23 @@ Acquisition locks (registry `acquisition_lock` objects):
   `openboard_de_CH_wordlist.combined.gz`); each provenance corpus names its shard.
 
 Never commit the downloads, generated TSVs, combined sources, or reports.
-Promotion follows `../../assets/latinime/packs/README.md` with `SOURCE_DATE_EPOCH=0`,
-the pinned AOSP checkout, and JDK `17.0.19`, using a staging registry copy; record
-the `.current.json` and import-report SHA-256 values in each attestation.
+Rebuild and promote per locale:
+
+1. Import with `import_aosp_combined.py` into a scratch generation directory
+   (`--minimum-count 1 --top-targets 16`; `de-CH` adds `--map "ß:ss"` plus the
+   OpenBoard overlay and its SHA-256).
+2. Stage a temporary registry copy whose ready entries point at those TSVs,
+   with placeholder dict/manifest/attestation artifacts that satisfy
+   `load_language_packs` (empty dictionary files, matching placeholder hashes),
+   then build with `SOURCE_DATE_EPOCH=0`, the pinned AOSP checkout, and JDK
+   `17.0.19`. The builder resolves TSV inputs through the `.current.json`
+   pointer manifests.
+3. After each build, regenerate that locale's attestation from the real
+   manifest (`combined_source_sha256`, `compiler`, `generated_inputs`,
+   `source_provenance`), the real `final_assets` hashes, and the SHA-256 of
+   the pointer manifest and import report; update the registry's
+   `output_sha256` and `attestation_sha256`.
+4. Copy only the verified `.dict`, `.json`, and `.attestation.json` into
+   `assets/latinime/packs/`, rewrite the registry's scratch TSV/provenance
+   paths to their `sources/<locale>…` conventions, and confirm
+   `verify_production_language_packs` passes before committing.
