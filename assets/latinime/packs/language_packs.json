@@ -2,91 +2,91 @@
   "format_version": 202,
   "packs": [
     {
-      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
-      "attribution": "ATTRIBUTION.en.md",
-      "attestation": "en.attestation.json",
-      "attestation_sha256": "405919a0e6100bfbcfe357b9d5f8de5004d3e674d89341d790c0df7ce122658b",
       "acquisition_lock": {
         "shards": [
           {
-            "name": "ECDC-TM.zip",
-            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
+            "name": "main_de.combined",
+            "sha256": "873f0c90e104c574609d8da6a938e4a7c951d53e20cddc1b66301d4d37752b6d"
           }
         ],
         "state": "locked",
-        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-        "version": "2012-10"
+        "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+        "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
       },
-      "development_supported": false,
-      "dictionary": "en.dict",
-      "locale": "en",
-      "manifest": "en.json",
-      "ngram_tsv": "sources/en.ngrams.tsv",
-      "output_sha256": "bde709fdc4ac6241fdc9c8d8ffe19de3abccaeaa22af31322c751f46fb5dd424",
-      "provenance": "sources/en.provenance.json",
-      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
-      "state": "ready",
-      "word_frequency_tsv": "sources/en.words.tsv"
-    },
-    {
-      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
-      "attribution": "ATTRIBUTION.de.md",
+      "asset_license": "CC BY 4.0",
       "attestation": "de.attestation.json",
-      "attestation_sha256": "951c05f8d4b6efe2a2786e5e9eaba066008540c7452e761c620fdd432859bc9f",
-      "acquisition_lock": {
-        "shards": [
-          {
-            "name": "ECDC-TM.zip",
-            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
-          }
-        ],
-        "state": "locked",
-        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-        "version": "2012-10"
-      },
+      "attestation_sha256": "44fbe384581a9818a1d8832724dc67ff8f1930637a89251196658865109f4f98",
+      "attribution": "ATTRIBUTION.de.md",
       "development_supported": false,
       "dictionary": "de.dict",
       "locale": "de",
       "manifest": "de.json",
       "ngram_tsv": "sources/de.ngrams.tsv",
-      "output_sha256": "87b52d3e5cb98b71ce6c81cef78cc25335bd946e80c07af0038190ef41a8b687",
+      "output_sha256": "e94c9906dd90ac91d70edda2e720c8da7a9f4170106d7c5c27df1442ace1007a",
       "provenance": "sources/de.provenance.json",
-      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "source_sha256": "56c4f1be98c43fef7204570fd58d573ddec4ceaaed70cdb84efc764464b9e926",
       "state": "ready",
       "word_frequency_tsv": "sources/de.words.tsv"
     },
     {
-      "asset_license": "EU/ECDC Reuse Licence (2011/833/EU)",
-      "attribution": "ATTRIBUTION.de.md",
-      "attestation": "de-CH.attestation.json",
-      "attestation_sha256": "aed9845c31b09f616771adb89784498fbe0f97483f66bad1175ebbdabdb8a6bb",
       "acquisition_lock": {
         "shards": [
           {
-            "name": "ECDC-TM.zip",
-            "sha256": "cfd2dec349e4e5c9faab56596b708f4808a614733f6f763f49b2d6f74c9e86d8"
+            "name": "main_de.combined",
+            "sha256": "873f0c90e104c574609d8da6a938e4a7c951d53e20cddc1b66301d4d37752b6d"
+          },
+          {
+            "name": "openboard_de_CH_wordlist.combined.gz",
+            "sha256": "58841f047644ef8472378271de08d30ad80fa08f1902991159db7dc2018a0398"
           }
         ],
         "state": "locked",
-        "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-        "version": "2012-10"
+        "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+        "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
       },
+      "asset_license": "CC BY 4.0, Apache-2.0, and CC BY-SA 4.0 (openthesaurus Helvetismen)",
+      "attestation": "de-CH.attestation.json",
+      "attestation_sha256": "13865497afaebe694d5bac34dda110fd6739248cf0f34fd70757ffc6f2dd7529",
+      "attribution": "ATTRIBUTION.de-CH.md",
       "development_supported": false,
       "dictionary": "de-CH.dict",
       "locale": "de-CH",
       "manifest": "de-CH.json",
-      "ngram_tsv": "sources/de.ngrams.tsv",
-      "output_sha256": "8a7d5a30cbdd710dd1c94b7879e355aa67eb1f3229806298097f96a85785a903",
-      "provenance": "sources/de.provenance.json",
-      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+      "ngram_tsv": "sources/de-CH.ngrams.tsv",
+      "output_sha256": "0ac237badc26aa49589a2d84a290aa356e15a8443cac385202c36b418b57c85f",
+      "provenance": "sources/de-CH.provenance.json",
+      "source_sha256": "51207bf68f87b004879d31fb63691029612acf0bff713ded77c3731f386cf432",
       "state": "ready",
-      "word_frequency_tsv": "sources/de.words.tsv"
+      "word_frequency_tsv": "sources/de-CH.words.tsv"
     },
     {
-      "asset_license": "CC BY-NC-SA 4.0",
-      "attribution": "ATTRIBUTION.gsw.md",
-      "attestation": "gsw.attestation.json",
-      "attestation_sha256": "2dbd8527a07a937a3a215be9ff01b3f61601ede3b9781c4aaea6cc9e36968e2d",
+      "acquisition_lock": {
+        "shards": [
+          {
+            "name": "main_en_US.combined",
+            "sha256": "466c2eb4737fa1a9453e5f4a33337db8dd703f75012b70c2534490fd189c9487"
+          }
+        ],
+        "state": "locked",
+        "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+        "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
+      },
+      "asset_license": "CC BY 4.0",
+      "attestation": "en.attestation.json",
+      "attestation_sha256": "ea2cd0c172cc2a030a6867922f486b51f625d646565d034ea3e3ad5c0b8e1c02",
+      "attribution": "ATTRIBUTION.en.md",
+      "development_supported": false,
+      "dictionary": "en.dict",
+      "locale": "en",
+      "manifest": "en.json",
+      "ngram_tsv": "sources/en.ngrams.tsv",
+      "output_sha256": "e9a7b8041d2b2a3a6e3db5d3ef540c8a0b73d53bdb39f3039123b934a782878e",
+      "provenance": "sources/en.provenance.json",
+      "source_sha256": "e77b39b52c4147f1ad8ad9d0da13fee3c2ef7aae9f9da0f0f220dbf53d0ccfa5",
+      "state": "ready",
+      "word_frequency_tsv": "sources/en.words.tsv"
+    },
+    {
       "acquisition_lock": {
         "shards": [
           {
@@ -98,6 +98,10 @@
         "url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
         "version": "1.0"
       },
+      "asset_license": "CC BY-NC-SA 4.0",
+      "attestation": "gsw.attestation.json",
+      "attestation_sha256": "2dbd8527a07a937a3a215be9ff01b3f61601ede3b9781c4aaea6cc9e36968e2d",
+      "attribution": "ATTRIBUTION.gsw.md",
       "development_supported": false,
       "dictionary": "gsw.dict",
       "locale": "gsw",

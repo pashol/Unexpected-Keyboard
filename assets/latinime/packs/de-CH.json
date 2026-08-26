@@ -1,10 +1,10 @@
 {
-  "combined_source_sha256": "9f8abcb225c4d917e3b069b4b74094d8e59ce73462b5a866a8aaa55250afffd7",
+  "combined_source_sha256": "64416f560d6b4a76deb1a6aab62098d3a987ab9543b8b8749ee66bbcf33b9024",
   "compiler": {
     "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
     "builder": {
       "path": "build_language_pack.py",
-      "sha256": "3d12d32b5e00619bd6742374428db786519ceb2378f45ab51716eb6b8e98badc"
+      "sha256": "e9ca9e1ff7a386d29657f2ab455e035abcb1d02a195a228d642cadacb8a3872b"
     },
     "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
     "jdk": {
@@ -14,22 +14,31 @@
   },
   "format_version": 202,
   "locale": "de-CH",
-  "output_sha256": "8a7d5a30cbdd710dd1c94b7879e355aa67eb1f3229806298097f96a85785a903",
+  "output_sha256": "0ac237badc26aa49589a2d84a290aa356e15a8443cac385202c36b418b57c85f",
   "sources": {
-    "ecdc_tm": {
-      "license": "EU/ECDC Reuse Licence (2011/833/EU)",
-      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+    "main_de.combined": {
+      "license": "CC BY 4.0",
+      "shard": "main_de.combined",
+      "source_sha256": "873f0c90e104c574609d8da6a938e4a7c951d53e20cddc1b66301d4d37752b6d",
       "type": "external_corpus",
-      "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-      "version": "2012-10"
+      "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+      "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
     },
     "ngram_tsv": {
-      "path": "de.ngrams.tsv",
-      "sha256": "25a4744b539b783ef45b2ecc0b3e6b2aa978407f2587d5ca1a3be22aa7ed64ef"
+      "path": "de-CH.ngrams.tsv",
+      "sha256": "2f2f2011d8746bf1b1e7d6ed471eeae3ab14c87afd8d8944be7e7150bfc44f55"
+    },
+    "openboard_de_CH_wordlist.combined.gz": {
+      "license": "Apache-2.0",
+      "shard": "openboard_de_CH_wordlist.combined.gz",
+      "source_sha256": "58841f047644ef8472378271de08d30ad80fa08f1902991159db7dc2018a0398",
+      "type": "external_corpus",
+      "url": "https://github.com/openboard-team/openboard/raw/v1.4.5/dictionaries/de_wordlist.combined.gz",
+      "version": "v1.4.5"
     },
     "word_frequency_tsv": {
-      "path": "de.words.tsv",
-      "sha256": "bcbd98472e5dd4fad7d337702478641eaf911743cf898e015c80b793e3bebed4"
+      "path": "de-CH.words.tsv",
+      "sha256": "a9b2e2d7381c773f26baad98cc346b3e0360e9fe1c27bfa4ffb9b2652755c6c6"
     }
   },
   "timestamp": "1970-01-01T00:00:00Z"

@@ -1,11 +1,11 @@
 {
-  "acquisition_lock_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
-  "combined_source_sha256": "e6ba1ffe40af02fa37808958e9c655dbfec6c545505c8c2fb6c955136e31147e",
+  "acquisition_lock_sha256": "e77b39b52c4147f1ad8ad9d0da13fee3c2ef7aae9f9da0f0f220dbf53d0ccfa5",
+  "combined_source_sha256": "ec0bcfdf720d59b5528102a4759cc7b5a0110664884f15155b5c8d46715438ba",
   "compiler": {
     "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
     "builder": {
       "path": "build_language_pack.py",
-      "sha256": "3d12d32b5e00619bd6742374428db786519ceb2378f45ab51716eb6b8e98badc"
+      "sha256": "e9ca9e1ff7a386d29657f2ab455e035abcb1d02a195a228d642cadacb8a3872b"
     },
     "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
     "jdk": {
@@ -14,38 +14,38 @@
     }
   },
   "final_assets": {
-    "dictionary_sha256": "bde709fdc4ac6241fdc9c8d8ffe19de3abccaeaa22af31322c751f46fb5dd424",
-    "manifest_sha256": "cf76e03088807e521eb845215ebd6d3b311cb2f997be2eb534610cc3e91d645b"
+    "dictionary_sha256": "e9a7b8041d2b2a3a6e3db5d3ef540c8a0b73d53bdb39f3039123b934a782878e",
+    "manifest_sha256": "233728894f1396f1613cbaaf0a48c05487c8e6707d8a7a4acc518f492be91108"
   },
   "format_version": 1,
   "generated_inputs": {
     "ngrams": {
-      "sha256": "438b047df0bab9ee0e8bd7dbafd4522e035a36438367f9d2e1dd8d7c43dbd21d"
+      "sha256": "809edd445e21f44e176184e5a0a4b7347ff82571ebe413c5267bd2672aed3971"
     },
     "words": {
-      "sha256": "3127151784d980954281d75ec3d32217fa47fc78fb9a1a37cc13b8e0e4d5bff2"
+      "sha256": "8a91f09cad1998eead0145181b10e3f3ca4269880f18f196c1ca1b3c8a0f1b40"
     }
   },
   "importer_reports": {
-    "generation_manifest_sha256": "3af974e7d7ecef1f811bf5f9c13a065cfbe8f327ca4728f75ac3a389ca87aba5",
-    "generation_report_sha256": "90829c8b0943d9d9beb37a2f7d0d2308c218dc8fe3a77a8dddf4aab600982268"
+    "generation_manifest_sha256": "808120d3a06563df46192cc451df4bf40506b22c8a6c505a6cf7e64b5087a0a8",
+    "generation_report_sha256": "df87366ea2d2e207ca6ddc3253d90b0d59cae6738ec37825c7c7e78474f3a22f"
   },
   "locale": "en",
   "source_provenance": {
-    "ecdc_tm": {
-      "license": "EU/ECDC Reuse Licence (2011/833/EU)",
-      "source_sha256": "c13563d98ce4e037c77ec68c1a075f31aeae5da061760a3be9b07b0abd37b522",
+    "main_en_US.combined": {
+      "license": "CC BY 4.0",
+      "source_sha256": "e77b39b52c4147f1ad8ad9d0da13fee3c2ef7aae9f9da0f0f220dbf53d0ccfa5",
       "type": "external_corpus",
-      "url": "https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip",
-      "version": "2012-10"
+      "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+      "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
     },
     "ngram_tsv": {
       "path": "en.ngrams.tsv",
-      "sha256": "438b047df0bab9ee0e8bd7dbafd4522e035a36438367f9d2e1dd8d7c43dbd21d"
+      "sha256": "809edd445e21f44e176184e5a0a4b7347ff82571ebe413c5267bd2672aed3971"
     },
     "word_frequency_tsv": {
       "path": "en.words.tsv",
-      "sha256": "3127151784d980954281d75ec3d32217fa47fc78fb9a1a37cc13b8e0e4d5bff2"
+      "sha256": "8a91f09cad1998eead0145181b10e3f3ca4269880f18f196c1ca1b3c8a0f1b40"
     }
   }
 }

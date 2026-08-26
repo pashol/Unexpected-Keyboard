@@ -1,16 +1,11 @@
-# English
+# English production pack attribution
 
-Source: ECDC Translation Memory (October 2012), offered by the European Centre
-for Disease Prevention and Control and distributed by the European Commission
-Joint Research Centre: https://wt-public.emm4u.eu/Resources/ECDC-TM/ECDC-TM.zip
+Dictionary data: Leipzig Corpora Collection word lists for US English, compiled
+by Helium314/aosp-dictionaries (wordlists_experimental/main_en_US.combined).
 
-Copyright (c) EU/ECDC, 2012. The source was transformed into a frequency
-dictionary for this English language pack.
+Copyright © Leipzig Corpora Collection contributors. The source word lists are
+licensed under Creative Commons Attribution 4.0 International
+(https://creativecommons.org/licenses/by/4.0/). Changes: converted to AOSP
+LatinIME format 202, filtered and re-scored for keyboard prediction.
 
-Reuse terms: EU/ECDC Reuse Licence implementing Commission Reuse Decision
-2011/833/EU. The unmodified source is supplied "as is", without warranty. Do
-not use the names of the European Union, European Commission, ECDC, or JRC to
-endorse or promote this derived product without prior written permission.
-
-Limitation: this compact corpus is public-health biased and is not a general
-purpose representation of English.
+This pack replaces the previous ECDC Translation Memory derivation.
