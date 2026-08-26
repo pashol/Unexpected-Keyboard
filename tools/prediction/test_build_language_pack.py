@@ -82,6 +82,55 @@ class BuildLanguagePackTest(unittest.TestCase):
                 build_language_pack.combined_source("en", words, ngrams),
             )
 
+    def test_combined_source_sorts_words_and_bigrams_independent_of_input_row_order(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            words.write_text(
+                "tango\t14\necho\t13\nAlfa\t11\nbravo\t12\n", encoding="utf-8"
+            )
+            ngrams.write_text(
+                "tango\tbravo\t9\n"
+                "bravo\techo\t8\n"
+                "Alfa\tbravo\t5\n"
+                "echo\ttango\t6\n"
+                "tango\techo\t7\n"
+                "bravo\tAlfa\t2\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                "dictionary=main,locale=en\n"
+                "word=Alfa,f=11\n"
+                "bigram=bravo,f=5\n"
+                "word=bravo,f=12\n"
+                "bigram=Alfa,f=2\n"
+                "bigram=echo,f=8\n"
+                "word=echo,f=13\n"
+                "bigram=tango,f=6\n"
+                "word=tango,f=14\n"
+                "bigram=bravo,f=9\n"
+                "bigram=echo,f=7\n",
+                build_language_pack.combined_source("en", words, ngrams),
+            )
+
+    def test_combined_source_emits_no_bigram_lines_for_words_without_bigrams(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = pathlib.Path(temporary_directory)
+            words = directory / "words.tsv"
+            ngrams = directory / "ngrams.tsv"
+            words.write_text("lonely\t4\npopular\t9\n", encoding="utf-8")
+            ngrams.write_text("popular\tlonely\t3\n", encoding="utf-8")
+
+            self.assertEqual(
+                "dictionary=main,locale=en\n"
+                "word=lonely,f=4\n"
+                "word=popular,f=9\n"
+                "bigram=lonely,f=3\n",
+                build_language_pack.combined_source("en", words, ngrams),
+            )
+
     def test_main_validates_provenance_stable_paths_against_imported_generation_content(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = pathlib.Path(temporary_directory)

@@ -223,11 +223,13 @@ def combined_source(locale, word_frequency_tsv, ngram_tsv):
             raise ValueError("every n-gram word must appear in the word-frequency TSV")
         bigrams[(context, target)] = max(bigrams.get((context, target), 0), frequency)
     lines = ["dictionary=main,locale=" + locale]
+    targets_by_context = {}
+    for (context, target), frequency in sorted(bigrams.items()):
+        targets_by_context.setdefault(context, []).append((target, frequency))
     for word in sorted(words):
         lines.append("word=" + word + ",f=" + str(words[word]))
-        for (context, target), frequency in sorted(bigrams.items()):
-            if context == word:
-                lines.append("bigram=" + target + ",f=" + str(frequency))
+        for target, frequency in targets_by_context.get(word, []):
+            lines.append("bigram=" + target + ",f=" + str(frequency))
     return "\n".join(lines) + "\n"
 
 
