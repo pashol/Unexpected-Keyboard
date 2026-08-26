@@ -6,6 +6,8 @@ import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.SurroundingText;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Keep track of the word being typed. This also tracks whether the selection
@@ -37,6 +39,10 @@ public final class CurrentlyTypedWord
   String _text_before_cursor = "";
   /** Whether [_text_before_cursor] came from a successful editor query. */
   boolean _context_known = false;
+  /** Whether the editor context may have started in the middle of a word. */
+  boolean _context_ambiguous = false;
+  /** Whether the editor confirmed that there is no text after the cursor. */
+  boolean _cursor_at_text_end = false;
   boolean _sentence_start = false;
 
   static final int SENTENCE_CONTEXT_LENGTH = 100;
@@ -71,6 +77,11 @@ public final class CurrentlyTypedWord
 
   public void started(Config conf, InputConnection ic)
   {
+    started(conf, ic, VERSION.SDK_INT);
+  }
+
+  void started(Config conf, InputConnection ic, int sdk)
+  {
     _ic = ic;
     _enabled = true;
     EditorConfig e = conf.editor_config;
@@ -79,10 +90,36 @@ public final class CurrentlyTypedWord
     _w_cursor = 0;
     if (!_has_selection)
     {
-      set_current_word(e.initial_text_before_cursor);
+      CharSequence initial_text_before_cursor = e.initial_text_before_cursor;
+      if (should_query_initial_context(sdk, initial_text_before_cursor)
+          && ic != null)
+      {
+        if (sdk >= 31)
+        {
+          SurroundingText surrounding = ic.getSurroundingText(
+              SENTENCE_CONTEXT_LENGTH, 20, 0);
+          if (surrounding != null)
+          {
+            set_current_word(surrounding);
+            return;
+          }
+        }
+        initial_text_before_cursor = ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0);
+      }
+      set_current_word(initial_text_before_cursor, false);
       _w_cursor = (e.initial_text_after_cursor == null) ? 0 :
         -append_chars(e.initial_text_after_cursor); 
+      _cursor_at_text_end = e.initial_text_after_cursor == null
+        ? text_after_cursor_is_empty()
+        : e.initial_text_after_cursor.length() == 0;
+      if (_callback != null)
+        callback();
     }
+  }
+
+  static boolean should_query_initial_context(int sdk, CharSequence context)
+  {
+    return context == null;
   }
 
   public void typed(String s)
@@ -109,10 +146,13 @@ public final class CurrentlyTypedWord
     }
     else if (newSelStart != _cursor)
     {
+      _cursor_at_text_end = false;
       _cursor = newSelStart;
       _w_cursor += newSelStart - oldSelStart;
       if (_w_cursor < -_w.length() || _w_cursor > 0)
         refresh_current_word();
+      else
+        callback();
     }
   }
 
@@ -152,7 +192,8 @@ public final class CurrentlyTypedWord
   void callback()
   {
     String w = _w.toString();
-    _callback.currently_typed_word(w, _sentence_start);
+    List<String> preceding_words = preceding_words_for_next_word();
+    _callback.currently_typed_word(w, _sentence_start, preceding_words);
   }
 
   /** Estimate the currently typed word after [chars] has been typed. */
@@ -214,25 +255,52 @@ public final class CurrentlyTypedWord
     else if (VERSION.SDK_INT >= 31)
       set_current_word(_ic.getSurroundingText(SENTENCE_CONTEXT_LENGTH, 20, 0));
     else
-      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0));
+      set_current_word(_ic.getTextBeforeCursor(SENTENCE_CONTEXT_LENGTH, 0),
+          text_after_cursor_is_empty(), true);
+  }
+
+  /** Returns true only when the editor confirms there is no following text. */
+  boolean text_after_cursor_is_empty()
+  {
+    if (_ic == null)
+      return false;
+    CharSequence text = _ic.getTextAfterCursor(1, 0);
+    return text != null && text.length() == 0;
   }
 
   /** Refresh the current word by immediately querying the editor. */
   void set_current_word(CharSequence text_before_cursor)
   {
+    set_current_word(text_before_cursor, true);
+  }
+
+  void set_current_word(CharSequence text_before_cursor, boolean notify)
+  {
+    set_current_word(text_before_cursor, false, notify);
+  }
+
+  void set_current_word(CharSequence text_before_cursor, boolean cursor_at_text_end,
+      boolean notify)
+  {
     _w.setLength(0);
     _text_before_cursor = "";
+    _cursor_at_text_end = cursor_at_text_end;
+    _context_ambiguous = false;
     if (text_before_cursor == null)
     {
       _context_known = false;
       _sentence_start = false;
+      if (notify && _callback != null)
+        callback();
       return;
     }
     _context_known = true;
+    _context_ambiguous = context_is_ambiguous(text_before_cursor);
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
-    callback();
+    if (notify)
+      callback();
   }
 
   /** Like above but take the text after the cursor into account. */
@@ -240,19 +308,27 @@ public final class CurrentlyTypedWord
   {
     _w.setLength(0);
     _text_before_cursor = "";
+    _cursor_at_text_end = false;
+    _context_ambiguous = false;
     if (st == null)
     {
       _context_known = false;
       _sentence_start = false;
+      if (_callback != null)
+        callback();
       return;
     }
     _context_known = true;
     int saved_cursor = _cursor;
     int st_sel = st.getSelectionStart();
     CharSequence st_text = st.getText();
+    _context_ambiguous = st_sel == SENTENCE_CONTEXT_LENGTH
+      && (is_word_char(Character.codePointAt(st_text, 0))
+          || Character.isLowSurrogate(st_text.charAt(0)));
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _text_before_cursor = st_text.subSequence(0, st_sel).toString();
+    _cursor_at_text_end = st_sel == st_text.length();
     update_sentence_start();
     _cursor = saved_cursor;
     callback();
@@ -280,6 +356,52 @@ public final class CurrentlyTypedWord
   public static boolean is_word_char(int c)
   {
     return Character.isLetterOrDigit(c) || (c == '\'');
+  }
+
+  /** Return up to three complete words before an empty composition. */
+  List<String> preceding_words_for_next_word()
+  {
+    if (_has_selection || !_cursor_at_text_end || _context_ambiguous)
+      return Collections.emptyList();
+    return preceding_words_for_next_word(_text_before_cursor, _context_known,
+        _w.toString());
+  }
+
+  /** Return up to three complete words before an empty composition. */
+  static List<String> preceding_words_for_next_word(String context,
+      boolean contextKnown, String composingWord)
+  {
+    if (!contextKnown || composingWord.length() != 0 || context.length() == 0
+        || !Character.isWhitespace(context.codePointBefore(context.length()))
+        || context_is_ambiguous(context))
+      return Collections.emptyList();
+    ArrayList<String> words = new ArrayList<>();
+    int i = context.length();
+    while (i > 0 && words.size() < 3)
+    {
+      while (i > 0 && !is_word_char(context.codePointBefore(i)))
+      {
+        int c = context.codePointBefore(i);
+        i -= Character.charCount(c);
+      }
+      int word_end = i;
+      while (i > 0 && is_word_char(context.codePointBefore(i)))
+      {
+        int c = context.codePointBefore(i);
+        i -= Character.charCount(c);
+      }
+      if (i != word_end)
+        words.add(context.substring(i, word_end));
+    }
+    Collections.reverse(words);
+    return words;
+  }
+
+  static boolean context_is_ambiguous(CharSequence context)
+  {
+    return context.length() == SENTENCE_CONTEXT_LENGTH
+      && (is_word_char(Character.codePointAt(context, 0))
+          || Character.isLowSurrogate(context.charAt(0)));
   }
 
   static boolean sentence_start_from_context(String text, int wordLength)
@@ -313,5 +435,11 @@ public final class CurrentlyTypedWord
   public static interface Callback
   {
     public void currently_typed_word(String word, boolean sentence_start);
+
+    public default void currently_typed_word(String word, boolean sentence_start,
+        List<String> preceding_words)
+    {
+      currently_typed_word(word, sentence_start);
+    }
   }
 }

@@ -9,6 +9,7 @@ import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.suggestions.Suggestions;
@@ -62,8 +63,8 @@ public final class KeyEventHandler
   {
     InputConnection ic = _recv.getCurrentInputConnection();
     _autocap.started(conf, ic);
-    _typedword.started(conf, ic);
     _suggestions.started();
+    _typedword.started(conf, ic);
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
@@ -173,6 +174,32 @@ public final class KeyEventHandler
   }
 
   @Override
+  public void candidate_entered(String text, Suggestions.CandidateType type)
+  {
+    if (type == Suggestions.CandidateType.NEXT_WORD)
+      next_word_entered(text);
+    else
+      suggestion_entered(text);
+  }
+
+  public void next_word_entered(String text)
+  {
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return;
+    conn.beginBatchEdit();
+    try
+    {
+      send_text(text + " ", false);
+    }
+    finally
+    {
+      conn.endBatchEdit();
+    }
+    _next_last_action = LastAction.OTHER;
+  }
+
+  @Override
   public void personal_candidate_removed(String text)
   {
     _suggestions.remove_personal_candidate(text);
@@ -190,11 +217,18 @@ public final class KeyEventHandler
     _suggestions.currently_typed_word(word, sentence_start);
   }
 
+  @Override
+  public void currently_typed_word(String word, boolean sentence_start,
+      List<String> preceding_words)
+  {
+    _suggestions.currently_typed_word(word, sentence_start, preceding_words);
+  }
+
   public void ime_subtype_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.
     _suggestions.currently_typed_word(_typedword.get(),
-        _typedword.sentence_start());
+        _typedword.sentence_start(), _typedword.preceding_words_for_next_word());
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if
@@ -410,8 +444,17 @@ public final class KeyEventHandler
     switch (st)
     {
       case Complete_first:
+        if (_suggestions.types[0] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_second:
+        if (_suggestions.types[1] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_third:
+        if (_suggestions.types[2] == Suggestions.CandidateType.COMPLETION)
+          suggestion_entered(st.toString());
+        break;
       case Complete_emoji:
         suggestion_entered(st.toString());
         break;
@@ -622,6 +665,7 @@ public final class KeyEventHandler
       _learn_undone_autocomplete = false;
     }
     else if (_space_bar_auto_complete && _suggestions.count > 0
+        && _suggestions.types[0] == Suggestions.CandidateType.COMPLETION
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {

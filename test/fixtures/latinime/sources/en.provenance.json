@@ -1,0 +1,8 @@
+{
+  "fixture": {
+    "license": "CC0-1.0",
+    "purpose": "minimal deterministic test data",
+    "source_path": "en.words.tsv",
+    "source_sha256": "468c9346c2964f0c3471f3849c5a8e2078481ca15da68651b2ae197a5569e2fc"
+  }
+}

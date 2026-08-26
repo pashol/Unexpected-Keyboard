@@ -1,0 +1,36 @@
+{
+  "combined_source_sha256": "f71f5aee1881655d8c12fda95d2692d962c62028cc466c22e7cb6719696f9464",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "builder": {
+      "path": "build_language_pack.py",
+      "sha256": "e9ca9e1ff7a386d29657f2ab455e035abcb1d02a195a228d642cadacb8a3872b"
+    },
+    "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
+    "jdk": {
+      "java_version": "17.0.19",
+      "javac_version": "javac 17.0.19"
+    }
+  },
+  "format_version": 202,
+  "locale": "de",
+  "output_sha256": "e94c9906dd90ac91d70edda2e720c8da7a9f4170106d7c5c27df1442ace1007a",
+  "sources": {
+    "main_de.combined": {
+      "license": "CC BY 4.0",
+      "source_sha256": "56c4f1be98c43fef7204570fd58d573ddec4ceaaed70cdb84efc764464b9e926",
+      "type": "external_corpus",
+      "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+      "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
+    },
+    "ngram_tsv": {
+      "path": "de.ngrams.tsv",
+      "sha256": "fd70278f090da814bb17c09ed26d02f7dceed297e7ad569a59201628cc70acc5"
+    },
+    "word_frequency_tsv": {
+      "path": "de.words.tsv",
+      "sha256": "0d232cb6df567f64e8c2522001706789888314a3a013d709c3a6eb320de431a7"
+    }
+  },
+  "timestamp": "1970-01-01T00:00:00Z"
+}

@@ -1,5 +1,14 @@
 package juloo.keyboard2;
 
+import android.view.inputmethod.InputConnection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -40,6 +49,9 @@ public class CurrentlyTypedWordTest
         new CurrentlyTypedWord.Callback()
         {
           public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> precedingWords) {}
         });
     word._enabled = true;
     word.set_current_word((CharSequence)null);
@@ -88,6 +100,9 @@ public class CurrentlyTypedWordTest
         new CurrentlyTypedWord.Callback()
         {
           public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> precedingWords) {}
         });
     word._enabled = true;
     return word;
@@ -108,5 +123,392 @@ public class CurrentlyTypedWordTest
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello, world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello.world", 5));
     assertFalse(CurrentlyTypedWord.sentence_start_from_context("Hello world", 5));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_returns_last_three_in_order()
+  {
+    assertEquals(Arrays.asList("two", "three", "four"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two three four ",
+            true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_returns_none_for_empty_text_field()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_trailing_whitespace()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_known_context()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two ", false, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_requires_empty_composing_word()
+  {
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word("one two ", true, "three"));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_handles_repeated_whitespace()
+  {
+    assertEquals(Arrays.asList("one", "two"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one\t  two\n ", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_treats_punctuation_as_delimiters()
+  {
+    assertEquals(Arrays.asList("one", "two's", "three"),
+        CurrentlyTypedWord.preceding_words_for_next_word("one, two's; three! ",
+            true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_preserves_supplementary_letters()
+  {
+    assertEquals(Arrays.asList("\ud801\udc37bc", "def"),
+        CurrentlyTypedWord.preceding_words_for_next_word("\ud801\udc37bc def ", true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_rejects_full_window_starting_in_word()
+  {
+    String suffix = " one two ";
+    String full = "x" + new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - suffix.length() - 1])
+          .replace('\0', ' ') + suffix;
+
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word(full, true, ""));
+    assertEquals(Arrays.asList("one", "two"),
+        CurrentlyTypedWord.preceding_words_for_next_word(suffix, true, ""));
+  }
+
+  @Test
+  public void preceding_words_for_next_word_rejects_full_window_starting_in_low_surrogate()
+  {
+    String suffix = " one ";
+    String full = "\udc00" + new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - suffix.length() - 1])
+          .replace('\0', ' ') + suffix;
+
+    assertEquals(Collections.emptyList(),
+        CurrentlyTypedWord.preceding_words_for_next_word(full, true, ""));
+  }
+
+  @Test
+  public void ambiguous_initial_context_stays_unusable_after_local_typing()
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    String suffix = " one two ";
+    String full = "x" + new String(new char[
+        CurrentlyTypedWord.SENTENCE_CONTEXT_LENGTH - suffix.length() - 1])
+          .replace('\0', ' ') + suffix;
+    word._enabled = true;
+    word.set_current_word(full, true, true);
+    published.clear();
+
+    word.typed("three ");
+
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
+  public void selected_text_produces_no_next_word_context()
+  {
+    final List<List<String>> precedingWords = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            precedingWords.add(words);
+          }
+        });
+    word._has_selection = true;
+    word.set_current_word("one two ");
+
+    assertEquals(Collections.emptyList(), precedingWords.get(0));
+  }
+
+  @Test
+  public void cursor_moved_to_repeated_mid_text_whitespace_publishes_no_context()
+      throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    Config config = config_with_initial_text("one  two ", "");
+    word.started(config, input_connection("one  two ", 4));
+    published.clear();
+
+    word.selection_updated(9, 4, 4);
+
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
+  public void cursor_move_within_word_publishes_empty_context() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    word.started(config_with_initial_text("one ", ""), null);
+    published.clear();
+    word.typed("");
+    assertEquals(Arrays.asList("one"), published.get(0));
+
+    word.typed("two");
+    published.clear();
+    word.selection_updated(7, 6, 6);
+
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
+  public void editor_started_at_end_after_whitespace_publishes_preceding_words()
+      throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text("one ", ""), null);
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
+  @Test
+  public void null_editor_context_publishes_empty_preceding_words() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    word.started(config_with_initial_text("one ", ""), null);
+
+    word.set_current_word((CharSequence)null);
+    word.set_current_word((android.view.inputmethod.SurroundingText)null);
+
+    assertEquals(3, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+    assertEquals(Collections.emptyList(), published.get(1));
+    assertEquals(Collections.emptyList(), published.get(2));
+  }
+
+  @Test
+  public void legacy_editor_started_at_end_after_whitespace_publishes_preceding_words()
+      throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text("one ", null),
+        input_connection("one ", 4));
+    published.clear();
+    word.refresh_current_word();
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
+  @Test
+  public void legacy_editor_start_queries_context_after_trailing_space() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    Config config = config_with_initial_text(null, null);
+    config.editor_config.initial_sel_start = 4;
+    config.editor_config.initial_sel_end = 4;
+    word.started(config, input_connection("one ", 4));
+
+    assertEquals(1, published.size());
+    assertEquals(Arrays.asList("one"), published.get(0));
+  }
+
+  @Test
+  public void initial_context_fallback_includes_api_30()
+  {
+    assertTrue(CurrentlyTypedWord.should_query_initial_context(30, null));
+    assertTrue(CurrentlyTypedWord.should_query_initial_context(31, null));
+  }
+
+  @Test
+  public void api_31_null_initial_context_refreshes_preceding_words() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+    Config config = config_with_initial_text(null, null);
+    config.editor_config.initial_sel_start = 6;
+    config.editor_config.initial_sel_end = 6;
+
+    word.started(config, input_connection("hello ", 6), 31);
+
+    assertEquals(Arrays.asList("hello"), published.get(0));
+  }
+
+  @Test
+  public void legacy_editor_start_with_null_context_publishes_empty_context() throws Exception
+  {
+    final List<List<String>> published = new ArrayList<>();
+    CurrentlyTypedWord word = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback()
+        {
+          public void currently_typed_word(String text, boolean sentenceStart) {}
+
+          public void currently_typed_word(String text, boolean sentenceStart,
+              List<String> words)
+          {
+            published.add(words);
+          }
+        });
+
+    word.started(config_with_initial_text(null, null), input_connection(null, 0));
+
+    assertEquals(1, published.size());
+    assertEquals(Collections.emptyList(), published.get(0));
+  }
+
+  @Test
+  public void two_argument_callback_receives_context_publication()
+  {
+    final int[] calls = { 0 };
+    CurrentlyTypedWord.Callback callback = (text, sentenceStart) -> calls[0]++;
+
+    callback.currently_typed_word("word", false, Collections.<String>emptyList());
+
+    assertEquals(1, calls[0]);
+  }
+
+  Config config_with_initial_text(String before, String after) throws Exception
+  {
+    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    Field field = unsafeClass.getDeclaredField("theUnsafe");
+    field.setAccessible(true);
+    Object unsafe = field.get(null);
+    Method allocate = unsafeClass.getMethod("allocateInstance", Class.class);
+    Config config = (Config)allocate.invoke(unsafe, Config.class);
+    config.editor_config = new EditorConfig();
+    config.editor_config.initial_text_before_cursor = before;
+    config.editor_config.initial_text_after_cursor = after;
+    config.editor_config.initial_sel_start = before == null ? 0 : before.length();
+    config.editor_config.initial_sel_end = before == null ? 0 : before.length();
+    return config;
+  }
+
+  InputConnection input_connection(final String text, final int cursor)
+  {
+    return (InputConnection)Proxy.newProxyInstance(
+        InputConnection.class.getClassLoader(), new Class[] { InputConnection.class },
+        new InvocationHandler()
+        {
+          public Object invoke(Object proxy, Method method, Object[] args)
+          {
+            if (method.getName().equals("getTextBeforeCursor"))
+              return text == null ? null : text.substring(0, cursor);
+            if (method.getName().equals("getTextAfterCursor"))
+              return text == null ? null : text.substring(cursor);
+            Class<?> type = method.getReturnType();
+            if (type == Boolean.TYPE) return false;
+            if (type == Integer.TYPE) return 0;
+            return null;
+          }
+        });
   }
 }

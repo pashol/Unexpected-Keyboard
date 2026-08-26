@@ -7,6 +7,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import org.junit.Test;
+import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
 import static org.junit.Assert.*;
 
@@ -123,6 +124,35 @@ public class KeyEventHandlerTest
     handler.handle_backspace();
 
     assertEquals("Informa", connection.text());
+  }
+
+  @Test
+  public void next_word_candidate_tap_batches_an_append_without_deleting_adjacent_text()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello !");
+    connection.cursor = 6;
+    KeyEventHandler handler = new_handler(connection);
+
+    handler.candidate_entered("world", Suggestions.CandidateType.NEXT_WORD);
+
+    assertEquals("hello world !", connection.text());
+    assertEquals(0, connection.delete_calls);
+    assertEquals(1, connection.begin_batch_calls);
+    assertEquals(1, connection.end_batch_calls);
+  }
+
+  @Test
+  public void candidate_entry_preserves_completion_replacement_behavior()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hel");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("hel");
+
+    handler.candidate_entered("hello", Suggestions.CandidateType.COMPLETION);
+
+    assertEquals("hello", connection.text());
+    assertEquals(1, connection.delete_calls);
   }
 
   @Test
@@ -290,6 +320,42 @@ public class KeyEventHandlerTest
     assertEquals(" ", connection.text());
   }
 
+  @Test
+  public void next_word_candidate_is_not_used_by_space_autocomplete()
+  {
+    FakeInputConnection connection = new FakeInputConnection();
+    KeyEventHandler handler = new_handler(connection);
+    handler._suggestions.suggestions[0] = "world";
+    handler._suggestions.types[0] = Suggestions.CandidateType.NEXT_WORD;
+    handler._suggestions.count = 1;
+    handler._space_bar_auto_complete = true;
+
+    handler.handle_space_bar();
+
+    assertEquals(" ", connection.text());
+  }
+
+  @Test
+  public void startup_retains_suggestions_for_initial_typed_word() throws Exception
+  {
+    UserDictionary dictionary = dictionary();
+    dictionary.add("initial");
+    set_user_dictionary_instance(dictionary);
+    FakeInputConnection connection = new FakeInputConnection("initial");
+    Receiver receiver = new Receiver(connection.connection);
+    Config config = config_with_initial_text("initial", "");
+    config.user_dictionary_enabled = true;
+    config.editor_config.should_show_candidates_view = true;
+    KeyEventHandler handler = new KeyEventHandler(receiver,
+        new juloo.keyboard2.suggestions.Suggestions(receiver, config));
+
+    handler.started(config);
+
+    assertEquals(1, receiver.suggestion_updates);
+    assertEquals(1, receiver.last_suggestions.count);
+    assertEquals("initial", receiver.last_suggestions.suggestions[0]);
+  }
+
   KeyEventHandler new_handler(FakeInputConnection connection)
   {
     Receiver receiver = new Receiver(connection.connection);
@@ -305,6 +371,22 @@ public class KeyEventHandlerTest
     return constructor.newInstance(new File(directory, "user_words.txt"));
   }
 
+  Config config_with_initial_text(String before, String after) throws Exception
+  {
+    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
+    field.setAccessible(true);
+    Object unsafe = field.get(null);
+    Method allocate = unsafeClass.getMethod("allocateInstance", Class.class);
+    Config config = (Config)allocate.invoke(unsafe, Config.class);
+    config.editor_config = new EditorConfig();
+    config.editor_config.initial_text_before_cursor = before;
+    config.editor_config.initial_text_after_cursor = after;
+    config.editor_config.initial_sel_start = before.length();
+    config.editor_config.initial_sel_end = before.length();
+    return config;
+  }
+
   void set_user_dictionary_instance(UserDictionary dictionary) throws Exception
   {
     java.lang.reflect.Field field = UserDictionary.class.getDeclaredField("_instance");
@@ -317,6 +399,8 @@ public class KeyEventHandlerTest
     final InputConnection connection;
     int shift_changes = 0;
     boolean shift_latch_cleared = false;
+    int suggestion_updates = 0;
+    juloo.keyboard2.suggestions.Suggestions last_suggestions;
 
     Receiver(InputConnection connection) { this.connection = connection; }
     public void handle_event_key(KeyValue.Event event) {}
@@ -326,7 +410,11 @@ public class KeyEventHandlerTest
     public void selection_state_changed(boolean selection) {}
     public InputConnection getCurrentInputConnection() { return connection; }
     public Handler getHandler() { return null; }
-    public void set_suggestions(juloo.keyboard2.suggestions.Suggestions suggestions) {}
+    public void set_suggestions(juloo.keyboard2.suggestions.Suggestions suggestions)
+    {
+      suggestion_updates++;
+      last_suggestions = suggestions;
+    }
   }
 
   static class FakeInputConnection implements InvocationHandler
@@ -334,6 +422,9 @@ public class KeyEventHandlerTest
     StringBuilder text;
     int cursor;
     int after_cursor_request = 0;
+    int delete_calls = 0;
+    int begin_batch_calls = 0;
+    int end_batch_calls = 0;
 
     FakeInputConnection()
     {
@@ -370,11 +461,16 @@ public class KeyEventHandlerTest
       }
       if (method.getName().equals("deleteSurroundingText"))
       {
+        delete_calls++;
         int before = ((Integer)args[0]).intValue();
         int after = ((Integer)args[1]).intValue();
         text.delete(cursor - before, cursor + after);
         cursor -= before;
       }
+      if (method.getName().equals("beginBatchEdit"))
+        begin_batch_calls++;
+      if (method.getName().equals("endBatchEdit"))
+        end_batch_calls++;
       Class<?> type = method.getReturnType();
       if (type == Boolean.TYPE) return true;
       if (type == Integer.TYPE) return 0;

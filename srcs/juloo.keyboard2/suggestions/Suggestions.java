@@ -1,35 +1,64 @@
 package juloo.keyboard2.suggestions;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
+import juloo.keyboard2.Logs;
 import juloo.keyboard2.Utils;
+import juloo.keyboard2.prediction.PredictionCandidate;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionRequest;
 
 /** Keep track of the word being typed and provide suggestions for
     [CandidatesView]. */
 public final class Suggestions
 {
+  /** Number of suggestions in [suggestions]. */
+  public static final int MAX_COUNT = 3;
+
+  public static enum CandidateType
+  {
+    COMPLETION,
+    NEXT_WORD
+  }
+
   Callback _callback;
   Config _config;
   boolean _enabled;
+  private PredictionEngineController _prediction_controller;
+  private int _request_generation;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
   /** Whether each suggestion slot was sourced from the personal dictionary. */
   public boolean[] personal_suggestions = new boolean[MAX_COUNT];
+  /** How each suggestion slot is committed. */
+  public CandidateType[] types = new CandidateType[MAX_COUNT];
   /** Number of suggestions at the beginning of the [suggestions] array that
       are not [null]. */
   public int count = 0;
   public String emoji_suggestion = null;
-  /** Number of suggestions in [suggestions]. */
-  public static final int MAX_COUNT = 3;
-
   public Suggestions(Callback c, Config conf)
+  {
+    this(c, conf, null);
+  }
+
+  public Suggestions(Callback c, Config conf, PredictionEngineController predictionController)
   {
     _callback = c;
     _config = conf;
+    _prediction_controller = predictionController;
+    clear();
+  }
+
+  public void set_prediction_controller(PredictionEngineController predictionController)
+  {
+    _prediction_controller = predictionController;
+    clear();
   }
 
   public void started()
@@ -40,14 +69,42 @@ public final class Suggestions
 
   public void currently_typed_word(String word, boolean sentence_start)
   {
+    currently_typed_word(word, sentence_start, Collections.<String>emptyList());
+  }
+
+  public void currently_typed_word(String word, boolean sentence_start,
+      List<String> preceding_words)
+  {
+    int generation = ++_request_generation;
+    int candidate_count = 0;
     if (!_enabled)
+    {
+      Logs.debug("NextWord: routing emptyToken=" + (word.length() == 0)
+          + " precedingWordCount=" + preceding_words.size()
+          + " controllerPresent=" + (_prediction_controller != null)
+          + " candidateCount=" + candidate_count);
       return;
-    if (word.length() < 2 || (_config.current_dictionary == null
+    }
+    if (word.length() == 0 && !preceding_words.isEmpty()
+        && _prediction_controller != null)
+    {
+      List<PredictionCandidate> candidates = _prediction_controller.predict(
+          new PredictionRequest(preceding_words, MAX_COUNT, generation));
+      candidate_count = candidates.size();
+      if (generation == _request_generation)
+        set_next_word_candidates(candidates);
+    }
+    else if (word.length() < 2 || (_config.current_dictionary == null
           && (!_config.user_dictionary_enabled || UserDictionary.instance() == null)))
       clear();
     else
       query_suggestions(word, sentence_start);
-    _callback.set_suggestions(this);
+    Logs.debug("NextWord: routing emptyToken=" + (word.length() == 0)
+        + " precedingWordCount=" + preceding_words.size()
+        + " controllerPresent=" + (_prediction_controller != null)
+        + " candidateCount=" + candidate_count);
+    if (_callback != null)
+      _callback.set_suggestions(this);
   }
 
   void clear()
@@ -57,8 +114,21 @@ public final class Suggestions
     {
       suggestions[i] = null;
       personal_suggestions[i] = false;
+      types[i] = CandidateType.COMPLETION;
     }
     emoji_suggestion = null;
+  }
+
+  /** Replaces the word slots with append-only next-word candidates. */
+  public void set_next_word_candidates(List<PredictionCandidate> candidates)
+  {
+    clear();
+    for (int i = 0; i < candidates.size() && i < MAX_COUNT; i++)
+    {
+      suggestions[i] = candidates.get(i).text();
+      types[i] = CandidateType.NEXT_WORD;
+    }
+    count = count_suggestions(suggestions);
   }
 
   int query_suggestions(String typed_word, boolean sentence_start)
@@ -70,6 +140,7 @@ public final class Suggestions
     {
       suggestions[i] = null;
       personal_suggestions[i] = false;
+      types[i] = CandidateType.COMPLETION;
     }
     int i = 0;
     if (dict != null)
@@ -120,7 +191,7 @@ public final class Suggestions
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
       capitalize_results(suggestions);
-    promote_typed_word(suggestions, personal_suggestions, capitalize
+    promote_typed_word(suggestions, personal_suggestions, types, capitalize
         ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
     count = count_suggestions(suggestions);
@@ -170,6 +241,12 @@ public final class Suggestions
   static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
       String typed_word)
   {
+    promote_typed_word(candidates, personal_candidates, null, typed_word);
+  }
+
+  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+      CandidateType[] candidate_types, String typed_word)
+  {
     int matching_index = -1;
     int candidate_count = 0;
     for (int i = 0; i < candidates.length; i++)
@@ -188,15 +265,21 @@ public final class Suggestions
       String matching_word = candidates[matching_index];
       boolean matching_personal = personal_candidates != null
         && personal_candidates[matching_index];
+      CandidateType matching_type = candidate_types == null ? null
+        : candidate_types[matching_index];
       for (int i = matching_index; i > 0; i--)
       {
         candidates[i] = candidates[i - 1];
         if (personal_candidates != null)
           personal_candidates[i] = personal_candidates[i - 1];
+        if (candidate_types != null)
+          candidate_types[i] = candidate_types[i - 1];
       }
       candidates[0] = matching_word;
       if (personal_candidates != null)
         personal_candidates[0] = matching_personal;
+      if (candidate_types != null)
+        candidate_types[0] = matching_type;
       return;
     }
     for (int i = candidates.length - 1; i > 0; i--)
@@ -204,10 +287,14 @@ public final class Suggestions
       candidates[i] = candidates[i - 1];
       if (personal_candidates != null)
         personal_candidates[i] = personal_candidates[i - 1];
+      if (candidate_types != null)
+        candidate_types[i] = candidate_types[i - 1];
     }
     candidates[0] = typed_word;
     if (personal_candidates != null)
       personal_candidates[0] = false;
+    if (candidate_types != null)
+      candidate_types[0] = CandidateType.COMPLETION;
   }
 
   public static String alternate_first_character(String word)
@@ -237,15 +324,18 @@ public final class Suggestions
   public boolean remove_personal_candidate(String candidate)
   {
     for (int i = 0; i < count; i++)
-      if (personal_suggestions[i] && suggestions[i].equals(candidate))
+      if (personal_suggestions[i] && types[i] == CandidateType.COMPLETION
+          && suggestions[i].equals(candidate))
       {
         for (int j = i; j < MAX_COUNT - 1; j++)
         {
           suggestions[j] = suggestions[j + 1];
           personal_suggestions[j] = personal_suggestions[j + 1];
+          types[j] = types[j + 1];
         }
         suggestions[MAX_COUNT - 1] = null;
         personal_suggestions[MAX_COUNT - 1] = false;
+        types[MAX_COUNT - 1] = CandidateType.COMPLETION;
         count = count_suggestions(suggestions);
         _callback.set_suggestions(this);
         return true;

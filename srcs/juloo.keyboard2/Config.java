@@ -13,6 +13,7 @@ import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.prefs.CustomExtraKeysPreference;
 import juloo.keyboard2.prefs.ExtraKeysPreference;
 import juloo.keyboard2.prefs.LayoutsPreference;
+import juloo.keyboard2.suggestions.Suggestions;
 
 public final class Config
 {
@@ -45,6 +46,7 @@ public final class Config
   public float swipe_dist_px;
   public float slide_step_px;
   public boolean suggestions_enabled;
+  public boolean next_word_predictions_enabled;
   public boolean user_dictionary_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
@@ -148,6 +150,8 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    next_word_predictions_enabled = _prefs.getBoolean(
+        "next_word_predictions_enabled", false);
     user_dictionary_enabled = _prefs.getBoolean("user_dictionary_enabled", false);
     auto_space_after_punct = _prefs.getBoolean("auto_space_after_punct", true);
     capitalize_suggestions_at_sentence_start = _prefs.getBoolean(
@@ -339,6 +343,7 @@ public final class Config
     public void key_up(KeyValue value, Pointers.Modifiers mods);
     public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched);
     public void suggestion_entered(String text);
+    public void candidate_entered(String text, Suggestions.CandidateType type);
     public void personal_candidate_removed(String text);
   }
 

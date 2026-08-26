@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.content.res.AssetManager;
 import android.graphics.drawable.Drawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build.VERSION;
@@ -25,6 +26,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.DictionariesActivity;
@@ -32,6 +37,14 @@ import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
+import juloo.keyboard2.prediction.EditorPredictionPolicy;
+import juloo.keyboard2.prediction.ProductionPredictionPack;
+import juloo.keyboard2.prediction.LatinimeDictionary;
+import juloo.keyboard2.prediction.PredictionCandidate;
+import juloo.keyboard2.prediction.PredictionEngine;
+import juloo.keyboard2.prediction.PredictionEngineController;
+import juloo.keyboard2.prediction.PredictionRequest;
+import juloo.keyboard2.prediction.PredictionSessionController;
 
 public class Keyboard2 extends InputMethodService
   implements SharedPreferences.OnSharedPreferenceChangeListener
@@ -42,6 +55,8 @@ public class Keyboard2 extends InputMethodService
   private CandidatesView _candidates_view;
   private Suggestions _suggestions;
   private KeyEventHandler _keyeventhandler;
+  private final PredictionSessionController _prediction_session =
+      new PredictionSessionController();
   /** If not 'null', the layout to use instead of [_config.current_layout]. */
   private KeyboardData _currentSpecialLayout;
   /** Layout associated with the currently selected locale. Not 'null'. */
@@ -150,6 +165,7 @@ public class Keyboard2 extends InputMethodService
 
   @Override
   public void onDestroy() {
+    _prediction_session.close();
     super.onDestroy();
 
     _foldStateTracker.close();
@@ -257,10 +273,94 @@ public class Keyboard2 extends InputMethodService
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
+    rebuild_prediction_controller(info);
     _keyeventhandler.started(_config);
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
   }
+
+  private PredictionEngineController create_prediction_controller(EditorInfo info)
+  {
+    boolean enabled = _config.next_word_predictions_enabled;
+    boolean input_allowed = EditorPredictionPolicy.allow_next_word(info.inputType);
+    DeviceLocales.Loc locale = _config.device_locales.default_;
+    boolean locale_present = locale != null;
+    ProductionPredictionPack prediction_pack = null;
+    try
+    {
+      prediction_pack = locale_present ? ProductionPredictionPack.load(getAssets(), locale.lang_tag) : null;
+    }
+    catch (IOException e) {}
+    boolean locale_supported = prediction_pack != null;
+    Logs.debug("NextWord: controller enabled=" + enabled
+        + " inputAllowed=" + input_allowed
+        + " localePresent=" + locale_present
+        + " localeSupported=" + locale_supported
+        + (locale_supported ? " language="
+            + java.util.Locale.forLanguageTag(locale.lang_tag).getLanguage() : ""));
+    if (!enabled || !input_allowed || !locale_present || !locale_supported)
+      return null;
+    try
+    {
+      return new PredictionEngineController(true,
+          LatinimeDictionary.open(copy_prediction_dictionary(prediction_pack)), EMPTY_PREDICTION_ENGINE);
+    }
+    catch (IOException | RuntimeException e)
+    {
+      // A missing or invalid optional pack leaves this input session on legacy behavior.
+      return null;
+    }
+  }
+
+  private File copy_prediction_dictionary(ProductionPredictionPack pack) throws IOException
+  {
+    if (!ProductionPredictionPack.matches_sha256(getAssets(), pack))
+      throw new IOException("Prediction dictionary hash does not match its manifest");
+    File directory = new File(getFilesDir(), "prediction");
+    if (!directory.isDirectory() && !directory.mkdirs())
+      throw new IOException("Unable to create prediction directory");
+    File destination = new File(directory, pack.dictionary_asset());
+    File temporary = new File(directory, pack.dictionary_asset() + ".tmp");
+    InputStream input = getAssets().open("latinime/packs/" + pack.dictionary_asset(),
+        AssetManager.ACCESS_STREAMING);
+    FileOutputStream output = new FileOutputStream(temporary);
+    try
+    {
+      byte[] buffer = new byte[8192];
+      int count;
+      while ((count = input.read(buffer)) != -1)
+        output.write(buffer, 0, count);
+      output.getFD().sync();
+    }
+    finally
+    {
+      output.close();
+      input.close();
+    }
+    if (!temporary.renameTo(destination))
+      throw new IOException("Unable to install prediction dictionary");
+    return destination;
+  }
+
+  private void rebuild_prediction_controller(EditorInfo info)
+  {
+    _prediction_session.replace(info == null ? null : create_prediction_controller(info));
+    PredictionEngineController controller = _prediction_session.controller();
+    if (controller != null)
+      controller.reset_session();
+    _suggestions.set_prediction_controller(controller);
+  }
+
+  private static final PredictionEngine EMPTY_PREDICTION_ENGINE = new PredictionEngine()
+  {
+    public List<PredictionCandidate> predict(PredictionRequest request)
+    {
+      return java.util.Collections.emptyList();
+    }
+    public void reset_session() {}
+    public void close() {}
+  };
+
 
   @Override
   public void setInputView(View v)
@@ -344,6 +444,7 @@ public class Keyboard2 extends InputMethodService
     refresh_current_dictionary();
     refresh_candidates_view();
     _keyboard_layout_view.setKeyboard(current_layout());
+    rebuild_prediction_controller(getCurrentInputEditorInfo());
     _keyeventhandler.ime_subtype_changed();
   }
 
@@ -360,6 +461,9 @@ public class Keyboard2 extends InputMethodService
   public void onFinishInputView(boolean finishingInput)
   {
     super.onFinishInputView(finishingInput);
+    _prediction_session.finish();
+    if (_suggestions != null)
+      _suggestions.set_prediction_controller(null);
     _keyboard_layout_view.reset();
   }
 
@@ -367,6 +471,8 @@ public class Keyboard2 extends InputMethodService
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
     refresh_config();
+    if (_key.equals("next_word_predictions_enabled"))
+      rebuild_prediction_controller(getCurrentInputEditorInfo());
     _keyboard_layout_view.setKeyboard(current_layout());
   }
 
@@ -544,12 +650,18 @@ public class Keyboard2 extends InputMethodService
     {
       switch (q)
       {
-        case Complete_first: return _suggestions.suggestions[0];
-        case Complete_second: return _suggestions.suggestions[1];
-        case Complete_third: return _suggestions.suggestions[2];
+        case Complete_first: return completion_candidate(0);
+        case Complete_second: return completion_candidate(1);
+        case Complete_third: return completion_candidate(2);
         case Complete_emoji: return _suggestions.emoji_suggestion;
       }
       return "";
+    }
+
+    private String completion_candidate(int index)
+    {
+      return _suggestions.types[index] == Suggestions.CandidateType.COMPLETION
+        ? _suggestions.suggestions[index] : null;
     }
   }
 

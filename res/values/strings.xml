@@ -36,6 +36,8 @@
     <string name="pref_category_suggestions">Suggestions</string>
     <string name="pref_suggestions_title">Suggestions</string>
     <string name="pref_suggestions_summary">Enable word completion and spell checking</string>
+    <string name="pref_next_word_predictions_title">Next-word predictions</string>
+    <string name="pref_next_word_predictions_summary">Show explicit next-word suggestions generated offline on your device</string>
     <string name="pref_user_dictionary_enabled_title">Personal dictionary</string>
     <string name="pref_user_dictionary_enabled_summary">Show words from your personal dictionary in suggestions</string>
     <string name="pref_user_dictionary_export">Export personal dictionary</string>

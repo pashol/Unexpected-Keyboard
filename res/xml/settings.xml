@@ -15,6 +15,7 @@
   </PreferenceCategory>
   <PreferenceCategory android:title="@string/pref_category_suggestions">
     <CheckBoxPreference android:key="suggestions" android:title="@string/pref_suggestions_title" android:summary="@string/pref_suggestions_summary" android:defaultValue="true"/>
+    <CheckBoxPreference android:key="next_word_predictions_enabled" android:title="@string/pref_next_word_predictions_title" android:summary="@string/pref_next_word_predictions_summary" android:defaultValue="false"/>
     <CheckBoxPreference android:key="user_dictionary_enabled" android:title="@string/pref_user_dictionary_enabled_title" android:summary="@string/pref_user_dictionary_enabled_summary" android:defaultValue="false"/>
     <Preference android:key="user_dictionary_export" android:title="@string/pref_user_dictionary_export"/>
     <Preference android:key="user_dictionary_import" android:title="@string/pref_user_dictionary_import"/>

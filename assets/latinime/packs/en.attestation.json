@@ -1,0 +1,51 @@
+{
+  "acquisition_lock_sha256": "e77b39b52c4147f1ad8ad9d0da13fee3c2ef7aae9f9da0f0f220dbf53d0ccfa5",
+  "combined_source_sha256": "ec0bcfdf720d59b5528102a4759cc7b5a0110664884f15155b5c8d46715438ba",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "builder": {
+      "path": "build_language_pack.py",
+      "sha256": "e9ca9e1ff7a386d29657f2ab455e035abcb1d02a195a228d642cadacb8a3872b"
+    },
+    "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
+    "jdk": {
+      "java_version": "17.0.19",
+      "javac_version": "javac 17.0.19"
+    }
+  },
+  "final_assets": {
+    "dictionary_sha256": "e9a7b8041d2b2a3a6e3db5d3ef540c8a0b73d53bdb39f3039123b934a782878e",
+    "manifest_sha256": "233728894f1396f1613cbaaf0a48c05487c8e6707d8a7a4acc518f492be91108"
+  },
+  "format_version": 1,
+  "generated_inputs": {
+    "ngrams": {
+      "sha256": "809edd445e21f44e176184e5a0a4b7347ff82571ebe413c5267bd2672aed3971"
+    },
+    "words": {
+      "sha256": "8a91f09cad1998eead0145181b10e3f3ca4269880f18f196c1ca1b3c8a0f1b40"
+    }
+  },
+  "importer_reports": {
+    "generation_manifest_sha256": "808120d3a06563df46192cc451df4bf40506b22c8a6c505a6cf7e64b5087a0a8",
+    "generation_report_sha256": "df87366ea2d2e207ca6ddc3253d90b0d59cae6738ec37825c7c7e78474f3a22f"
+  },
+  "locale": "en",
+  "source_provenance": {
+    "main_en_US.combined": {
+      "license": "CC BY 4.0",
+      "source_sha256": "e77b39b52c4147f1ad8ad9d0da13fee3c2ef7aae9f9da0f0f220dbf53d0ccfa5",
+      "type": "external_corpus",
+      "url": "https://codeberg.org/Helium314/aosp-dictionaries",
+      "version": "69afafc3887d189515fa0be8b4585b91df80b92d"
+    },
+    "ngram_tsv": {
+      "path": "en.ngrams.tsv",
+      "sha256": "809edd445e21f44e176184e5a0a4b7347ff82571ebe413c5267bd2672aed3971"
+    },
+    "word_frequency_tsv": {
+      "path": "en.words.tsv",
+      "sha256": "8a91f09cad1998eead0145181b10e3f3ca4269880f18f196c1ca1b3c8a0f1b40"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import java.io.FileOutputStream
+import java.util.zip.ZipFile
 
 plugins {
   id("com.android.application") version "8.13.2"
@@ -10,6 +11,9 @@ dependencies {
   implementation("androidx.window:window-java:1.4.0")
   implementation("androidx.core:core:1.16.0") // Version 1.17.0 available with sdk 36
   testImplementation("junit:junit:4.13.2")
+  testImplementation("org.json:json:20231013")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
+  androidTestImplementation("androidx.test:runner:1.6.2")
 }
 
 android {
@@ -22,18 +26,31 @@ android {
     targetSdk { version = release(36) }
     versionCode = 55
     versionName = "2.0.4"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    externalNativeBuild {
+      ndkBuild {
+        arguments += "NDK_APPLICATION_MK=vendor/Application.mk"
+      }
+    }
   }
 
   sourceSets {
     named("main") {
       manifest.srcFile("AndroidManifest.xml")
-      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict")
+      java.srcDirs("srcs/juloo.keyboard2", "vendor/cdict/java/juloo.cdict", "vendor/latinime/java")
       res.srcDirs("res", "build/generated-resources")
-      assets.srcDirs("assets")
+      assets.srcDirs("build/generated-assets")
     }
 
     named("test") {
       java.srcDirs("test")
+    }
+
+    named("androidTest") {
+      java.srcDirs("androidTest", "src/androidTest/java")
+      res.srcDirs("androidTest/res")
+      assets.srcDirs("test/fixtures")
     }
   }
 
@@ -168,6 +185,116 @@ tasks.withType(Test::class).configureEach {
   dependsOn(genLayoutsList, checkKeyboardLayouts, compileComposeSequences, genMethodXml)
 }
 
+val verifyLanguagePackFixture by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Regenerates and verifies the LatinIME fixture from the pinned AOSP checkout."
+  workingDir = projectDir
+  commandLine("python3", "-m", "unittest", "tools.prediction.integration_test_build_language_pack")
+}
+
+val copyLatinimeNotice by tasks.registering(Copy::class) {
+  from("vendor/latinime/NOTICE")
+  into("build/generated-assets/latinime")
+}
+
+val copyStaticAssets by tasks.registering(Copy::class) {
+  from("assets")
+  exclude("latinime/packs/**")
+  into("build/generated-assets")
+}
+
+val copyLatinimeDevelopmentFixture by tasks.registering(Exec::class) {
+  inputs.file("test/fixtures/latinime/language_packs.json")
+  inputs.dir("test/fixtures/latinime")
+  outputs.dir("build/generated-assets/latinime")
+  workingDir = projectDir
+  commandLine(
+      "python3", "-m", "tools.prediction.copy_development_language_packs",
+      "--registry", "test/fixtures/latinime/language_packs.json",
+      "--output", "build/generated-assets/latinime",
+  )
+}
+
+val copyLatinimeProductionPacks by tasks.registering(Exec::class) {
+  inputs.file("assets/latinime/packs/language_packs.json")
+  inputs.dir("assets/latinime/packs")
+  outputs.dir("build/generated-assets/latinime/packs")
+  workingDir = projectDir
+  commandLine(
+      "python3", "-m", "tools.prediction.copy_production_language_packs",
+      "--registry", "assets/latinime/packs/language_packs.json",
+      "--output", "build/generated-assets/latinime/packs",
+  )
+}
+
+tasks.named("preBuild") {
+  dependsOn(copyLatinimeDevelopmentFixture, copyLatinimeProductionPacks)
+}
+
+val verifyReleaseEnvironment by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Checks the signing, SDK, and NDK prerequisites for release verification."
+  workingDir = projectDir
+  commandLine("/bin/sh", "tools/verify_release_environment.sh")
+}
+
+tasks.configureEach {
+  if (name == "packageRelease") {
+    dependsOn(verifyReleaseEnvironment)
+  }
+}
+
+val verifyLatinimeNative by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Verifies every ABI in the assembled release APK has compliant LatinIME native code."
+  dependsOn("assembleRelease")
+  workingDir = projectDir
+  commandLine("tools/verify_latinime_native.sh")
+}
+
+val verifyProductionLanguagePacks by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Verifies committed production language-pack registry and attestation chains."
+  workingDir = projectDir
+  commandLine("python3", "tools/prediction/verify_production_language_packs.py")
+}
+
+val verifyReleasePackaging by tasks.registering(Exec::class) {
+  group = "verification"
+  description = "Assembles and verifies the LatinIME NOTICE in the release APK."
+  dependsOn(verifyProductionLanguagePacks, verifyReleaseEnvironment, "assembleRelease")
+  workingDir = projectDir
+  commandLine("python3", "tools/verify_release_notice.py")
+}
+
+val verifyLatinimeJniFacade by tasks.registering {
+  group = "verification"
+  description = "Verifies the API-21 facade and JNI-only descriptor class in the release APK."
+  dependsOn("assembleRelease")
+  inputs.file("srcs/juloo.keyboard2/prediction/LatinimeDictionary.java")
+  inputs.file("build/outputs/apk/release/Unexpected-Keyboard-release.apk")
+  doLast {
+    val source = inputs.files.single { it.name == "LatinimeDictionary.java" }
+    val apk = inputs.files.single { it.name == "Unexpected-Keyboard-release.apk" }
+    check(!source.readText().contains(".codePoints()"))
+    ZipFile(apk).use { archive ->
+      val present = archive.entries().asSequence()
+          .filter { it.name.startsWith("classes") && it.name.endsWith(".dex") }
+          .any { String(archive.getInputStream(it).readBytes(), Charsets.ISO_8859_1)
+              .contains("com/android/inputmethod/latin/utils/WordInputEventForPersonalization") }
+      check(present) { "Release APK is missing WordInputEventForPersonalization" }
+    }
+  }
+}
+
+tasks.named("check") {
+  dependsOn(verifyLanguagePackFixture)
+  dependsOn(verifyLatinimeNative)
+  dependsOn(verifyReleasePackaging)
+  dependsOn(verifyProductionLanguagePacks)
+  dependsOn(verifyLatinimeJniFacade)
+}
+
 val initDebugKeystore by tasks.registering(Exec::class) {
   doFirst { println("Initializing default debug keystore") }
   isEnabled = !file("debug.keystore").exists()
@@ -188,7 +315,7 @@ val copyLayoutDefinitions by tasks.registering(Copy::class) {
 }
 
 tasks.named("preBuild") {
-  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions)
+  dependsOn(initDebugKeystore, copyRawQwertyUS, copyLayoutDefinitions, copyLatinimeNotice, copyStaticAssets)
   // 'mustRunAfter' defines ordering between tasks (which is required by
   // Gradle) but doesn't create a dependency. These rules update files that are
   // checked in the repository that don't need to be updated during regular

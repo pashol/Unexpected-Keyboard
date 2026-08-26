@@ -1,0 +1,36 @@
+{
+  "combined_source_sha256": "f87591c0367188e471904167c99360ae1fb4d138062d649502667a84fad993dc",
+  "compiler": {
+    "aosp_revision": "8081a1d8572f78488900438a6eaaec232b882bbf",
+    "builder": {
+      "path": "build_language_pack.py",
+      "sha256": "1c85f0837015bc236dd084431872d72c81368df7f79c326d0fa734c76b5eb293"
+    },
+    "input_sha256": "f09a90dd1a5edf379a9a732507f5d9552640107bb3500d3c7001d95b18010430",
+    "jdk": {
+      "java_version": "17.0.19",
+      "javac_version": "javac 17.0.19"
+    }
+  },
+  "format_version": 202,
+  "locale": "gsw",
+  "output_sha256": "e2abb3175f8856e4239993c6913d1efab91f2e4f82649c32dc17e6f331feaab6",
+  "sources": {
+    "archimob": {
+      "license": "CC BY-NC-SA 4.0",
+      "source_sha256": "4f7c5953b1365744d0b3074459c6c8c368ff6a243db9430922f3d5e96097230a",
+      "type": "external_corpus",
+      "url": "https://www.swissubase.ch/en/catalogue/studies/20154/19410/overview",
+      "version": "1.0"
+    },
+    "ngram_tsv": {
+      "path": "gsw.ngrams.tsv",
+      "sha256": "aedf5eee6eefa560db23427f1734fdf71b1995527bf96d71f153f2303a099bee"
+    },
+    "word_frequency_tsv": {
+      "path": "gsw.words.tsv",
+      "sha256": "6ab66f1b7beed1b04d92145c38ce210dfbe029097e59b617e999ecedde84bbb5"
+    }
+  },
+  "timestamp": "1970-01-01T00:00:00Z"
+}

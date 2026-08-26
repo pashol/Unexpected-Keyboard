@@ -37,3 +37,23 @@ jobs:
     - run: python3 srcs/compose/compile.py srcs/compose/{*.json,compose} > srcs/juloo.keyboard2/ComposeKeyData.java
     - name: "Run 'gradle test' to update the generated files."
       run: git diff --exit-code
+
+  verify-language-pack:
+    name: Language pack fixture
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17.0.19'
+    - name: Checkout pinned AOSP LatinIME
+      run: |
+        git clone https://android.googlesource.com/platform/packages/inputmethods/LatinIME.git "$RUNNER_TEMP/LatinIME"
+        git -C "$RUNNER_TEMP/LatinIME" checkout 8081a1d8572f78488900438a6eaaec232b882bbf
+    - name: Verify language-pack fixture
+      run: python3 -m unittest tools.prediction.integration_test_build_language_pack
+      env:
+        AOSP_LATINIME_SOURCE: ${{ runner.temp }}/LatinIME
