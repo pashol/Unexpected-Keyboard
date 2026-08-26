@@ -15,3 +15,6 @@
 # Promotion-time TSVs, provenance, combined sources, and receipts stay outside Git
 /assets/latinime/packs/sources/
 /assets/latinime/packs/*.combined
+
+# Python bytecode
+__pycache__/
