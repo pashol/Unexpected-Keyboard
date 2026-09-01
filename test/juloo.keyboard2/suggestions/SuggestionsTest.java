@@ -186,18 +186,59 @@ public class SuggestionsTest
   {
     Suggestions suggestions = new Suggestions(null, null);
     suggestions.emoji_suggestion = "emoji";
+    suggestions.set_candidate_case(Suggestions.CandidateCase.UPPER);
 
     suggestions.set_next_word_candidates(Arrays.asList(
         new PredictionCandidate("world", 1f),
         new PredictionCandidate("there", .5f)));
 
-    assertArrayEquals(new String[] { "world", "there", null }, suggestions.suggestions);
+    assertArrayEquals(new String[] { "WORLD", "THERE", null }, suggestions.suggestions);
     assertArrayEquals(new Suggestions.CandidateType[] {
         Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.NEXT_WORD,
         Suggestions.CandidateType.COMPLETION }, suggestions.types);
     assertArrayEquals(new boolean[] { false, false, false }, suggestions.personal_suggestions);
     assertEquals(2, suggestions.count);
     assertNull(suggestions.emoji_suggestion);
+  }
+
+  @Test
+  public void applies_title_case_to_word_candidates()
+  {
+    String[] candidates = { "hello", "WORLD", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+    assertArrayEquals(new String[] { "Hello", "World", null }, candidates);
+  }
+
+  @Test
+  public void applies_upper_case_to_word_candidates()
+  {
+    String[] candidates = { "Hello", "world", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.UPPER);
+
+    assertArrayEquals(new String[] { "HELLO", "WORLD", null }, candidates);
+  }
+
+  @Test
+  public void preserves_dictionary_casing_for_default_candidate_case()
+  {
+    String[] candidates = { "iPhone", "McDonald", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.DEFAULT);
+
+    assertArrayEquals(new String[] { "iPhone", "McDonald", null }, candidates);
+  }
+
+  @Test
+  public void reports_only_real_candidate_case_changes()
+  {
+    Suggestions suggestions = new Suggestions(null, null);
+
+    assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
+    assertFalse(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
+    assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.UPPER));
   }
 
   @Test

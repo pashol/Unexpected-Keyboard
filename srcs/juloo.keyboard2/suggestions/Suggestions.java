@@ -26,11 +26,19 @@ public final class Suggestions
     NEXT_WORD
   }
 
+  public static enum CandidateCase
+  {
+    DEFAULT,
+    TITLE,
+    UPPER
+  }
+
   Callback _callback;
   Config _config;
   boolean _enabled;
   private PredictionEngineController _prediction_controller;
   private int _request_generation;
+  private CandidateCase _candidate_case = CandidateCase.DEFAULT;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
@@ -59,6 +67,14 @@ public final class Suggestions
   {
     _prediction_controller = predictionController;
     clear();
+  }
+
+  public boolean set_candidate_case(CandidateCase candidateCase)
+  {
+    if (_candidate_case == candidateCase)
+      return false;
+    _candidate_case = candidateCase;
+    return true;
   }
 
   public void started()
@@ -128,6 +144,7 @@ public final class Suggestions
       suggestions[i] = candidates.get(i).text();
       types[i] = CandidateType.NEXT_WORD;
     }
+    apply_candidate_case(suggestions, _candidate_case);
     count = count_suggestions(suggestions);
   }
 
@@ -194,6 +211,7 @@ public final class Suggestions
     place_typed_word_last(suggestions, personal_suggestions, types, capitalize
         ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
+    apply_candidate_case(suggestions, _candidate_case);
     count = count_suggestions(suggestions);
     return count;
   }
@@ -223,6 +241,27 @@ public final class Suggestions
     for (int i = 0; i < candidates.length; i++)
       if (candidates[i] != null)
         candidates[i] = Utils.capitalize_string(candidates[i]);
+  }
+
+  public static void apply_candidate_case(String[] candidates,
+      CandidateCase candidateCase)
+  {
+    if (candidateCase == CandidateCase.DEFAULT)
+      return;
+    for (int i = 0; i < candidates.length; i++)
+    {
+      String candidate = candidates[i];
+      if (candidate == null)
+        continue;
+      if (candidateCase == CandidateCase.UPPER)
+        candidates[i] = candidate.toUpperCase(Locale.ROOT);
+      else if (candidate.length() > 0)
+      {
+        int first_end = candidate.offsetByCodePoints(0, 1);
+        candidates[i] = candidate.substring(0, first_end).toUpperCase(Locale.ROOT)
+          + candidate.substring(first_end).toLowerCase(Locale.ROOT);
+      }
+    }
   }
 
   static boolean already_in(String[] candidates, int count, String word)
