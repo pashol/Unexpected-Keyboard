@@ -2,6 +2,7 @@ package juloo.keyboard2.suggestions;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
 import juloo.keyboard2.prediction.PredictionEngineController;
@@ -212,6 +213,26 @@ public class SuggestionsTest
   }
 
   @Test
+  public void applies_title_case_to_supplementary_initial_with_root_locale()
+  {
+    Locale original_locale = Locale.getDefault();
+    try
+    {
+      Locale.setDefault(new Locale("tr", "TR"));
+      String[] candidates = { "\uD801\uDC28ELLO", "istanbul", null };
+
+      Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+      assertArrayEquals(new String[] { "\uD801\uDC00ello", "Istanbul", null },
+          candidates);
+    }
+    finally
+    {
+      Locale.setDefault(original_locale);
+    }
+  }
+
+  @Test
   public void applies_upper_case_to_word_candidates()
   {
     String[] candidates = { "Hello", "world", null };
@@ -239,6 +260,28 @@ public class SuggestionsTest
     assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
     assertFalse(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
     assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.UPPER));
+  }
+
+  @Test
+  public void keeps_completion_order_when_applying_title_case()
+  {
+    String[] candidates = { "best", "middle", null };
+
+    Suggestions.place_typed_word_last(candidates, "typed");
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+    assertArrayEquals(new String[] { "Best", "Middle", "Typed" }, candidates);
+  }
+
+  @Test
+  public void keeps_completion_order_when_applying_upper_case()
+  {
+    String[] candidates = { "best", "middle", null };
+
+    Suggestions.place_typed_word_last(candidates, "typed");
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.UPPER);
+
+    assertArrayEquals(new String[] { "BEST", "MIDDLE", "TYPED" }, candidates);
   }
 
   @Test
