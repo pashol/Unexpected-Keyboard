@@ -157,7 +157,12 @@ public final class KeyEventHandler
   @Override
   public void suggestion_entered(String text)
   {
-    replace_suggestion(text, false);
+    replace_suggestion(text + " ", false);
+    last_replaced_word = null;
+    last_replacement_word_len = 0;
+    _last_action = LastAction.OTHER;
+    _next_last_action = LastAction.OTHER;
+    _auto_space_inserted = true;
   }
 
   private void replace_suggestion(String text, boolean undoable)
@@ -196,7 +201,11 @@ public final class KeyEventHandler
     {
       conn.endBatchEdit();
     }
+    last_replaced_word = null;
+    last_replacement_word_len = 0;
+    _last_action = LastAction.OTHER;
     _next_last_action = LastAction.OTHER;
+    _auto_space_inserted = true;
   }
 
   @Override
@@ -318,7 +327,8 @@ public final class KeyEventHandler
           KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE));
     if (eventAction == KeyEvent.ACTION_UP)
     {
-      _autocap.event_sent(eventCode, metaState);
+      if (_autocap._handler != null)
+        _autocap.event_sent(eventCode, metaState);
       _typedword.event_sent(eventCode, metaState);
     }
   }

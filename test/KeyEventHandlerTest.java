@@ -84,18 +84,18 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void entering_suggestion_does_not_append_a_space()
+  public void entering_suggestion_appends_a_space()
   {
     FakeInputConnection connection = new FakeInputConnection();
     KeyEventHandler handler = new KeyEventHandler(new Receiver(connection.connection), null);
 
     handler.suggestion_entered("word");
 
-    assertEquals("word", connection.text());
+    assertEquals("word ", connection.text());
   }
 
   @Test
-  public void tapped_suggestion_does_not_arm_full_word_undo()
+  public void tapped_completion_replaces_typed_word_and_appends_space()
   {
     FakeInputConnection connection = new FakeInputConnection("Informa");
     KeyEventHandler handler = new_handler(connection);
@@ -104,8 +104,22 @@ public class KeyEventHandlerTest
 
     handler.suggestion_entered("Informatik");
 
-    assertEquals("Informatik", connection.text());
+    assertEquals("Informatik ", connection.text());
     assertNull(handler.last_replaced_word);
+  }
+
+  @Test
+  public void backspace_after_tapped_completion_removes_only_its_space()
+  {
+    FakeInputConnection connection = new FakeInputConnection("Informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("Informa");
+
+    handler.suggestion_entered("Informatik");
+    handler.handle_backspace();
+
+    assertEquals("Informatik", connection.text());
   }
 
   @Test
@@ -142,7 +156,19 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void candidate_entry_preserves_completion_replacement_behavior()
+  public void backspace_after_tapped_next_word_removes_only_its_space()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello ");
+    KeyEventHandler handler = new_handler(connection);
+
+    handler.next_word_entered("world");
+    handler.handle_backspace();
+
+    assertEquals("hello world", connection.text());
+  }
+
+  @Test
+  public void candidate_entry_replaces_completion_and_appends_space()
   {
     FakeInputConnection connection = new FakeInputConnection("hel");
     KeyEventHandler handler = new_handler(connection);
@@ -151,8 +177,21 @@ public class KeyEventHandlerTest
 
     handler.candidate_entered("hello", Suggestions.CandidateType.COMPLETION);
 
-    assertEquals("hello", connection.text());
+    assertEquals("hello ", connection.text());
     assertEquals(1, connection.delete_calls);
+  }
+
+  @Test
+  public void tapped_candidate_preserves_displayed_casing()
+  {
+    FakeInputConnection connection = new FakeInputConnection("informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("informa");
+
+    handler.candidate_entered("InFoRmAtIk", Suggestions.CandidateType.COMPLETION);
+
+    assertEquals("InFoRmAtIk ", connection.text());
   }
 
   @Test
@@ -425,6 +464,7 @@ public class KeyEventHandlerTest
     int delete_calls = 0;
     int begin_batch_calls = 0;
     int end_batch_calls = 0;
+    int key_event_count = 0;
 
     FakeInputConnection()
     {
@@ -466,6 +506,18 @@ public class KeyEventHandlerTest
         int after = ((Integer)args[1]).intValue();
         text.delete(cursor - before, cursor + after);
         cursor -= before;
+      }
+      if (method.getName().equals("sendKeyEvent"))
+      {
+        key_event_count++;
+        // The local Android KeyEvent stubs do not expose event properties.
+        // Key events are sent in down/up pairs, so the second event is the up event.
+        if (key_event_count % 2 == 0 && cursor > 0
+            && text.charAt(cursor - 1) == ' ')
+        {
+          text.deleteCharAt(cursor - 1);
+          cursor--;
+        }
       }
       if (method.getName().equals("beginBatchEdit"))
         begin_batch_calls++;
