@@ -144,6 +144,24 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void space_autocomplete_accepts_case_only_completion()
+  {
+    FakeInputConnection connection = new FakeInputConnection("typed");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("typed");
+    handler._space_bar_auto_complete = true;
+    handler._suggestions.suggestions[0] = "Typed";
+    handler._suggestions.count = 1;
+
+    handler.handle_space_bar();
+
+    assertEquals("Typed ", connection.text());
+    assertEquals("typed", handler.last_replaced_word);
+    assertEquals(6, handler.last_replacement_word_len);
+  }
+
+  @Test
   public void next_word_candidate_tap_batches_an_append_without_deleting_adjacent_text()
   {
     FakeInputConnection connection = new FakeInputConnection("hello !");
