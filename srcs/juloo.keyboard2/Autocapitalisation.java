@@ -56,6 +56,8 @@ public final class Autocapitalisation
 
   public void event_sent(int code, int meta)
   {
+    if (!_enabled)
+      return;
     if (meta != 0)
     {
       _should_enable_shift = false;
