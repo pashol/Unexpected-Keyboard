@@ -27,27 +27,27 @@ public class SuggestionsTest
   }
 
   @Test
-  public void promotes_typed_word_when_candidates_are_ambiguous()
+  public void places_missing_typed_word_last_when_candidates_are_ambiguous()
   {
     String[] candidates = { "Erdbeere", "Erden", null };
-    Suggestions.promote_typed_word(candidates, "erde");
-    assertArrayEquals(new String[] { "erde", "Erdbeere", "Erden" },
+    Suggestions.place_typed_word_last(candidates, "erde");
+    assertArrayEquals(new String[] { "Erdbeere", "Erden", "erde" },
         candidates);
   }
 
   @Test
-  public void promotes_existing_typed_word_with_its_stored_casing()
+  public void places_existing_typed_word_last_with_its_stored_casing()
   {
     String[] candidates = { "Erdbeere", "Erde", null };
-    Suggestions.promote_typed_word(candidates, "erde");
-    assertArrayEquals(new String[] { "Erde", "Erdbeere", null }, candidates);
+    Suggestions.place_typed_word_last(candidates, "erde");
+    assertArrayEquals(new String[] { "Erdbeere", "Erde", null }, candidates);
   }
 
   @Test
   public void keeps_single_unambiguous_completion()
   {
     String[] candidates = { "Grosswangen", null, null };
-    Suggestions.promote_typed_word(candidates, "Grosswan");
+    Suggestions.place_typed_word_last(candidates, "Grosswan");
     assertArrayEquals(new String[] { "Grosswangen", null, null }, candidates);
   }
 
@@ -80,7 +80,7 @@ public class SuggestionsTest
   {
     String[] candidates = { "Grosswangen", null, null };
     String emoji = "map";
-    Suggestions.promote_typed_word(candidates, "Grosswan");
+    Suggestions.place_typed_word_last(candidates, "Grosswan");
     assertEquals("Grosswangen", candidates[0]);
     assertEquals("map", emoji);
   }
@@ -114,15 +114,22 @@ public class SuggestionsTest
   }
 
   @Test
-  public void keeps_personal_provenance_when_promoting_a_candidate()
+  public void keeps_candidate_metadata_when_placing_a_candidate_last()
   {
-    String[] candidates = { "System", "Personal", null };
-    boolean[] personal = { false, true, false };
+    String[] candidates = { "Typed", "Completion", "Other" };
+    boolean[] personal = { true, false, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
 
-    Suggestions.promote_typed_word(candidates, personal, "personal");
+    Suggestions.place_typed_word_last(candidates, personal, types, "typed");
 
-    assertArrayEquals(new String[] { "Personal", "System", null }, candidates);
-    assertArrayEquals(new boolean[] { true, false, false }, personal);
+    assertArrayEquals(new String[] { "Completion", "Other", "Typed" }, candidates);
+    assertArrayEquals(new boolean[] { false, false, true }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.NEXT_WORD }, types);
   }
 
   @Test

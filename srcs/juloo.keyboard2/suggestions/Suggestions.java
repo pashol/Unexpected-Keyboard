@@ -191,7 +191,7 @@ public final class Suggestions
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
       capitalize_results(suggestions);
-    promote_typed_word(suggestions, personal_suggestions, types, capitalize
+    place_typed_word_last(suggestions, personal_suggestions, types, capitalize
         ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
     count = count_suggestions(suggestions);
@@ -233,18 +233,18 @@ public final class Suggestions
     return false;
   }
 
-  static void promote_typed_word(String[] candidates, String typed_word)
+  static void place_typed_word_last(String[] candidates, String typed_word)
   {
-    promote_typed_word(candidates, null, typed_word);
+    place_typed_word_last(candidates, null, typed_word);
   }
 
-  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+  static void place_typed_word_last(String[] candidates, boolean[] personal_candidates,
       String typed_word)
   {
-    promote_typed_word(candidates, personal_candidates, null, typed_word);
+    place_typed_word_last(candidates, personal_candidates, null, typed_word);
   }
 
-  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+  static void place_typed_word_last(String[] candidates, boolean[] personal_candidates,
       CandidateType[] candidate_types, String typed_word)
   {
     int matching_index = -1;
@@ -258,43 +258,37 @@ public final class Suggestions
           matching_index = i;
       }
     }
-    if (matching_index == 0 || (matching_index == -1 && candidate_count < 2))
+    if (matching_index == -1 && candidate_count < 2)
       return;
-    if (matching_index > 0)
+    if (matching_index >= 0)
     {
       String matching_word = candidates[matching_index];
       boolean matching_personal = personal_candidates != null
         && personal_candidates[matching_index];
       CandidateType matching_type = candidate_types == null ? null
         : candidate_types[matching_index];
-      for (int i = matching_index; i > 0; i--)
+      int last_index = candidate_count - 1;
+      for (int i = matching_index; i < last_index; i++)
       {
-        candidates[i] = candidates[i - 1];
+        candidates[i] = candidates[i + 1];
         if (personal_candidates != null)
-          personal_candidates[i] = personal_candidates[i - 1];
+          personal_candidates[i] = personal_candidates[i + 1];
         if (candidate_types != null)
-          candidate_types[i] = candidate_types[i - 1];
+          candidate_types[i] = candidate_types[i + 1];
       }
-      candidates[0] = matching_word;
+      candidates[last_index] = matching_word;
       if (personal_candidates != null)
-        personal_candidates[0] = matching_personal;
+        personal_candidates[last_index] = matching_personal;
       if (candidate_types != null)
-        candidate_types[0] = matching_type;
+        candidate_types[last_index] = matching_type;
       return;
     }
-    for (int i = candidates.length - 1; i > 0; i--)
-    {
-      candidates[i] = candidates[i - 1];
-      if (personal_candidates != null)
-        personal_candidates[i] = personal_candidates[i - 1];
-      if (candidate_types != null)
-        candidate_types[i] = candidate_types[i - 1];
-    }
-    candidates[0] = typed_word;
+    int last_index = Math.min(candidate_count, candidates.length - 1);
+    candidates[last_index] = typed_word;
     if (personal_candidates != null)
-      personal_candidates[0] = false;
+      personal_candidates[last_index] = false;
     if (candidate_types != null)
-      candidate_types[0] = CandidateType.COMPLETION;
+      candidate_types[last_index] = CandidateType.COMPLETION;
   }
 
   public static String alternate_first_character(String word)
