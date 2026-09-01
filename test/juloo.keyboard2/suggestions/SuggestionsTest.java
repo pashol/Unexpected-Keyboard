@@ -117,10 +117,10 @@ public class SuggestionsTest
   @Test
   public void keeps_candidate_metadata_when_placing_a_candidate_last()
   {
-    String[] candidates = { "Typed", "Completion", "Other" };
-    boolean[] personal = { true, false, false };
+    String[] candidates = { "Completion", "Typed", "Other" };
+    boolean[] personal = { false, true, false };
     Suggestions.CandidateType[] types = {
-      Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.NEXT_WORD,
       Suggestions.CandidateType.COMPLETION
     };
 
@@ -131,6 +131,14 @@ public class SuggestionsTest
     assertArrayEquals(new Suggestions.CandidateType[] {
         Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
         Suggestions.CandidateType.NEXT_WORD }, types);
+  }
+
+  @Test
+  public void keeps_best_typed_word_centered_instead_of_forcing_a_correction()
+  {
+    String[] candidates = { "Typed", "Completion", "Other" };
+    Suggestions.place_typed_word_last(candidates, "typed");
+    assertArrayEquals(new String[] { "Typed", "Completion", "Other" }, candidates);
   }
 
   @Test

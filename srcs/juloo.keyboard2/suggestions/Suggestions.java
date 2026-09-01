@@ -297,6 +297,8 @@ public final class Suggestions
           matching_index = i;
       }
     }
+    if (matching_index == 0)
+      return;
     if (matching_index == -1 && candidate_count < 2)
       return;
     if (matching_index >= 0)
