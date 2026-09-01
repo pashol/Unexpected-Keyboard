@@ -196,6 +196,7 @@ public class KeyEventHandlerTest
 
     assertEquals("hello", connection.text());
     assertEquals(0, connection.after_cursor_request);
+    assertEquals(0, connection.delete_calls);
   }
 
   @Test
@@ -213,6 +214,7 @@ public class KeyEventHandlerTest
 
     assertEquals("hello world", connection.text());
     assertEquals(3, connection.cursor);
+    assertEquals(0, connection.delete_calls);
   }
 
   @Test
@@ -229,6 +231,7 @@ public class KeyEventHandlerTest
 
     assertEquals("hello", connection.text());
     assertEquals(0, connection.after_cursor_request);
+    assertEquals(0, connection.delete_calls);
   }
 
   @Test

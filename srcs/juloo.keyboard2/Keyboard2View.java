@@ -117,8 +117,15 @@ public class Keyboard2View extends View
   {
     _mods = Pointers.Modifiers.EMPTY;
     _pointers.clear();
+    notify_reset(_config == null ? null : _config.handler);
     requestLayout();
     invalidate();
+  }
+
+  static void notify_reset(Config.IKeyEventHandler handler)
+  {
+    if (handler != null)
+      handler.mods_changed(Pointers.Modifiers.EMPTY, Pointers.ShiftState.OFF);
   }
 
   void set_fake_ptr_latched(KeyboardData.Key key, KeyValue kv, boolean latched,
