@@ -330,14 +330,25 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
-    conn.sendKeyEvent(new KeyEvent(1, 1, eventAction, eventCode, 0,
-          metaState, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
-          KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE));
+    conn.sendKeyEvent(new SentKeyEvent(eventAction, eventCode, metaState));
     if (eventAction == KeyEvent.ACTION_UP)
     {
-      if (_autocap._handler != null)
-        _autocap.event_sent(eventCode, metaState);
+      _autocap.event_sent(eventCode, metaState);
       _typedword.event_sent(eventCode, metaState);
+    }
+  }
+
+  static class SentKeyEvent extends KeyEvent
+  {
+    final int action;
+    final int code;
+
+    SentKeyEvent(int action, int code, int metaState)
+    {
+      super(1, 1, action, code, 0, metaState, KeyCharacterMap.VIRTUAL_KEYBOARD,
+          0, KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE);
+      this.action = action;
+      this.code = code;
     }
   }
 

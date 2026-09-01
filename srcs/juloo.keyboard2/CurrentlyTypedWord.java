@@ -178,6 +178,10 @@ public final class CurrentlyTypedWord
   {
     if (!_enabled)
       return;
+    boolean removed_delimiter = remove_before == 1 && remove_after == 0
+      && _w.length() == 0 && _w_cursor == 0 && _text_before_cursor.length() > 0
+      && !is_word_char(Character.codePointBefore(_text_before_cursor,
+            _text_before_cursor.length()));
     int len = _w.length();
     int c = len + _w_cursor;
     _w.delete(Math.max(c - remove_before, 0), Math.min(c + remove_after, len));
@@ -185,6 +189,8 @@ public final class CurrentlyTypedWord
         Math.max(_text_before_cursor.length() - remove_before, 0));
     _cursor -= remove_before;
     _w_cursor -= Math.min(remove_after, 0);
+    if (removed_delimiter)
+      set_current_word(_text_before_cursor, false);
     update_sentence_start();
     callback();
   }

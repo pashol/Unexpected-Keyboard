@@ -1,6 +1,7 @@
 package juloo.keyboard2;
 
 import android.os.Handler;
+import android.view.KeyEvent;
 import android.view.inputmethod.InputConnection;
 import java.io.File;
 import java.lang.reflect.InvocationHandler;
@@ -112,6 +113,26 @@ public class KeyEventHandlerTest
     handler.handle_backspace();
 
     assertEquals("Informatik", connection.text());
+  }
+
+  @Test
+  public void backspace_after_tapped_completion_restores_composing_word()
+  {
+    FakeInputConnection connection = new FakeInputConnection("Informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("Informa");
+
+    handler.suggestion_entered("Informatik");
+    handler.handle_backspace();
+
+    assertEquals("Informatik", handler._typedword.get());
+    handler.handle_backspace();
+    assertEquals("Informati", handler._typedword.get());
+    handler.send_text("x", false);
+
+    assertEquals("Informatix", connection.text());
+    assertEquals("Informatix", handler._typedword.get());
   }
 
   @Test
@@ -541,7 +562,6 @@ public class KeyEventHandlerTest
     int delete_calls = 0;
     int begin_batch_calls = 0;
     int end_batch_calls = 0;
-    int key_event_count = 0;
 
     FakeInputConnection()
     {
@@ -586,11 +606,10 @@ public class KeyEventHandlerTest
       }
       if (method.getName().equals("sendKeyEvent"))
       {
-        key_event_count++;
-        // The local Android KeyEvent stubs do not expose event properties.
-        // Key events are sent in down/up pairs, so the second event is the up event.
-        if (key_event_count % 2 == 0 && cursor > 0
-            && text.charAt(cursor - 1) == ' ')
+        KeyEventHandler.SentKeyEvent event =
+          (KeyEventHandler.SentKeyEvent)args[0];
+        if (event.action == KeyEvent.ACTION_UP && event.code == KeyEvent.KEYCODE_DEL
+            && cursor > 0)
         {
           text.deleteCharAt(cursor - 1);
           cursor--;
