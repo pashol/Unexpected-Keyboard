@@ -102,6 +102,21 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void punctuation_after_tapped_completion_replaces_its_automatic_space()
+  {
+    FakeInputConnection connection = new FakeInputConnection("Informa");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("Informa");
+    handler.refresh_typing_config(false, false, false);
+
+    handler.suggestion_entered("Informatik");
+    handler.send_text(".");
+
+    assertEquals("Informatik.", connection.text());
+  }
+
+  @Test
   public void backspace_after_tapped_completion_removes_only_its_space()
   {
     FakeInputConnection connection = new FakeInputConnection("Informa");
@@ -371,7 +386,7 @@ public class KeyEventHandlerTest
     handler.refresh_typing_config(true, true, false);
     handler.send_text("?");
 
-    assertEquals("word. !?", connection.text());
+    assertEquals("word.!?", connection.text());
   }
 
   @Test

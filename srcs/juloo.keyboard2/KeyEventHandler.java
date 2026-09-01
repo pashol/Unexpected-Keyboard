@@ -366,15 +366,15 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
+    if (should_remove_auto_space(_auto_space_inserted, text))
+    {
+      CharSequence before = conn.getTextBeforeCursor(1, 0);
+      if (before != null && before.length() == 1 && before.charAt(0) == ' ')
+        replace_surrounding_text(1, 0, "");
+      _auto_space_inserted = false;
+    }
     if (auto_space)
     {
-      if (should_remove_auto_space(_auto_space_inserted, text))
-      {
-        CharSequence before = conn.getTextBeforeCursor(1, 0);
-        if (before != null && before.length() == 1 && before.charAt(0) == ' ')
-          replace_surrounding_text(1, 0, "");
-        _auto_space_inserted = false;
-      }
       CharSequence after = conn.getTextAfterCursor(1, 0);
       boolean has_next_space = after != null && after.length() > 0
         && Character.isWhitespace(after.charAt(0));

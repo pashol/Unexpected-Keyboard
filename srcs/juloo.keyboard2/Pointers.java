@@ -39,11 +39,27 @@ public final class Pointers implements Handler.Callback
   /** Return the list of modifiers currently activated. */
   public Modifiers getModifiers()
   {
-    return getModifiers(false);
+    return getModifiers(false, false);
   }
 
   /** When [skip_latched] is true, don't take flags of latched keys into account. */
   private Modifiers getModifiers(boolean skip_latched)
+  {
+    return getModifiers(skip_latched, false);
+  }
+
+  /** Automatic modifier latches transform keys but are not Android meta keys. */
+  Modifiers getModifiersWithoutFake()
+  {
+    return getModifiers(false, true);
+  }
+
+  private Modifiers getModifiersWithoutFake(boolean skip_latched)
+  {
+    return getModifiers(skip_latched, true);
+  }
+
+  private Modifiers getModifiers(boolean skip_latched, boolean skip_fake)
   {
     int n_ptrs = _ptrs.size();
     KeyValue[] mods = new KeyValue[n_ptrs];
@@ -52,6 +68,7 @@ public final class Pointers implements Handler.Callback
     {
       Pointer p = _ptrs.get(i);
       if (p.value != null
+          && !(skip_fake && p.hasFlagsAny(FLAG_P_FAKE))
           && !(skip_latched && p.hasFlagsAny(FLAG_P_LATCHED)
             && (p.flags & FLAG_P_LOCKED) == 0))
         mods[n_mods++] = p.value;
@@ -106,7 +123,8 @@ public final class Pointers implements Handler.Callback
     int flags = pointer_flags_of_kv(kv) | FLAG_P_FAKE | FLAG_P_LATCHED;
     if (locked)
       flags |= FLAG_P_LOCKED;
-    Pointer ptr = new Pointer(-1, key, kv, 0.f, 0.f, Modifiers.EMPTY, flags);
+    Pointer ptr = new Pointer(-1, key, kv, 0.f, 0.f, Modifiers.EMPTY,
+        Modifiers.EMPTY, flags);
     _ptrs.add(ptr);
     _handler.onPointerFlagsChanged(false);
   }
@@ -180,7 +198,7 @@ public final class Pointers implements Handler.Callback
       else // Otherwise, unlatch
       {
         removePtr(latched);
-        _handler.onPointerUp(ptr_value, ptr.modifiers);
+        _handler.onPointerUp(ptr_value, ptr.event_modifiers);
       }
     }
     else if ((ptr.flags & FLAG_P_LATCHABLE) != 0)
@@ -196,7 +214,7 @@ public final class Pointers implements Handler.Callback
     {
       clearLatched();
       removePtr(ptr);
-      _handler.onPointerUp(ptr_value, ptr.modifiers);
+      _handler.onPointerUp(ptr_value, ptr.event_modifiers);
     }
   }
 
@@ -225,8 +243,9 @@ public final class Pointers implements Handler.Callback
     // Don't take latched modifiers into account if an other key is pressed.
     // The other key already "own" the latched modifiers and will clear them.
     Modifiers mods = getModifiers(isOtherPointerDown());
+    Modifiers event_mods = getModifiersWithoutFake(isOtherPointerDown());
     KeyValue value = _handler.modifyKey(key.keys[0], mods);
-    Pointer ptr = make_pointer(pointerId, key, value, x, y, mods);
+    Pointer ptr = make_pointer(pointerId, key, value, x, y, mods, event_mods);
     _ptrs.add(ptr);
     startLongPress(ptr);
     _handler.onPointerDown(value, false);
@@ -547,10 +566,10 @@ public final class Pointers implements Handler.Callback
   // Pointers
 
   Pointer make_pointer(int p, KeyboardData.Key k, KeyValue v, float x, float y,
-      Modifiers m)
+      Modifiers m, Modifiers event_m)
   {
     int flags = (v == null) ? 0 : pointer_flags_of_kv(v);
-    return new Pointer(p, k, v, x, y, m, flags);
+    return new Pointer(p, k, v, x, y, m, event_m, flags);
   }
 
   private static final class Pointer
@@ -567,6 +586,8 @@ public final class Pointers implements Handler.Callback
     public float downY;
     /** Modifier flags at the time the key was pressed. */
     public Modifiers modifiers;
+    /** System modifiers at the time the key was pressed. */
+    public Modifiers event_modifiers;
     /** See [FLAG_P_*] flags. */
     public int flags;
     /** Identify timeout messages. */
@@ -574,7 +595,8 @@ public final class Pointers implements Handler.Callback
     /** [null] when not in sliding mode. */
     public Sliding sliding;
 
-    public Pointer(int p, KeyboardData.Key k, KeyValue v, float x, float y, Modifiers m, int f)
+    public Pointer(int p, KeyboardData.Key k, KeyValue v, float x, float y,
+        Modifiers m, Modifiers event_m, int f)
     {
       pointerId = p;
       key = k;
@@ -583,6 +605,7 @@ public final class Pointers implements Handler.Callback
       downX = x;
       downY = y;
       modifiers = m;
+      event_modifiers = event_m;
       flags = f;
       timeoutWhat = -1;
       sliding = null;
@@ -661,7 +684,7 @@ public final class Pointers implements Handler.Callback
       {
         d -= d_;
         _handler.onPointerHold(KeyValue.sliderKey(slider, d_),
-            ptr.modifiers);
+            ptr.event_modifiers);
       }
     }
 

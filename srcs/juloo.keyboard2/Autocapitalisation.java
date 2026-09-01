@@ -58,7 +58,7 @@ public final class Autocapitalisation
   {
     if (!_enabled)
       return;
-    if (meta != 0)
+    if (meta != 0 && !should_refresh_caps_mode_after_event(code, meta))
     {
       _should_enable_shift = false;
       _should_update_caps_mode = false;
@@ -75,6 +75,11 @@ public final class Autocapitalisation
         break;
     }
     callback(true);
+  }
+
+  static boolean should_refresh_caps_mode_after_event(int code, int meta)
+  {
+    return code == KeyEvent.KEYCODE_ENTER;
   }
 
   public void stop()

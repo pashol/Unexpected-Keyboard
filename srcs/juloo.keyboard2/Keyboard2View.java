@@ -195,7 +195,8 @@ public class Keyboard2View extends View
   private void updateFlags()
   {
     _mods = _pointers.getModifiers();
-    _config.handler.mods_changed(_mods, _pointers.shift_state());
+    _config.handler.mods_changed(_pointers.getModifiersWithoutFake(),
+        _pointers.shift_state());
   }
 
   @Override
