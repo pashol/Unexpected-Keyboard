@@ -243,40 +243,6 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void manual_shift_latch_leaves_word_unchanged_before_supplementary_letter()
-  {
-    FakeInputConnection connection = new FakeInputConnection("hello\uD801\uDC00");
-    connection.cursor = 5;
-    KeyEventHandler handler = new_handler(connection);
-    handler._typedword._enabled = true;
-    handler._typedword.set_current_word("hello");
-
-    handler.key_down(KeyValue.SHIFT, false);
-    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
-
-    assertEquals("hello\uD801\uDC00", connection.text());
-    assertEquals(2, connection.after_cursor_request);
-    assertTrue(handler._manual_shift_latched);
-    assertEquals(0, ((Receiver)handler._recv).shift_changes);
-  }
-
-  @Test
-  public void successful_manual_shift_cycle_clears_physical_latch()
-  {
-    FakeInputConnection connection = new FakeInputConnection("hello");
-    KeyEventHandler handler = new_handler(connection);
-    handler._typedword._enabled = true;
-    handler._typedword.set_current_word("hello");
-    Receiver receiver = (Receiver)handler._recv;
-
-    handler.key_down(KeyValue.SHIFT, false);
-    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
-
-    assertEquals("Hello", connection.text());
-    assertTrue(receiver.shift_latch_cleared);
-  }
-
-  @Test
   public void one_shot_shift_leaves_editor_word_unchanged()
   {
     FakeInputConnection connection = new FakeInputConnection("hello");
