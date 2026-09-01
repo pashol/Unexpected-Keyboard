@@ -666,6 +666,7 @@ public final class KeyEventHandler
     }
     else if (_space_bar_auto_complete && _suggestions.count > 0
         && _suggestions.types[0] == Suggestions.CandidateType.COMPLETION
+        && changes_typed_word(_suggestions.suggestions[0], _typedword.get())
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0)
     {
@@ -843,6 +844,11 @@ public final class KeyEventHandler
   static boolean should_autocomplete_space(boolean undone_autocomplete)
   {
     return !undone_autocomplete;
+  }
+
+  static boolean changes_typed_word(String candidate, String typed_word)
+  {
+    return candidate != null && !candidate.equals(typed_word);
   }
 
   public static enum LastAction

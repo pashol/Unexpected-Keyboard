@@ -127,6 +127,23 @@ public class KeyEventHandlerTest
   }
 
   @Test
+  public void space_does_not_arm_autocomplete_undo_for_unchanged_candidate()
+  {
+    FakeInputConnection connection = new FakeInputConnection("typed");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("typed");
+    handler._space_bar_auto_complete = true;
+    handler._suggestions.suggestions[0] = "typed";
+    handler._suggestions.count = 1;
+
+    handler.handle_space_bar();
+
+    assertEquals("typed ", connection.text());
+    assertNull(handler.last_replaced_word);
+  }
+
+  @Test
   public void next_word_candidate_tap_batches_an_append_without_deleting_adjacent_text()
   {
     FakeInputConnection connection = new FakeInputConnection("hello !");
