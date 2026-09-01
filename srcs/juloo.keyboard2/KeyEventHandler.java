@@ -10,7 +10,6 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.suggestions.UserDictionary;
@@ -36,7 +35,6 @@ public final class KeyEventHandler
   boolean _move_cursor_force_fallback = false;
   /** Whether the space bar automatically enters the best suggestion. */
   boolean _space_bar_auto_complete = false;
-  boolean _manual_shift_latched = false;
   boolean _auto_space_inserted = false;
   boolean _learn_undone_autocomplete = false;
   boolean _auto_space_after_punct = true;
@@ -72,7 +70,6 @@ public final class KeyEventHandler
     refresh_typing_config(conf.auto_space_after_punct,
         conf.editor_config.no_auto_space_after_punct, conf.user_dictionary_enabled);
     _last_action = null;
-    _manual_shift_latched = false;
     _auto_space_inserted = false;
     _learn_undone_autocomplete = false;
   }
@@ -145,13 +142,24 @@ public final class KeyEventHandler
   }
 
   @Override
-  public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched)
+  public void mods_changed(Pointers.Modifiers mods, Pointers.ShiftState shift_state)
   {
     update_meta_state(mods);
-    boolean newly_latched = manual_shift_latched && !_manual_shift_latched;
-    _manual_shift_latched = manual_shift_latched;
-    if (newly_latched)
-      cycle_typed_word_case();
+    Suggestions.CandidateCase candidate_case = candidate_case_for_shift(shift_state);
+    if (_suggestions.set_candidate_case(candidate_case))
+      _suggestions.currently_typed_word(_typedword.get(),
+          _typedword.sentence_start(), _typedword.preceding_words_for_next_word());
+  }
+
+  static Suggestions.CandidateCase candidate_case_for_shift(
+      Pointers.ShiftState shift_state)
+  {
+    switch (shift_state)
+    {
+      case SHIFTED: return Suggestions.CandidateCase.TITLE;
+      case LOCKED: return Suggestions.CandidateCase.UPPER;
+      default: return Suggestions.CandidateCase.DEFAULT;
+    }
   }
 
   @Override
@@ -563,7 +571,7 @@ public final class KeyEventHandler
     if (keys.length == 0)
       return;
     // Ignore modifiers that are activated at the time the macro is evaluated
-    mods_changed(Pointers.Modifiers.EMPTY, false);
+    mods_changed(Pointers.Modifiers.EMPTY, Pointers.ShiftState.OFF);
     evaluate_macro_loop(keys, 0, Pointers.Modifiers.EMPTY, _autocap.pause());
   }
 
@@ -698,7 +706,6 @@ public final class KeyEventHandler
   {
     public void handle_event_key(KeyValue.Event ev);
     public void set_shift_state(boolean state, boolean lock);
-    public void clear_shift_latch();
     public void set_compose_pending(boolean pending);
     public void selection_state_changed(boolean selection_is_ongoing);
     public InputConnection getCurrentInputConnection();
@@ -715,21 +722,6 @@ public final class KeyEventHandler
       else if (should_disable)
         _recv.set_shift_state(false, false);
     }
-  }
-
-  void cycle_typed_word_case()
-  {
-    String word = _typedword.get();
-    if (word.length() == 0 || _typedword.is_selection_not_empty()
-        || _typedword.cursor_relative() != 0)
-      return;
-    InputConnection conn = _recv.getCurrentInputConnection();
-    CharSequence after = conn == null ? null : conn.getTextAfterCursor(2, 0);
-    if (after != null && after.length() > 0
-        && Character.isLetter(Character.codePointAt(after, 0)))
-      return;
-    replace_surrounding_text(word.length(), 0, cycle_word_case(word));
-    _recv.clear_shift_latch();
   }
 
   void learn_typed_word(String delimiter)
@@ -761,22 +753,6 @@ public final class KeyEventHandler
       refresh_typing_config(_config.auto_space_after_punct,
           _config.editor_config.no_auto_space_after_punct,
           _config.user_dictionary_enabled);
-  }
-
-  static String cycle_word_case(String word)
-  {
-    if (word.equals(word.toLowerCase(Locale.ROOT)))
-    {
-      int first = word.codePointAt(0);
-      return new String(Character.toChars(Character.toTitleCase(first)))
-        + word.substring(Character.charCount(first));
-    }
-    int first = word.codePointAt(0);
-    int rest = Character.charCount(first);
-    if (Character.isUpperCase(first)
-        && word.substring(rest).equals(word.substring(rest).toLowerCase(Locale.ROOT)))
-      return word.toUpperCase(Locale.ROOT);
-    return word.toLowerCase(Locale.ROOT);
   }
 
   static boolean is_auto_spacing_punctuation(String text)

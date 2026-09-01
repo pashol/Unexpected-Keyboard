@@ -83,35 +83,21 @@ public final class Pointers implements Handler.Callback
     return -1;
   }
 
-  /** Whether [kv] is currently latched by a physical touch rather than by the
-      autocapitalisation fake pointer. */
-  public boolean is_manually_latched(KeyValue kv)
+  public static enum ShiftState
   {
-    for (Pointer p : _ptrs)
-      if (p.value != null && p.value.equals(kv)
-          && (p.flags & (FLAG_P_LATCHED | FLAG_P_FAKE)) == FLAG_P_LATCHED)
-        return true;
-    return false;
+    OFF,
+    SHIFTED,
+    LOCKED
   }
 
-  /** Clears an unlocked physical latch for [kv], preserving fake and locked
-      modifier state. */
-  public void clear_manual_latch(KeyValue kv)
+  public ShiftState shift_state()
   {
-    boolean changed = false;
-    for (int i = _ptrs.size() - 1; i >= 0; i--)
-    {
-      Pointer p = _ptrs.get(i);
-      if (p.value != null && p.value.equals(kv)
-          && (p.flags & (FLAG_P_LATCHED | FLAG_P_FAKE | FLAG_P_LOCKED))
-            == FLAG_P_LATCHED)
-      {
-        _ptrs.remove(i);
-        changed = true;
-      }
-    }
-    if (changed)
-      _handler.onPointerFlagsChanged(false);
+    int flags = getKeyFlags(KeyValue.SHIFT);
+    if (flags == -1)
+      return ShiftState.OFF;
+    if ((flags & FLAG_P_LOCKED) != 0)
+      return ShiftState.LOCKED;
+    return ShiftState.SHIFTED;
   }
 
   /** The key must not be already latched . */

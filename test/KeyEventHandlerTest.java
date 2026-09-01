@@ -14,22 +14,14 @@ import static org.junit.Assert.*;
 public class KeyEventHandlerTest
 {
   @Test
-  public void cycle_word_case_rotates_lower_title_upper()
+  public void candidate_case_for_shift_maps_shift_states()
   {
-    assertEquals("Hello", KeyEventHandler.cycle_word_case("hello"));
-    assertEquals("HELLO", KeyEventHandler.cycle_word_case("Hello"));
-    assertEquals("hello", KeyEventHandler.cycle_word_case("HELLO"));
-  }
-
-  @Test
-  public void cycle_word_case_rotates_supplementary_plane_letters()
-  {
-    String lower = "\uD801\uDC28\uD801\uDC29";
-    String title = "\uD801\uDC00\uD801\uDC29";
-    String upper = "\uD801\uDC00\uD801\uDC01";
-    assertEquals(title, KeyEventHandler.cycle_word_case(lower));
-    assertEquals(upper, KeyEventHandler.cycle_word_case(title));
-    assertEquals(lower, KeyEventHandler.cycle_word_case(upper));
+    assertEquals(Suggestions.CandidateCase.DEFAULT,
+        KeyEventHandler.candidate_case_for_shift(Pointers.ShiftState.OFF));
+    assertEquals(Suggestions.CandidateCase.TITLE,
+        KeyEventHandler.candidate_case_for_shift(Pointers.ShiftState.SHIFTED));
+    assertEquals(Suggestions.CandidateCase.UPPER,
+        KeyEventHandler.candidate_case_for_shift(Pointers.ShiftState.LOCKED));
   }
 
   @Test
@@ -191,37 +183,52 @@ public class KeyEventHandlerTest
   }
 
   @Test
-  public void manual_shift_latch_leaves_word_unchanged_before_supplementary_letter()
-  {
-    FakeInputConnection connection = new FakeInputConnection("hello\uD801\uDC00");
-    connection.cursor = 5;
-    KeyEventHandler handler = new_handler(connection);
-    handler._typedword._enabled = true;
-    handler._typedword.set_current_word("hello");
-
-    handler.key_down(KeyValue.SHIFT, false);
-    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
-
-    assertEquals("hello\uD801\uDC00", connection.text());
-    assertEquals(2, connection.after_cursor_request);
-    assertTrue(handler._manual_shift_latched);
-    assertEquals(0, ((Receiver)handler._recv).shift_changes);
-  }
-
-  @Test
-  public void successful_manual_shift_cycle_clears_physical_latch()
+  public void one_shot_shift_leaves_editor_word_unchanged()
   {
     FakeInputConnection connection = new FakeInputConnection("hello");
     KeyEventHandler handler = new_handler(connection);
     handler._typedword._enabled = true;
     handler._typedword.set_current_word("hello");
-    Receiver receiver = (Receiver)handler._recv;
 
     handler.key_down(KeyValue.SHIFT, false);
-    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT), true);
+    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT),
+        Pointers.ShiftState.SHIFTED);
 
-    assertEquals("Hello", connection.text());
-    assertTrue(receiver.shift_latch_cleared);
+    assertEquals("hello", connection.text());
+    assertEquals(0, connection.after_cursor_request);
+  }
+
+  @Test
+  public void shift_at_internal_cursor_leaves_editor_word_unchanged()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello world");
+    connection.cursor = 3;
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("hello");
+
+    handler.key_down(KeyValue.SHIFT, false);
+    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT),
+        Pointers.ShiftState.SHIFTED);
+
+    assertEquals("hello world", connection.text());
+    assertEquals(3, connection.cursor);
+  }
+
+  @Test
+  public void locked_shift_leaves_editor_word_unchanged()
+  {
+    FakeInputConnection connection = new FakeInputConnection("hello");
+    KeyEventHandler handler = new_handler(connection);
+    handler._typedword._enabled = true;
+    handler._typedword.set_current_word("hello");
+
+    handler.key_down(KeyValue.SHIFT, false);
+    handler.mods_changed(Pointers.Modifiers.EMPTY.with_extra_mod(KeyValue.SHIFT),
+        Pointers.ShiftState.LOCKED);
+
+    assertEquals("hello", connection.text());
+    assertEquals(0, connection.after_cursor_request);
   }
 
   @Test
@@ -433,14 +440,12 @@ public class KeyEventHandlerTest
   {
     final InputConnection connection;
     int shift_changes = 0;
-    boolean shift_latch_cleared = false;
     int suggestion_updates = 0;
     juloo.keyboard2.suggestions.Suggestions last_suggestions;
 
     Receiver(InputConnection connection) { this.connection = connection; }
     public void handle_event_key(KeyValue.Event event) {}
     public void set_shift_state(boolean state, boolean lock) { shift_changes++; }
-    public void clear_shift_latch() { shift_latch_cleared = true; }
     public void set_compose_pending(boolean pending) {}
     public void selection_state_changed(boolean selection) {}
     public InputConnection getCurrentInputConnection() { return connection; }

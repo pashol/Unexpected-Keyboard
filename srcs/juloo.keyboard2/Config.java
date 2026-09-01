@@ -341,7 +341,7 @@ public final class Config
   {
     public void key_down(KeyValue value, boolean is_swipe);
     public void key_up(KeyValue value, Pointers.Modifiers mods);
-    public void mods_changed(Pointers.Modifiers mods, boolean manual_shift_latched);
+    public void mods_changed(Pointers.Modifiers mods, Pointers.ShiftState shift_state);
     public void suggestion_entered(String text);
     public void candidate_entered(String text, Suggestions.CandidateType type);
     public void personal_candidate_removed(String text);
