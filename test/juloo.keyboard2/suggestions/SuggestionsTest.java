@@ -2,6 +2,7 @@ package juloo.keyboard2.suggestions;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import juloo.keyboard2.prediction.PredictionCandidate;
 import juloo.keyboard2.prediction.PredictionEngine;
 import juloo.keyboard2.prediction.PredictionEngineController;
@@ -27,27 +28,27 @@ public class SuggestionsTest
   }
 
   @Test
-  public void promotes_typed_word_when_candidates_are_ambiguous()
+  public void places_missing_typed_word_last_when_candidates_are_ambiguous()
   {
     String[] candidates = { "Erdbeere", "Erden", null };
-    Suggestions.promote_typed_word(candidates, "erde");
-    assertArrayEquals(new String[] { "erde", "Erdbeere", "Erden" },
+    Suggestions.place_typed_word_last(candidates, "erde");
+    assertArrayEquals(new String[] { "Erdbeere", "Erden", "erde" },
         candidates);
   }
 
   @Test
-  public void promotes_existing_typed_word_with_its_stored_casing()
+  public void places_existing_typed_word_last_with_its_stored_casing()
   {
     String[] candidates = { "Erdbeere", "Erde", null };
-    Suggestions.promote_typed_word(candidates, "erde");
-    assertArrayEquals(new String[] { "Erde", "Erdbeere", null }, candidates);
+    Suggestions.place_typed_word_last(candidates, "erde");
+    assertArrayEquals(new String[] { "Erdbeere", "Erde", null }, candidates);
   }
 
   @Test
   public void keeps_single_unambiguous_completion()
   {
     String[] candidates = { "Grosswangen", null, null };
-    Suggestions.promote_typed_word(candidates, "Grosswan");
+    Suggestions.place_typed_word_last(candidates, "Grosswan");
     assertArrayEquals(new String[] { "Grosswangen", null, null }, candidates);
   }
 
@@ -80,7 +81,7 @@ public class SuggestionsTest
   {
     String[] candidates = { "Grosswangen", null, null };
     String emoji = "map";
-    Suggestions.promote_typed_word(candidates, "Grosswan");
+    Suggestions.place_typed_word_last(candidates, "Grosswan");
     assertEquals("Grosswangen", candidates[0]);
     assertEquals("map", emoji);
   }
@@ -94,6 +95,64 @@ public class SuggestionsTest
         new String[] { "erde", "Erdling", "Erdung" });
     assertArrayEquals(new String[] { "Erdling", "Erde", "Erden" }, candidates);
     assertArrayEquals(new boolean[] { true, false, false }, personal);
+  }
+
+  @Test
+  public void places_exact_dictionary_word_first_after_personal_prefixes()
+  {
+    String[] candidates = { "Zucker", "zude", "zu" };
+    boolean[] personal = { true, true, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types, "zu");
+
+    assertArrayEquals(new String[] { "zu", "Zucker", "zude" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, true }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.COMPLETION }, types);
+  }
+
+  @Test
+  public void places_exact_dictionary_word_first_under_a_personal_prefix()
+  {
+    String[] candidates = { "deshalb", "des", "Designer" };
+    boolean[] personal = { true, false, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types, "des");
+
+    assertArrayEquals(new String[] { "des", "deshalb", "Designer" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, false }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.COMPLETION }, types);
+  }
+
+  @Test
+  public void places_exact_dictionary_alias_before_personal_typed_word()
+  {
+    String[] candidates = { "Typed", "AliasResult", "Other" };
+    boolean[] personal = { true, false, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types,
+        "AliasResult");
+
+    assertArrayEquals(new String[] { "AliasResult", "Typed", "Other" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, false }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.NEXT_WORD,
+        Suggestions.CandidateType.COMPLETION }, types);
   }
 
   @Test
@@ -114,15 +173,30 @@ public class SuggestionsTest
   }
 
   @Test
-  public void keeps_personal_provenance_when_promoting_a_candidate()
+  public void keeps_candidate_metadata_when_placing_a_candidate_last()
   {
-    String[] candidates = { "System", "Personal", null };
+    String[] candidates = { "Completion", "Typed", "Other" };
     boolean[] personal = { false, true, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.NEXT_WORD,
+      Suggestions.CandidateType.COMPLETION
+    };
 
-    Suggestions.promote_typed_word(candidates, personal, "personal");
+    Suggestions.place_typed_word_last(candidates, personal, types, "typed");
 
-    assertArrayEquals(new String[] { "Personal", "System", null }, candidates);
-    assertArrayEquals(new boolean[] { true, false, false }, personal);
+    assertArrayEquals(new String[] { "Completion", "Other", "Typed" }, candidates);
+    assertArrayEquals(new boolean[] { false, false, true }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.NEXT_WORD }, types);
+  }
+
+  @Test
+  public void keeps_best_typed_word_centered_instead_of_forcing_a_correction()
+  {
+    String[] candidates = { "Typed", "Completion", "Other" };
+    Suggestions.place_typed_word_last(candidates, "typed");
+    assertArrayEquals(new String[] { "Typed", "Completion", "Other" }, candidates);
   }
 
   @Test
@@ -179,18 +253,101 @@ public class SuggestionsTest
   {
     Suggestions suggestions = new Suggestions(null, null);
     suggestions.emoji_suggestion = "emoji";
+    suggestions.set_candidate_case(Suggestions.CandidateCase.UPPER);
 
     suggestions.set_next_word_candidates(Arrays.asList(
         new PredictionCandidate("world", 1f),
         new PredictionCandidate("there", .5f)));
 
-    assertArrayEquals(new String[] { "world", "there", null }, suggestions.suggestions);
+    assertArrayEquals(new String[] { "WORLD", "THERE", null }, suggestions.suggestions);
     assertArrayEquals(new Suggestions.CandidateType[] {
         Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.NEXT_WORD,
         Suggestions.CandidateType.COMPLETION }, suggestions.types);
     assertArrayEquals(new boolean[] { false, false, false }, suggestions.personal_suggestions);
     assertEquals(2, suggestions.count);
     assertNull(suggestions.emoji_suggestion);
+  }
+
+  @Test
+  public void applies_title_case_to_word_candidates()
+  {
+    String[] candidates = { "hello", "WORLD", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+    assertArrayEquals(new String[] { "Hello", "World", null }, candidates);
+  }
+
+  @Test
+  public void applies_title_case_to_supplementary_initial_with_root_locale()
+  {
+    Locale original_locale = Locale.getDefault();
+    try
+    {
+      Locale.setDefault(new Locale("tr", "TR"));
+      String[] candidates = { "\uD801\uDC28ELLO", "istanbul", null };
+
+      Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+      assertArrayEquals(new String[] { "\uD801\uDC00ello", "Istanbul", null },
+          candidates);
+    }
+    finally
+    {
+      Locale.setDefault(original_locale);
+    }
+  }
+
+  @Test
+  public void applies_upper_case_to_word_candidates()
+  {
+    String[] candidates = { "Hello", "world", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.UPPER);
+
+    assertArrayEquals(new String[] { "HELLO", "WORLD", null }, candidates);
+  }
+
+  @Test
+  public void preserves_dictionary_casing_for_default_candidate_case()
+  {
+    String[] candidates = { "iPhone", "McDonald", null };
+
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.DEFAULT);
+
+    assertArrayEquals(new String[] { "iPhone", "McDonald", null }, candidates);
+  }
+
+  @Test
+  public void reports_only_real_candidate_case_changes()
+  {
+    Suggestions suggestions = new Suggestions(null, null);
+
+    assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
+    assertFalse(suggestions.set_candidate_case(Suggestions.CandidateCase.TITLE));
+    assertTrue(suggestions.set_candidate_case(Suggestions.CandidateCase.UPPER));
+  }
+
+  @Test
+  public void keeps_completion_order_when_applying_title_case()
+  {
+    String[] candidates = { "best", "middle", null };
+
+    Suggestions.place_typed_word_last(candidates, "typed");
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.TITLE);
+
+    assertArrayEquals(new String[] { "Best", "Middle", "Typed" }, candidates);
+  }
+
+  @Test
+  public void keeps_completion_order_when_applying_upper_case()
+  {
+    String[] candidates = { "best", "middle", null };
+
+    Suggestions.place_typed_word_last(candidates, "typed");
+    Suggestions.apply_candidate_case(candidates, Suggestions.CandidateCase.UPPER);
+
+    assertArrayEquals(new String[] { "BEST", "MIDDLE", "TYPED" }, candidates);
   }
 
   @Test

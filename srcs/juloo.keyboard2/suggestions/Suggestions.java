@@ -26,11 +26,19 @@ public final class Suggestions
     NEXT_WORD
   }
 
+  public static enum CandidateCase
+  {
+    DEFAULT,
+    TITLE,
+    UPPER
+  }
+
   Callback _callback;
   Config _config;
   boolean _enabled;
   private PredictionEngineController _prediction_controller;
   private int _request_generation;
+  private CandidateCase _candidate_case = CandidateCase.DEFAULT;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
@@ -59,6 +67,14 @@ public final class Suggestions
   {
     _prediction_controller = predictionController;
     clear();
+  }
+
+  public boolean set_candidate_case(CandidateCase candidateCase)
+  {
+    if (_candidate_case == candidateCase)
+      return false;
+    _candidate_case = candidateCase;
+    return true;
   }
 
   public void started()
@@ -128,6 +144,7 @@ public final class Suggestions
       suggestions[i] = candidates.get(i).text();
       types[i] = CandidateType.NEXT_WORD;
     }
+    apply_candidate_case(suggestions, _candidate_case);
     count = count_suggestions(suggestions);
   }
 
@@ -143,12 +160,14 @@ public final class Suggestions
       types[i] = CandidateType.COMPLETION;
     }
     int i = 0;
+    String exact_main_dictionary_result = null;
     if (dict != null)
     {
       Cdict.Result r_exact = dict.find(word);
       if (r_exact.found)
       {
-        String result = dict.word(r_exact.index);
+        exact_main_dictionary_result = dict.word(r_exact.index);
+        String result = exact_main_dictionary_result;
         if (!already_in(suggestions, i, result))
           suggestions[i++] = result;
       }
@@ -187,13 +206,17 @@ public final class Suggestions
     if (_config.user_dictionary_enabled && UserDictionary.instance() != null)
       prepend_personal_candidates(suggestions, personal_suggestions,
           UserDictionary.instance().find_prefix(word, 2));
+    if (exact_main_dictionary_result != null)
+      place_exact_dictionary_result_first(suggestions, personal_suggestions, types,
+          exact_main_dictionary_result);
     boolean capitalize = first_char_upper
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
       capitalize_results(suggestions);
-    promote_typed_word(suggestions, personal_suggestions, types, capitalize
+    place_typed_word_last(suggestions, personal_suggestions, types, capitalize
         ? Utils.capitalize_string(typed_word) : typed_word);
     emoji_suggestion = query_emoji(word); // word with substitutions applied
+    apply_candidate_case(suggestions, _candidate_case);
     count = count_suggestions(suggestions);
     return count;
   }
@@ -225,6 +248,27 @@ public final class Suggestions
         candidates[i] = Utils.capitalize_string(candidates[i]);
   }
 
+  public static void apply_candidate_case(String[] candidates,
+      CandidateCase candidateCase)
+  {
+    if (candidateCase == CandidateCase.DEFAULT)
+      return;
+    for (int i = 0; i < candidates.length; i++)
+    {
+      String candidate = candidates[i];
+      if (candidate == null)
+        continue;
+      if (candidateCase == CandidateCase.UPPER)
+        candidates[i] = candidate.toUpperCase(Locale.ROOT);
+      else if (candidate.length() > 0)
+      {
+        int first_end = candidate.offsetByCodePoints(0, 1);
+        candidates[i] = candidate.substring(0, first_end).toUpperCase(Locale.ROOT)
+          + candidate.substring(first_end).toLowerCase(Locale.ROOT);
+      }
+    }
+  }
+
   static boolean already_in(String[] candidates, int count, String word)
   {
     for (int i = 0; i < count; i++)
@@ -233,18 +277,18 @@ public final class Suggestions
     return false;
   }
 
-  static void promote_typed_word(String[] candidates, String typed_word)
+  static void place_typed_word_last(String[] candidates, String typed_word)
   {
-    promote_typed_word(candidates, null, typed_word);
+    place_typed_word_last(candidates, null, typed_word);
   }
 
-  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+  static void place_typed_word_last(String[] candidates, boolean[] personal_candidates,
       String typed_word)
   {
-    promote_typed_word(candidates, personal_candidates, null, typed_word);
+    place_typed_word_last(candidates, personal_candidates, null, typed_word);
   }
 
-  static void promote_typed_word(String[] candidates, boolean[] personal_candidates,
+  static void place_typed_word_last(String[] candidates, boolean[] personal_candidates,
       CandidateType[] candidate_types, String typed_word)
   {
     int matching_index = -1;
@@ -258,43 +302,67 @@ public final class Suggestions
           matching_index = i;
       }
     }
-    if (matching_index == 0 || (matching_index == -1 && candidate_count < 2))
+    if (matching_index == 0)
       return;
-    if (matching_index > 0)
+    if (matching_index == -1 && candidate_count < 2)
+      return;
+    if (matching_index >= 0)
     {
       String matching_word = candidates[matching_index];
       boolean matching_personal = personal_candidates != null
         && personal_candidates[matching_index];
       CandidateType matching_type = candidate_types == null ? null
         : candidate_types[matching_index];
-      for (int i = matching_index; i > 0; i--)
+      int last_index = candidate_count - 1;
+      for (int i = matching_index; i < last_index; i++)
       {
-        candidates[i] = candidates[i - 1];
+        candidates[i] = candidates[i + 1];
         if (personal_candidates != null)
-          personal_candidates[i] = personal_candidates[i - 1];
+          personal_candidates[i] = personal_candidates[i + 1];
         if (candidate_types != null)
-          candidate_types[i] = candidate_types[i - 1];
+          candidate_types[i] = candidate_types[i + 1];
       }
-      candidates[0] = matching_word;
+      candidates[last_index] = matching_word;
       if (personal_candidates != null)
-        personal_candidates[0] = matching_personal;
+        personal_candidates[last_index] = matching_personal;
       if (candidate_types != null)
-        candidate_types[0] = matching_type;
+        candidate_types[last_index] = matching_type;
       return;
     }
-    for (int i = candidates.length - 1; i > 0; i--)
+    int last_index = Math.min(candidate_count, candidates.length - 1);
+    candidates[last_index] = typed_word;
+    if (personal_candidates != null)
+      personal_candidates[last_index] = false;
+    if (candidate_types != null)
+      candidate_types[last_index] = CandidateType.COMPLETION;
+  }
+
+  static void place_exact_dictionary_result_first(String[] candidates,
+      boolean[] personal_candidates, CandidateType[] candidate_types,
+      String exact_dictionary_result)
+  {
+    int matching_index = -1;
+    for (int i = 0; i < candidates.length; i++)
+      if (candidates[i] != null
+          && candidates[i].equalsIgnoreCase(exact_dictionary_result))
+      {
+        matching_index = i;
+        break;
+      }
+    if (matching_index <= 0)
+      return;
+    String matching_word = candidates[matching_index];
+    boolean matching_personal = personal_candidates[matching_index];
+    CandidateType matching_type = candidate_types[matching_index];
+    for (int i = matching_index; i > 0; i--)
     {
       candidates[i] = candidates[i - 1];
-      if (personal_candidates != null)
-        personal_candidates[i] = personal_candidates[i - 1];
-      if (candidate_types != null)
-        candidate_types[i] = candidate_types[i - 1];
+      personal_candidates[i] = personal_candidates[i - 1];
+      candidate_types[i] = candidate_types[i - 1];
     }
-    candidates[0] = typed_word;
-    if (personal_candidates != null)
-      personal_candidates[0] = false;
-    if (candidate_types != null)
-      candidate_types[0] = CandidateType.COMPLETION;
+    candidates[0] = matching_word;
+    personal_candidates[0] = matching_personal;
+    candidate_types[0] = matching_type;
   }
 
   public static String alternate_first_character(String word)

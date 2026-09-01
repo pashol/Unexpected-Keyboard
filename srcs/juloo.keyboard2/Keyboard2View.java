@@ -117,8 +117,15 @@ public class Keyboard2View extends View
   {
     _mods = Pointers.Modifiers.EMPTY;
     _pointers.clear();
+    notify_reset(_config == null ? null : _config.handler);
     requestLayout();
     invalidate();
+  }
+
+  static void notify_reset(Config.IKeyEventHandler handler)
+  {
+    if (handler != null)
+      handler.mods_changed(Pointers.Modifiers.EMPTY, Pointers.ShiftState.OFF);
   }
 
   void set_fake_ptr_latched(KeyboardData.Key key, KeyValue kv, boolean latched,
@@ -133,12 +140,6 @@ public class Keyboard2View extends View
   public void set_shift_state(boolean latched, boolean lock)
   {
     set_fake_ptr_latched(_shift_key, KeyValue.SHIFT, latched, lock);
-  }
-
-  /** Clears a manually latched Shift after retroactive case cycling. */
-  public void clear_shift_latch()
-  {
-    _pointers.clear_manual_latch(KeyValue.SHIFT);
   }
 
   /** Called from [KeyEventHandler]. */
@@ -194,8 +195,7 @@ public class Keyboard2View extends View
   private void updateFlags()
   {
     _mods = _pointers.getModifiers();
-    _config.handler.mods_changed(_mods,
-        _pointers.is_manually_latched(KeyValue.SHIFT));
+    _config.handler.mods_changed(_mods, _pointers.shift_state());
   }
 
   @Override
