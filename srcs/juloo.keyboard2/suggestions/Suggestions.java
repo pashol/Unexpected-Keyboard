@@ -160,9 +160,11 @@ public final class Suggestions
       types[i] = CandidateType.COMPLETION;
     }
     int i = 0;
+    boolean exact_main_dictionary_word = false;
     if (dict != null)
     {
       Cdict.Result r_exact = dict.find(word);
+      exact_main_dictionary_word = r_exact.found;
       if (r_exact.found)
       {
         String result = dict.word(r_exact.index);
@@ -204,6 +206,9 @@ public final class Suggestions
     if (_config.user_dictionary_enabled && UserDictionary.instance() != null)
       prepend_personal_candidates(suggestions, personal_suggestions,
           UserDictionary.instance().find_prefix(word, 2));
+    if (exact_main_dictionary_word)
+      place_exact_dictionary_word_first(suggestions, personal_suggestions, types,
+          typed_word);
     boolean capitalize = first_char_upper
       || (sentence_start && _config.capitalize_suggestions_at_sentence_start);
     if (capitalize)
@@ -330,6 +335,32 @@ public final class Suggestions
       personal_candidates[last_index] = false;
     if (candidate_types != null)
       candidate_types[last_index] = CandidateType.COMPLETION;
+  }
+
+  static void place_exact_dictionary_word_first(String[] candidates,
+      boolean[] personal_candidates, CandidateType[] candidate_types, String typed_word)
+  {
+    int matching_index = -1;
+    for (int i = 0; i < candidates.length; i++)
+      if (candidates[i] != null && candidates[i].equalsIgnoreCase(typed_word))
+      {
+        matching_index = i;
+        break;
+      }
+    if (matching_index <= 0)
+      return;
+    String matching_word = candidates[matching_index];
+    boolean matching_personal = personal_candidates[matching_index];
+    CandidateType matching_type = candidate_types[matching_index];
+    for (int i = matching_index; i > 0; i--)
+    {
+      candidates[i] = candidates[i - 1];
+      personal_candidates[i] = personal_candidates[i - 1];
+      candidate_types[i] = candidate_types[i - 1];
+    }
+    candidates[0] = matching_word;
+    personal_candidates[0] = matching_personal;
+    candidate_types[0] = matching_type;
   }
 
   public static String alternate_first_character(String word)

@@ -98,6 +98,44 @@ public class SuggestionsTest
   }
 
   @Test
+  public void places_exact_dictionary_word_first_after_personal_prefixes()
+  {
+    String[] candidates = { "Zucker", "zude", "zu" };
+    boolean[] personal = { true, true, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_word_first(candidates, personal, types, "zu");
+
+    assertArrayEquals(new String[] { "zu", "Zucker", "zude" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, true }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.COMPLETION }, types);
+  }
+
+  @Test
+  public void places_exact_dictionary_word_first_under_a_personal_prefix()
+  {
+    String[] candidates = { "deshalb", "des", "Designer" };
+    boolean[] personal = { true, false, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_word_first(candidates, personal, types, "des");
+
+    assertArrayEquals(new String[] { "des", "deshalb", "Designer" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, false }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.COMPLETION }, types);
+  }
+
+  @Test
   public void removes_only_enabled_personal_word_candidates()
       throws Exception
   {
