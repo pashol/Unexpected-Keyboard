@@ -107,7 +107,7 @@ public class SuggestionsTest
       Suggestions.CandidateType.COMPLETION
     };
 
-    Suggestions.place_exact_dictionary_word_first(candidates, personal, types, "zu");
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types, "zu");
 
     assertArrayEquals(new String[] { "zu", "Zucker", "zude" }, candidates);
     assertArrayEquals(new boolean[] { false, true, true }, personal);
@@ -126,12 +126,32 @@ public class SuggestionsTest
       Suggestions.CandidateType.COMPLETION
     };
 
-    Suggestions.place_exact_dictionary_word_first(candidates, personal, types, "des");
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types, "des");
 
     assertArrayEquals(new String[] { "des", "deshalb", "Designer" }, candidates);
     assertArrayEquals(new boolean[] { false, true, false }, personal);
     assertArrayEquals(new Suggestions.CandidateType[] {
         Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.COMPLETION,
+        Suggestions.CandidateType.COMPLETION }, types);
+  }
+
+  @Test
+  public void places_exact_dictionary_alias_before_personal_typed_word()
+  {
+    String[] candidates = { "Typed", "AliasResult", "Other" };
+    boolean[] personal = { true, false, false };
+    Suggestions.CandidateType[] types = {
+      Suggestions.CandidateType.NEXT_WORD, Suggestions.CandidateType.COMPLETION,
+      Suggestions.CandidateType.COMPLETION
+    };
+
+    Suggestions.place_exact_dictionary_result_first(candidates, personal, types,
+        "AliasResult");
+
+    assertArrayEquals(new String[] { "AliasResult", "Typed", "Other" }, candidates);
+    assertArrayEquals(new boolean[] { false, true, false }, personal);
+    assertArrayEquals(new Suggestions.CandidateType[] {
+        Suggestions.CandidateType.COMPLETION, Suggestions.CandidateType.NEXT_WORD,
         Suggestions.CandidateType.COMPLETION }, types);
   }
 
